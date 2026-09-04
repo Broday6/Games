@@ -152,6 +152,33 @@ Starter list (24 items):
 | Gluttony | L | food gives 2× and never spoils |
 | Warlord's Crown | L | +50% attack, +50% damage taken |
 
+## 8b. Roguelike layer (added in the second pass)
+
+- **XP & boons.** Kills grant XP to every living player; each level-up and every opened chest offers a
+  Hades-style *pick of 3* (4 with the Camp upgrade) from the perk pool, rarity-weighted. The game keeps
+  running while you choose; auto-pick after 25 s. Perk pool grows to 35+ (Backstab, Heavy Hitter,
+  Finisher, Split Shot, Ember Aura, Scavenger, Iron Lungs, Treasure Sense, Glass Cannon, Last Word…).
+- **Weapon loot.** Chests (and every boss) drop weapons with a rarity and 0–3 random affixes: Swift,
+  Brutal, Vampiric, Flaming, Frozen, Lucky, Heavy, Keen, Cursed. New weapon classes: daggers (fast,
+  crit), greatswords (slow, wide), crossbow (pierces), staffs (RMB casts fire/ice bolts). Heavy
+  attacks (hold RMB) and 3-hit combos on every melee weapon.
+- **Ten bosses per run.** Nights 2–7 each end with a *night boss* in fixed order — Bonecrusher (giant
+  skeleton, summons), the Warden (shielded knight, charges), the Matriarch (spider, webs slow you,
+  spiderlings), Frostmaw (ice wolf, breath cone, howls for wolves), the Lich (volleys, blinks, drains,
+  raises dead), the Titan (stomp quake, boulder barrage) — plus the 3 altar guardians and the Leviathan.
+  Every boss drops a **unique legendary weapon with a special** and a **unique armor piece/trinket**
+  (Wyrmscale Plate: fire immunity; Crown of the Hollow King: +2 dodges, dark can't bite; Wardenplate:
+  35% thorns; Silkweave Leggings: +25% speed; Frostmaw Greaves: frost aura; Titan Visor…). A fourth
+  equipment slot, the trinket, carries craftable and boss trinkets.
+- **Elites** spawn with 2.5× HP, 1.4× damage, an aura, triple coins and a weapon drop chance.
+- **Night events** roll each dusk from night 2: Blood Moon, Dead Fog, The Swarm, Smuggler's Night,
+  Long Dark, Champions Rise.
+- **The Camp (meta-progression).** After every run — win or lose — players land in the Camp with
+  Shards earned from days survived, bosses slain, kills and level. Permanent upgrades: Vitality,
+  Might, Swiftness, Fortune, Endurance, Chest Sense, Sharp Start, Second Chance, Wider Choice,
+  Scholar, Armory. Starting classes (Castaway, Warrior, Hunter, Builder) unlock via the Castaway Log.
+  Saved per browser; each player's meta travels with them into a friend's hosted game.
+
 ## 9. Enemies
 
 Enemy stats scale with `difficulty = 1 + 0.35 × night + 0.02 × minutesElapsed`.

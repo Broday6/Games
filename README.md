@@ -9,7 +9,7 @@ biome guardians for their gems, repair the shipwreck and kill what rises when yo
 
 - **Design prompt** (what we took from Muck, what we fixed, what we borrowed from Risk of Rain 2,
   Valheim, Core Keeper, Hades, Don't Starve Together, Deep Rock): [`docs/DESIGN_PROMPT.md`](docs/DESIGN_PROMPT.md)
-- **Game source:** [`driftwood/`](driftwood/) — vanilla JS + raw WebGL (first-person, heightmapped island, dynamic torch lighting), zero assets (all pixel art & sound are procedural), no build step, no libraries except PeerJS for room codes.
+- **Game source:** [`driftwood/`](driftwood/) — vanilla JS + raw WebGL (first-person, low-poly procedural meshes, heightmapped island, dynamic lighting, sky shader), zero assets (all geometry, icons & sound are procedural), no build step, no libraries except PeerJS for room codes.
 
 ### Play
 
@@ -19,7 +19,7 @@ Open `driftwood/index.html` from any static host (see *Hosting* below). No insta
 |---|---|
 | **Mouse** | look (click the game to grab the mouse, Esc to release) |
 | **WASD** / arrows | move · **Shift** sprint (stamina) · **Space** jump |
-| **Q** | dodge roll (i-frames; extra charges from Feathers) |
+| **Q** | dodge roll (i-frames; extra charges from Feathers) · **Alt+1–4** pick a boon |
 | **LMB** | attack / chop / mine / place the held building piece where you look |
 | **RMB** | draw bow (hold, release to fire) · raise shield (block; block in the first instant to parry) |
 | **E** | interact: open chest, use altar, deposit at the ship, open/close door · **hold E** near a downed friend to revive |
@@ -27,6 +27,10 @@ Open `driftwood/index.html` from any static host (see *Hosting* below). No insta
 | **1–9** / wheel | hotbar · **Tab** or **I** inventory + crafting · **Enter** chat · **T** ping · **M** mute |
 
 **The loop:** gather → craft a workbench → tools → furnace (iron bars) → anvil (iron/gold/obsidian gear).
+**Combat:** LMB swings chain into 3-hit combos (the finisher hits harder); **hold RMB** with a melee weapon for a charged heavy attack, with a bow to draw, with a staff to cast, with a shield to block (block in the first instant to parry).
+**Roguelike layer:** kills give XP → every level (and every chest) offers a **pick of 3 boons** (Hades-style; 35+ stackable perks). Weapons drop from chests and bosses with **rarity and random affixes** (Swift, Brutal, Vampiric, Flaming, Frozen, Lucky, Heavy, Keen, Cursed). Elites roam with tripled stats and better loot. Each night after the first rolls a **night event** (Blood Moon, Dead Fog, The Swarm, Smuggler's Night, Long Dark, Champions Rise).
+**10 bosses per run:** from night 2 the heavy wave brings a **night boss** — Bonecrusher, the Warden, the Matriarch, Frostmaw, the Lich, the Titan — each dropping a unique legendary weapon (shockwave hammer, shadow-bolt blade, fire-trail fang, executioner's cleaver, parry-wave bulwark, venom bow, freezing maul, chain-lightning staff, quaking gauntlet) and a unique armor piece. The three **altar guardians** (Gronk, the Hollow King, the Cinderwyrm) drop the gems for the ship, and the **Leviathan** guards the way out.
+**Between runs — the Camp:** every run, won or lost, earns Shards. Spend them on permanent upgrades (Vitality, Might, Swiftness, Fortune, Endurance, Chest Sense, Sharp Start, Second Chance, Wider Choice, Scholar, Armory) and unlock starting classes (Warrior, Hunter, Builder) through the Castaway Log. Saved in your browser.
 Every night spawns waves that scale with the day count *and* elapsed time. Placed torches and
 campfires create a claim radius where monsters cannot spawn — build walls and a door so they have to
 break in. Kill things for coins, spend coins on chests (grey/green/red/gold), stack the powerups.

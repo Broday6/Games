@@ -3,7 +3,7 @@
 (function (G) {
   'use strict';
   const T = G.T, O = G.OBJS, W = G.WORLD;
-  const R = { cam: { x: 0, y: 0, z: 1, yaw: -Math.PI / 2, pitch: 0 }, shake: 0, hitstop: 0, fx: { parts: [], floats: [], booms: [], zaps: [], slashes: [], targets: [], pings: [], wobble: {} }, tellFlash: {}, W: 640, H: 360, hurt: 0 };
+  const R = { cam: { x: 0, y: 0, z: 1, yaw: -Math.PI / 2, pitch: 0 }, shake: 0, hitstop: 0, fx: { parts: [], floats: [], booms: [], zaps: [], slashes: [], targets: [], pings: [], wobble: {}, corpses: [] }, banner: null, kick: 0, roll: 0, tellFlash: {}, W: 640, H: 360, hurt: 0 };
   G.Render = R;
   let gl, cv, ov, ox, mini, minx, miniBase = null, prog, skyProg, skyBuf;
   const CH = 16, WATER_Y = 0.0, HSCALE = 4.2, EYE = 1.0;
@@ -32,12 +32,12 @@
 
   // ================= shaders =================
   const VS = `attribute vec3 aPos; attribute vec3 aNrm; attribute vec3 aCol; attribute float aEm;
-    uniform mat4 uVP; uniform float uTime; uniform float uWater; uniform vec3 uCam;
+    uniform mat4 uVP; uniform float uTime; uniform float uWater; uniform vec3 uCam; uniform float uFogNear;
     varying vec3 vCol; varying float vFog; varying vec3 vNrm; varying vec3 vPos; varying float vEm;
     void main(){ vec3 p = aPos; vec3 n = aNrm;
       if(uWater > 0.5){ p.y += sin(p.x*1.3 + uTime*1.6)*0.05 + cos(p.z*1.1 + uTime*1.2)*0.05; n = normalize(vec3(-cos(p.x*1.3+uTime*1.6)*0.07, 1.0, sin(p.z*1.1+uTime*1.2)*0.06)); }
       gl_Position = uVP * vec4(p, 1.0); vPos = p; vNrm = n; vCol = aCol; vEm = aEm;
-      float d = distance(p, uCam); vFog = clamp((d - 26.0) / 40.0, 0.0, 1.0); }`;
+      float d = distance(p, uCam); vFog = clamp((d - uFogNear) / (uFogNear < 10.0 ? 12.0 : 40.0), 0.0, 1.0); }`;
   const FS = `precision mediump float;
     uniform vec3 uFog; uniform float uAlpha; uniform vec3 uSunDir; uniform vec3 uSunCol; uniform float uAmb; uniform vec4 uLights[16]; uniform vec3 uLightCol[16]; uniform int uNL; uniform vec3 uCam;
     varying vec3 vCol; varying float vFog; varying vec3 vNrm; varying vec3 vPos; varying float vEm;
@@ -72,7 +72,7 @@
     cv = canvas; ov = overlay; ox = ov.getContext('2d'); mini = minimap; minx = mini.getContext('2d');
     gl = cv.getContext('webgl', { antialias: true, alpha: false, powerPreference: 'high-performance' }) || cv.getContext('experimental-webgl');
     if (!gl) { alert('WebGL is required to play DRIFTWOOD.'); return; }
-    prog = program(VS, FS, ['aPos', 'aNrm', 'aCol', 'aEm'], ['uVP', 'uTime', 'uWater', 'uCam', 'uFog', 'uAlpha', 'uSunDir', 'uSunCol', 'uAmb', 'uLights', 'uLightCol', 'uNL']);
+    prog = program(VS, FS, ['aPos', 'aNrm', 'aCol', 'aEm'], ['uVP', 'uTime', 'uWater', 'uCam', 'uFog', 'uAlpha', 'uSunDir', 'uSunCol', 'uAmb', 'uLights', 'uLightCol', 'uNL', 'uFogNear']);
     skyProg = program(SKY_VS, SKY_FS, ['aP'], ['uRight', 'uUp', 'uFwd', 'uSunDir', 'uMoonDir', 'uTanH', 'uAspect', 'uDusk', 'uNight', 'uTime']);
     skyBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -81,7 +81,7 @@
     R.resize(); window.addEventListener('resize', R.resize);
   };
   R.resize = function () {
-    const ww = window.innerWidth, wh = window.innerHeight; const scale = ww > 1600 ? 0.6 : 0.75;
+    const ww = window.innerWidth, wh = window.innerHeight; const scale = (G.Input && G.Input.settings ? G.Input.settings.quality : 0.75) * (ww > 1600 ? 0.85 : 1);
     R.W = Math.round(ww * scale); R.H = Math.round(wh * scale);
     cv.width = R.W; cv.height = R.H; ov.width = R.W; ov.height = R.H;
     for (const c of [cv, ov]) { c.style.width = ww + 'px'; c.style.height = wh + 'px'; }
@@ -214,76 +214,126 @@
   }
 
   // ================= items as meshes =================
-  function itemMesh(t, m, id, small) {
+  const RAR = (q) => hex(G.RARITY_COL[q || 0]);
+  function itemMesh(t, m, id, small, inst_) {
     const d = G.ITEMS[id]; if (!d && id === 'coin') { cyl(t, M(m, mRX(1.57)), 0.12, 0.12, 0.04, 8, hex('#ffd24a'), 0.5); return; }
-    const c = hex(d.col); const s = small ? 0.6 : 1;
-    if (d.type === 'tool') { box(t, M(m, mS(s)), 0.06, 0.9, 0.06, hex('#8a5a30'), 0, 0.3); if (d.tool === 'axe') box(t, M(m, mS(s), mT(0.12, 0.7, 0)), 0.32, 0.22, 0.06, c); else box(t, M(m, mS(s), mT(0, 0.72, 0)), 0.5, 0.1, 0.07, c); }
-    else if (d.type === 'weapon') { const L = id === 'spear_iron' ? 1.6 : id === 'hammer_gold' ? 0.9 : 0.85; box(t, M(m, mS(s)), 0.05, 0.25, 0.05, hex('#4a3010'), 0, 0.02); box(t, M(m, mS(s), mT(0, 0.26, 0)), 0.22, 0.05, 0.06, hex('#6a4a20')); if (id === 'hammer_gold') box(t, M(m, mS(s), mT(0, 0.9, 0)), 0.45, 0.28, 0.24, c); else if (id === 'spear_iron') { box(t, M(m, mS(s), mT(0, 0.3, 0)), 0.05, L, 0.05, hex('#8a5a30'), 0, 0.3); cyl(t, M(m, mS(s), mT(0, 0.3 + L, 0)), 0.07, 0, 0.3, 4, c); } else box(t, M(m, mS(s), mT(0, 0.3, 0)), 0.09, L, 0.03, c, id === 'blade_ember' ? 0.6 : 0, 0.42); }
-    else if (d.type === 'bow') { for (let i = -2; i <= 2; i++) box(t, M(m, mS(s), mT(-Math.abs(i) * 0.06 + 0.1, i * 0.2, 0), mRZ(i * 0.35)), 0.05, 0.24, 0.05, c); box(t, M(m, mS(s), mT(-0.1, 0, 0)), 0.01, 0.9, 0.01, hex('#e0e0e0')); }
-    else if (d.type === 'shield') { box(t, M(m, mS(s)), 0.7, 0.9, 0.08, c, 0, 0); box(t, M(m, mS(s), mT(0, 0, 0.05)), 0.12, 0.6, 0.04, sh(c, 1.4)); }
-    else if (d.type === 'armor') { box(t, M(m, mS(s)), 0.45, 0.45, 0.35, c, 0, 0); }
-    else if (d.type === 'food') { sph(t, M(m, mS(s)), 0.18, 6, 4, c); }
-    else if (d.type === 'gem') { cyl(t, M(m, mS(s)), 0.2, 0, 0.3, 4, c, 0.9); cyl(t, M(m, mS(s), mRX(Math.PI)), 0.2, 0, 0.3, 4, c, 0.9); }
-    else if (d.type === 'key') { box(t, M(m, mS(s)), 0.08, 0.9, 0.08, hex('#6a4a30'), 0, 0.3); box(t, M(m, mS(s), mT(0, 0.7, 0)), 0.3, 0.2, 0.2, c, 0.3); box(t, M(m, mS(s), mT(0, 0.35, 0)), 0.25, 0.15, 0.15, c, 0.3); }
-    else if (d.type === 'arrow') { box(t, M(m, mS(s)), 0.03, 0.8, 0.03, hex('#d8c8a8'), 0, 0.3); cyl(t, M(m, mS(s), mT(0, 0.7, 0)), 0.05, 0, 0.12, 4, hex('#9a9ca1')); }
-    else if (d.type === 'place') { const p = PF[d.obj]; if (p) inst(t, p, M(m, mS(s * (d.obj === 'torch' ? 0.8 : 0.4)))); }
-    else { box(t, M(m, mS(s), mRY(0.4)), 0.25, 0.25, 0.25, c, 0, 0); }
+    if (!d) return;
+    const c = hex(d.col); const s = small ? 0.6 : 1; const ms = M(m, mS(s)); const dark = hex('#3a2a20'), grip = hex('#4a3010'), steel = sh(c, 1.15);
+    const glow = inst_ && inst_.aff && inst_.aff.length ? RAR(inst_.q) : null;
+    const gripBox = (h) => { box(t, ms, 0.06, h, 0.06, grip, 0, h / 2); if (glow) box(t, M(ms, mT(0, h * 0.5, 0)), 0.075, h * 0.35, 0.075, glow, 0.9, 0); };
+    if (d.type === 'tool') { box(t, ms, 0.055, 0.95, 0.055, hex('#8a5a30'), 0, 0.47); if (glow) box(t, M(ms, mT(0, 0.3, 0)), 0.07, 0.25, 0.07, glow, 0.9, 0); if (d.tool === 'axe') { box(t, M(ms, mT(0.14, 0.78, 0)), 0.3, 0.26, 0.06, c, 0, 0); cyl(t, M(ms, mT(0.3, 0.78, 0), mRZ(-1.57)), 0.13, 0.02, 0.1, 4, steel, 0, 0); } else { box(t, M(ms, mT(0, 0.85, 0)), 0.6, 0.09, 0.07, c, 0, 0); cyl(t, M(ms, mT(0.3, 0.85, 0), mRZ(-1.57)), 0.05, 0, 0.14, 4, steel); cyl(t, M(ms, mT(-0.3, 0.85, 0), mRZ(1.57)), 0.05, 0, 0.14, 4, steel); } }
+    else if (d.type === 'weapon') {
+      const kind = /dagger|fang/.test(id) ? 'dagger' : /greatsword|bonecleaver/.test(id) ? 'great' : /hammer|maul/.test(id) ? 'hammer' : /spear/.test(id) ? 'spear' : /fist/.test(id) ? 'fist' : 'sword';
+      const em = d.burn || d.special ? 0.35 : 0;
+      if (kind === 'sword' || kind === 'dagger' || kind === 'great') {
+        const L = kind === 'dagger' ? 0.55 : kind === 'great' ? 1.4 : 0.9, w = kind === 'great' ? 0.16 : kind === 'dagger' ? 0.07 : 0.1;
+        gripBox(kind === 'great' ? 0.45 : 0.28);
+        box(t, M(ms, mT(0, kind === 'great' ? 0.45 : 0.28, 0)), kind === 'great' ? 0.4 : 0.3, 0.06, 0.08, hex('#6a5a30'), 0, 0); // crossguard
+        sph(t, M(ms, mT(0, -0.02, 0)), 0.05, 5, 3, hex('#6a5a30'));
+        const y0 = kind === 'great' ? 0.5 : 0.32;
+        box(t, M(ms, mT(0, y0, 0)), w, L, 0.03, c, em, L / 2);
+        box(t, M(ms, mT(0, y0, 0.016)), w * 0.35, L, 0.01, steel, em, L / 2); // edge highlight
+        cyl(t, M(ms, mT(0, y0 + L, 0), mS(w / 0.1, 1, 0.3)), 0.1, 0, 0.22, 4, c, em); // tip
+        if (id === 'hollow_blade') box(t, M(ms, mT(0, y0 + L * 0.5, 0)), w * 1.6, L * 0.9, 0.005, hex('#8090ff'), 1.0, 0);
+      } else if (kind === 'hammer') {
+        box(t, ms, 0.07, 1.0, 0.07, hex('#6a4a20'), 0, 0.5); if (glow) box(t, M(ms, mT(0, 0.3, 0)), 0.09, 0.3, 0.09, glow, 0.9, 0);
+        box(t, M(ms, mT(0, 1.0, 0)), 0.5, 0.32, 0.32, c, em, 0); box(t, M(ms, mT(0.28, 1.0, 0)), 0.08, 0.36, 0.36, steel, em, 0); box(t, M(ms, mT(-0.28, 1.0, 0)), 0.08, 0.36, 0.36, steel, em, 0);
+        if (id === 'gronk_hammer') for (let k = 0; k < 4; k++) cyl(t, M(ms, mT((k - 1.5) * 0.12, 1.16, 0)), 0.05, 0, 0.14, 4, hex('#eae6d6'));
+        if (id === 'frost_maul') for (let k = 0; k < 3; k++) cyl(t, M(ms, mT((k - 1) * 0.15, 1.16, 0)), 0.06, 0, 0.22, 4, hex('#e0f8ff'), 0.9);
+      } else if (kind === 'spear') { box(t, ms, 0.05, 1.7, 0.05, hex('#8a5a30'), 0, 0.85); if (glow) box(t, M(ms, mT(0, 0.5, 0)), 0.07, 0.3, 0.07, glow, 0.9, 0); cyl(t, M(ms, mT(0, 1.7, 0), mS(1, 1, 0.35)), 0.1, 0, 0.45, 4, c, em); }
+      else if (kind === 'fist') { box(t, ms, 0.3, 0.3, 0.3, c, 0.3, 0.15); box(t, M(ms, mT(0, 0.3, 0)), 0.36, 0.2, 0.36, steel, 0.4, 0); for (let k = 0; k < 3; k++) box(t, M(ms, mT((k - 1) * 0.11, 0.45, 0.1)), 0.09, 0.14, 0.09, steel, 0.4, 0); }
+    }
+    else if (d.type === 'bow') { const cross = /crossbow/.test(id); if (cross) { box(t, ms, 0.06, 0.9, 0.06, hex('#6a4a20'), 0, 0.45); box(t, M(ms, mT(0, 0.75, 0)), 0.8, 0.05, 0.05, c, 0, 0); box(t, M(ms, mT(0, 0.55, 0)), 0.01, 0.4, 0.01, hex('#e0e0e0')); } else { for (let i = -2; i <= 2; i++) box(t, M(ms, mT(-Math.abs(i) * 0.06 + 0.1, i * 0.2, 0), mRZ(i * 0.35)), 0.05, 0.24, 0.05, c, id === 'venom_bow' ? 0.4 : 0); box(t, M(ms, mT(-0.1, 0, 0)), 0.012, 0.95, 0.012, hex('#e0e0e0')); if (glow) box(t, M(ms, mT(0.1, 0, 0)), 0.08, 0.14, 0.08, glow, 0.9, 0); } }
+    else if (d.type === 'staff') { box(t, ms, 0.06, 1.3, 0.06, hex('#5a3a20'), 0, 0.65); for (let k = 0; k < 3; k++) box(t, M(ms, mT(0, 1.3, 0), mRY(k * 2.09), mT(0.08, 0, 0), mRZ(-0.5)), 0.04, 0.25, 0.04, hex('#5a3a20')); sph(t, M(ms, mT(0, 1.45, 0)), 0.13, 6, 4, c, 1.0); if (glow) box(t, M(ms, mT(0, 0.5, 0)), 0.08, 0.3, 0.08, glow, 0.9, 0); }
+    else if (d.type === 'shield') { const big = id === 'warden_shield'; box(t, ms, big ? 0.8 : 0.65, big ? 1.1 : 0.85, 0.07, c, 0, 0); box(t, M(ms, mT(0, 0, 0.05)), 0.1, big ? 0.9 : 0.6, 0.04, steel, big ? 0.4 : 0); box(t, M(ms, mT(0, 0, 0.05)), big ? 0.6 : 0.45, 0.08, 0.04, steel, 0); for (const [x, y] of [[-0.25, 0.3], [0.25, 0.3], [-0.25, -0.3], [0.25, -0.3]]) sph(t, M(ms, mT(x, y, 0.05)), 0.03, 4, 2, hex('#3a3030')); }
+    else if (d.type === 'armor') { if (d.slot === 'head') { sph(t, M(ms, mT(0, 0.2, 0)), 0.24, 7, 4, c, d.unique ? 0.3 : 0, 0.8); box(t, M(ms, mT(0.16, 0.12, 0)), 0.14, 0.08, 0.3, hex('#14121a'), 0, 0); } else if (d.slot === 'chest') { box(t, ms, 0.5, 0.55, 0.32, c, d.unique ? 0.3 : 0, 0.27); box(t, M(ms, mT(0, 0.42, 0)), 0.62, 0.12, 0.36, sh(c, 0.85), 0, 0); } else if (d.slot === 'legs') { box(t, M(ms, mT(0, 0, -0.1)), 0.18, 0.5, 0.16, c, d.unique ? 0.3 : 0, 0.25); box(t, M(ms, mT(0, 0, 0.1)), 0.18, 0.5, 0.16, c, d.unique ? 0.3 : 0, 0.25); box(t, M(ms, mT(0, 0.5, 0)), 0.42, 0.14, 0.4, sh(c, 0.85), 0, 0); } else { cyl(t, M(ms, mT(0, 0.25, 0)), 0.22, 0.22, 0.03, 10, hex('#8a7a50')); sph(t, M(ms, mT(0, 0.1, 0)), 0.1, 6, 4, c, 0.8); } }
+    else if (d.type === 'food') { sph(t, ms, 0.18, 6, 4, c); }
+    else if (d.type === 'gem') { cyl(t, ms, 0.2, 0, 0.3, 4, c, 0.9); cyl(t, M(ms, mRX(Math.PI)), 0.2, 0, 0.3, 4, c, 0.9); }
+    else if (d.type === 'key') { box(t, ms, 0.08, 0.9, 0.08, hex('#6a4a30'), 0, 0.45); box(t, M(ms, mT(0, 0.7, 0)), 0.3, 0.2, 0.2, c, 0.3, 0); box(t, M(ms, mT(0, 0.35, 0)), 0.25, 0.15, 0.15, c, 0.3, 0); }
+    else if (d.type === 'arrow') { box(t, ms, 0.03, 0.8, 0.03, hex('#d8c8a8'), 0, 0.4); cyl(t, M(ms, mT(0, 0.8, 0)), 0.05, 0, 0.12, 4, hex('#9a9ca1')); box(t, M(ms, mT(0, 0.05, 0)), 0.02, 0.12, 0.1, hex('#e05050'), 0, 0); }
+    else if (d.type === 'place') { const pf_ = PF[d.obj]; if (pf_) inst(t, pf_, M(m, mS(s * (d.obj === 'torch' ? 0.8 : 0.4)))); }
+    else { box(t, M(ms, mRY(0.4)), 0.25, 0.25, 0.25, c, 0, 0.12); }
   }
 
-  // ================= creatures =================
-  // humanoid rig facing local +X; base at y=0. o: { h (height), body, skin, legs, head, helm, chest, legcol, anim, swing, prop }
+  // ================= creatures (capsule rigs) =================
+  function capsule(t, m, r, h, segs, col, em) { cyl(t, m, r, r, h, segs, col, em); sph(t, M(m, mT(0, h, 0)), r, segs, 3, col, em, 0.7); sph(t, m, r, segs, 3, col, em, 0.7); }
+  // humanoid facing local +X, base at y=0. o: h, body, skin, legcol, helm, chest, hair, anim, moving, swing, block, held, shield, crown, ears, hit
   function humanoid(t, m, o) {
-    const h = o.h || 1.2; const s = h / 1.2; const ms = M(m, mS(s));
-    const legSw = Math.sin(o.anim || 0) * (o.moving ? 0.6 : 0); const armSw = -legSw;
-    const legC = o.legcol || hex('#3a3040'), body = o.chest || o.body, skin = o.skin || hex('#f0c8a0');
-    for (const side of [-1, 1]) { box(t, M(ms, mT(0, 0.5, side * 0.11), mRZ(side * legSw)), 0.16, 0.5, 0.16, legC, 0, -0.25); }
-    box(t, M(ms, mT(0, 0.5, 0)), 0.3, 0.42, 0.42, body, 0, 0.21);
-    if (o.chest) box(t, M(ms, mT(0, 0.5, 0)), 0.34, 0.3, 0.46, sh(o.chest, 0.85), 0, 0.2);
-    const swing = o.swing !== undefined ? o.swing : null;
+    const h = o.h || 1.2; const s = h / 1.2; const sq = o.hit ? 0.9 : 1; const ms = M(m, mS(s * (2 - sq), s * sq, s * (2 - sq)));
+    const ph = o.anim || 0, mv = o.moving ? 1 : 0; const legSw = Math.sin(ph) * 0.7 * mv, armSw = -legSw * 0.8, bob = Math.abs(Math.sin(ph)) * 0.05 * mv, lean = mv * 0.12;
+    const legC = o.legcol || hex('#3a3040'), body = o.chest || o.body, skin = o.skin || hex('#f0c8a0'), FL = o.flash ? [1, 1, 1] : null; const C = (c) => FL || c;
+    const root = M(ms, mT(0, bob, 0), mRZ(-lean));
+    for (const side of [-1, 1]) { const leg = M(root, mT(0, 0.5, side * 0.11), mRZ(side * legSw)); capsule(t, M(leg, mT(0, -0.5, 0)), 0.085, 0.42, 6, C(legC)); box(t, M(leg, mT(0.03, -0.5, 0)), 0.18, 0.08, 0.14, C(sh(legC, 0.8)), 0, 0); }
+    capsule(t, M(root, mT(0, 0.5, 0), mS(1, 1, 1.25)), 0.17, 0.32, 8, C(body));
+    if (o.chest) box(t, M(root, mT(0, 0.5, 0)), 0.36, 0.34, 0.5, C(sh(o.chest, 0.9)), o.uniqueChest ? 0.25 : 0, 0.2);
+    let swing = o.swing; const wind = o.wind ? 1 : 0;
     for (const side of [-1, 1]) {
-      let rot = side * armSw * 0.7; if (side === 1 && swing !== null) rot = -1.6 + Math.sin(swing * Math.PI) * 1.6; if (side === -1 && o.block) rot = -1.2;
-      const arm = M(ms, mT(0, 0.9, side * 0.29), mRZ(rot));
-      box(t, arm, 0.14, 0.42, 0.14, side === 1 || !o.chest ? body : body, 0, -0.21);
-      box(t, M(arm, mT(0, -0.42, 0)), 0.12, 0.12, 0.12, skin, 0, 0);
-      if (side === 1 && o.held) itemMesh(t, M(arm, mT(0.05, -0.5, 0), mRZ(-1.4)), o.held, true);
-      if (side === -1 && o.shield) box(t, M(arm, mT(0.15, -0.35, 0)), 0.08, 0.6, 0.5, hex('#6a5a40'));
+      let rot = side * armSw; let rotX = 0;
+      if (side === 1) { if (swing !== null && swing !== undefined) rot = -2.4 + Math.sin(Math.min(1, swing) * Math.PI) * 2.6; else if (wind) rot = -2.4 + Math.sin(nowT * 20) * 0.08; else if (o.held) rot = -0.5; }
+      if (side === -1 && (o.block || o.shield)) { rot = -1.3; rotX = -0.4; }
+      if (o.bow) { if (side === 1) { rot = -1.5; } else { rot = -1.5; rotX = 0.3; } }
+      const arm = M(root, mT(0.02, 0.86, side * 0.27), mRZ(rot), mRX(rotX * side));
+      capsule(t, M(arm, mT(0, -0.4, 0)), 0.07, 0.36, 6, C(body));
+      sph(t, M(arm, mT(0, -0.44, 0)), 0.08, 6, 3, C(skin));
+      if (side === 1 && o.held) itemMesh(t, M(arm, mT(0.06, -0.5, 0), mRZ(-1.5)), o.held, true, o.heldInst);
+      if (side === -1 && o.shield) itemMesh(t, M(arm, mT(0.12, -0.35, 0), mRY(1.57)), o.shieldId || 'shield_wood', true);
     }
-    box(t, M(ms, mT(0, 0.92, 0)), 0.3, 0.3, 0.3, skin, 0, 0.15);
-    box(t, M(ms, mT(0.15, 1.02, -0.06)), 0.02, 0.05, 0.05, hex('#14121a'), 0, 0); box(t, M(ms, mT(0.15, 1.02, 0.06)), 0.02, 0.05, 0.05, hex('#14121a'), 0, 0);
-    if (o.helm) box(t, M(ms, mT(0, 1.1, 0)), 0.34, 0.14, 0.34, o.helm, 0, 0.07); else if (o.hair) box(t, M(ms, mT(-0.02, 1.2, 0)), 0.32, 0.08, 0.32, o.hair, 0, 0);
-    if (o.crown) { for (let i = 0; i < 4; i++) box(t, M(ms, mT(Math.cos(i * 1.57) * 0.12, 1.24, Math.sin(i * 1.57) * 0.12)), 0.06, 0.16, 0.06, hex('#ffd24a'), 0.4); }
-    if (o.ears) { box(t, M(ms, mT(0, 0.98, -0.2)), 0.05, 0.12, 0.14, skin, 0, 0); box(t, M(ms, mT(0, 0.98, 0.2)), 0.05, 0.12, 0.14, skin, 0, 0); }
+    const head = M(root, mT(0.02, 0.9, 0), mRZ(o.wind ? -0.2 : 0));
+    sph(t, M(head, mT(0, 0.2, 0)), 0.2, 8, 5, C(skin));
+    for (const z of [-0.08, 0.08]) { sph(t, M(head, mT(0.15, 0.24, z)), 0.05, 5, 3, [1, 1, 1]); sph(t, M(head, mT(0.185, 0.24, z)), 0.025, 4, 2, hex('#14121a')); }
+    if (o.helm) { sph(t, M(head, mT(-0.02, 0.26, 0)), 0.23, 8, 4, C(o.helm), o.uniqueHelm ? 0.3 : 0, 0.75); if (o.uniqueHelm && /crown/.test(o.helmId || '')) for (let i = 0; i < 5; i++) box(t, M(head, mT(Math.cos(i * 1.26) * 0.14, 0.5, Math.sin(i * 1.26) * 0.14)), 0.05, 0.14, 0.05, hex('#ffd24a'), 0.6); }
+    else if (o.hair) sph(t, M(head, mT(-0.04, 0.3, 0)), 0.19, 7, 3, C(o.hair), 0, 0.7);
+    if (o.crown) for (let i = 0; i < 5; i++) box(t, M(head, mT(Math.cos(i * 1.26) * 0.14, 0.42, Math.sin(i * 1.26) * 0.14)), 0.05, 0.16, 0.05, hex('#ffd24a'), 0.4);
+    if (o.ears) { box(t, M(head, mT(-0.02, 0.24, -0.24), mRX(-0.5)), 0.05, 0.18, 0.1, C(skin), 0, 0); box(t, M(head, mT(-0.02, 0.24, 0.24), mRX(0.5)), 0.05, 0.18, 0.1, C(skin), 0, 0); }
   }
   function quadruped(t, m, o) {
-    const s = o.s || 1; const ms = M(m, mS(s)); const c = o.col, d = sh(o.col, 0.75); const sw = Math.sin(o.anim || 0) * (o.moving ? 0.7 : 0);
-    box(t, M(ms, mT(0, 0.45, 0)), 0.8, 0.32, 0.34, c, 0, 0.16);
-    box(t, M(ms, mT(0.45, 0.62, 0)), 0.34, 0.28, 0.28, c, 0, 0.14); box(t, M(ms, mT(0.64, 0.56, 0)), 0.18, 0.14, 0.2, d, 0, 0.07);
-    box(t, M(ms, mT(0.5, 0.78, -0.08)), 0.08, 0.1, 0.06, d, 0, 0.05); box(t, M(ms, mT(0.5, 0.78, 0.08)), 0.08, 0.1, 0.06, d, 0, 0.05);
-    box(t, M(ms, mT(0.56, 0.66, -0.07)), 0.03, 0.04, 0.04, hex('#ff4040'), 0.8, 0); box(t, M(ms, mT(0.56, 0.66, 0.07)), 0.03, 0.04, 0.04, hex('#ff4040'), 0.8, 0);
-    for (const [x, z, ph] of [[0.3, -0.12, 0], [0.3, 0.12, Math.PI], [-0.3, -0.12, Math.PI], [-0.3, 0.12, 0]]) box(t, M(ms, mT(x, 0.45, z), mRZ(Math.sin((o.anim || 0) + ph) * (o.moving ? 0.6 : 0))), 0.12, 0.45, 0.12, d, 0, -0.22);
-    box(t, M(ms, mT(-0.45, 0.6, 0), mRZ(0.6 + sw * 0.3)), 0.35, 0.08, 0.08, d, 0, 0);
+    const s = o.s || 1; const ms = M(m, mS(s)); const c = o.col, d = sh(o.col, 0.75), FL = o.flash ? [1, 1, 1] : null; const C = (x) => FL || x;
+    const ph = o.anim || 0, mv = o.moving ? 1 : 0; const bob = Math.abs(Math.sin(ph)) * 0.06 * mv;
+    const root = M(ms, mT(0, bob, 0));
+    capsule(t, M(root, mT(-0.4, 0.5, 0), mRZ(-1.57)), 0.19, 0.8, 8, C(c)); // body along +X
+    sph(t, M(root, mT(0.5, 0.62, 0)), 0.2, 8, 4, C(c)); box(t, M(root, mT(0.68, 0.55, 0)), 0.2, 0.14, 0.18, C(d), 0, 0);
+    for (const z of [-0.09, 0.09]) { box(t, M(root, mT(0.45, 0.8, z * 1.3), mRX(z * 4)), 0.06, 0.14, 0.07, C(d), 0, 0); sph(t, M(root, mT(0.62, 0.66, z)), 0.035, 4, 2, [1, 0.25, 0.25], 0.8); }
+    for (const [x, z, p2] of [[0.3, -0.12, 0], [0.3, 0.12, Math.PI], [-0.3, -0.12, Math.PI], [-0.3, 0.12, 0]]) capsule(t, M(root, mT(x, 0.45, z), mRZ(Math.sin(ph + p2) * 0.7 * mv), mT(0, -0.42, 0)), 0.06, 0.4, 5, C(d));
+    capsule(t, M(root, mT(-0.8, 0.6, 0), mRZ(1.0 + Math.sin(ph * 0.5) * 0.3)), 0.04, 0.35, 4, C(d));
+  }
+  function spider(t, m, o) {
+    const s = o.s || 1; const ms = M(m, mS(s)); const c = o.col, FL = o.flash ? [1, 1, 1] : null; const C = (x) => FL || x; const ph = o.anim || 0;
+    sph(t, M(ms, mT(-0.3, 0.55, 0)), 0.5, 8, 5, C(c), 0, 0.8); sph(t, M(ms, mT(0.35, 0.5, 0)), 0.3, 7, 4, C(sh(c, 1.2)));
+    for (const z of [-0.12, 0.12, -0.05, 0.05]) sph(t, M(ms, mT(0.6, 0.6 + (Math.abs(z) < 0.1 ? 0.06 : 0), z)), Math.abs(z) < 0.1 ? 0.045 : 0.06, 5, 3, [1, 0.2, 0.2], 0.9);
+    for (let i = 0; i < 4; i++) for (const side of [-1, 1]) { const a = (i - 1.5) * 0.5; const lift = Math.sin(ph * 2 + i * 1.6 + (side > 0 ? 0 : Math.PI)) * 0.2 * (o.moving ? 1 : 0.1); const hip = M(ms, mT(-0.3 + Math.cos(a) * 0.3, 0.6, side * 0.35), mRY(side * (0.9 - i * 0.6)), mRX(side * (-0.8 + lift))); capsule(t, hip, 0.045, 0.6, 4, C(sh(c, 0.7))); capsule(t, M(hip, mT(0, 0.6, 0), mRX(side * 1.9)), 0.035, 0.7, 4, C(sh(c, 0.6))); }
+    cyl(t, M(ms, mT(0.6, 0.42, -0.08), mRX(Math.PI)), 0.04, 0, 0.18, 4, hex('#eae6d6')); cyl(t, M(ms, mT(0.6, 0.42, 0.08), mRX(Math.PI)), 0.04, 0, 0.18, 4, hex('#eae6d6'));
   }
   function creature(t, m, e, V) {
-    const d = G.ENEMIES[e.t]; const col = hex(d.col); const anim = nowT * 8 + e.id; const moving = e.st === 'chase' || e.st === 'charge' || e.st === 'lunge' || e.st === 'circle';
+    const d = G.ENEMIES[e.t]; const col = hex(d.col); const anim = nowT * 8 + e.id; const moving = /chase|charge|lunge|circle|pounce/.test(e.st);
     const isWind = /wind$/.test(e.st); const wob = isWind ? 1 + Math.sin(nowT * 25) * 0.05 : 1;
-    const fm = M(m, mS(wob)); const flash = e.flash ? [1, 1, 1] : null; const C = (c) => flash ? [1, 1, 1] : c;
+    const fm = M(m, mS(wob)); const FL = !!e.flash; const C = (c) => FL ? [1, 1, 1] : c;
+    const striking = e.st === 'cool' && (e.tm || 0) > 0.6; const sw = isWind ? null : (striking ? 0.5 : null);
     switch (e.t) {
-      case 'slime': case 'slime_small': { const r = e.t === 'slime' ? 0.45 : 0.25; const b = Math.abs(Math.sin(nowT * 5 + e.id)); sph(t, M(fm, mT(0, r * 0.7 + b * 0.15, 0), mS(1 + b * 0.1, 0.7 + b * 0.25, 1 + b * 0.1)), r, 7, 4, C(col), e.flash ? 1 : 0.15); box(t, M(fm, mT(r * 0.7, r * 0.8, -r * 0.3)), 0.06, 0.1, 0.08, hex('#14121a'), 0, 0); box(t, M(fm, mT(r * 0.7, r * 0.8, r * 0.3)), 0.06, 0.1, 0.08, hex('#14121a'), 0, 0); break; }
-      case 'goblin': humanoid(t, fm, { h: 0.95, body: C(col), skin: C(hex('#7aa040')), legcol: hex('#4a5a20'), anim, moving, ears: true, held: 'sword_wood', swing: e.st === 'wind' ? 0.2 : (e.st === 'cool' ? 0.8 : null) }); break;
-      case 'goblin_archer': humanoid(t, fm, { h: 0.95, body: C(col), skin: C(hex('#7aa040')), legcol: hex('#4a5a20'), anim, moving, ears: true, hair: hex('#4a3020'), held: 'bow_wood' }); break;
-      case 'skeleton': humanoid(t, fm, { h: 1.15, body: C(hex('#e8e8e0')), skin: C(hex('#f0f0e8')), legcol: hex('#d0d0c8'), anim, moving, held: 'sword_stone', shield: true, swing: e.st === 'wind' ? 0.2 : (e.st === 'cool' ? 0.8 : null) }); break;
-      case 'wolf': quadruped(t, fm, { col: C(col), anim, moving }); break;
-      case 'wolf_pet': quadruped(t, fm, { col: C(col), anim, moving }); box(t, M(fm, mT(0.45, 0.6, 0)), 0.36, 0.06, 0.3, hex('#ff4040'), 0, 0); break;
-      case 'treant': { const arm = e.st === 'wind' ? -2.4 : 0.3; cyl(t, fm, 0.5, 0.35, 1.6, 7, C(hex('#5a3a20'))); for (const s of [-1, 1]) cyl(t, M(fm, mT(0, 1.3, s * 0.45), mRX(s * (Math.PI / 2 - arm * 0.5)), mRZ(arm)), 0.12, 0.08, 1.1, 5, C(hex('#6b4426'))); sph(t, M(fm, mT(0, 2.1, 0)), 0.85, 7, 4, C(col), 0, 0.8); sph(t, M(fm, mT(0.3, 2.5, 0.2)), 0.5, 6, 3, C(sh(col, 1.2))); box(t, M(fm, mT(0.42, 1.2, -0.15)), 0.08, 0.12, 0.1, hex('#ffe040'), 1, 0); box(t, M(fm, mT(0.42, 1.2, 0.15)), 0.08, 0.12, 0.1, hex('#ffe040'), 1, 0); for (const s of [-1, 1]) box(t, M(fm, mT(-0.1, 0, s * 0.35)), 0.5, 0.25, 0.25, C(hex('#4a2a18')), 0, 0.12); break; }
-      case 'crawler': { for (let i = 0; i < 4; i++) { const ph = anim + i * 0.9; sph(t, M(fm, mT(-i * 0.3 + 0.35, 0.28 + Math.abs(Math.sin(ph)) * 0.08, Math.sin(ph) * 0.05)), 0.26 - i * 0.03, 6, 4, i % 2 ? C(col) : C(sh(col, 0.6)), e.flash ? 1 : (i % 2 ? 0.6 : 0.1)); for (const s of [-1, 1]) box(t, M(fm, mT(-i * 0.3 + 0.35, 0.15, s * 0.3), mRX(s * 0.6), mRZ(Math.sin(ph) * 0.5)), 0.06, 0.3, 0.06, C(sh(col, 0.5)), 0, -0.1); } box(t, M(fm, mT(0.55, 0.42, -0.1)), 0.06, 0.08, 0.08, hex('#ffe040'), 1, 0); box(t, M(fm, mT(0.55, 0.42, 0.1)), 0.06, 0.08, 0.08, hex('#ffe040'), 1, 0); break; }
-      case 'bat': { const fl = Math.sin(nowT * 18 + e.id); const bm = M(fm, mT(0, 1.3 + Math.sin(nowT * 6 + e.id) * 0.15, 0)); box(t, bm, 0.22, 0.2, 0.18, C(col), 0, 0); for (const s of [-1, 1]) quad(t, M(bm, mT(0, 0.05, s * 0.09), mRX(s * fl * 0.9)), [-0.12, 0, 0], [0.12, 0, 0], [0.05, 0.05, s * 0.5], [-0.15, 0.05, s * 0.5], C(sh(col, 0.9)), 0); box(t, M(bm, mT(0.11, 0.05, -0.05)), 0.02, 0.04, 0.03, hex('#ff4040'), 1, 0); box(t, M(bm, mT(0.11, 0.05, 0.05)), 0.02, 0.04, 0.03, hex('#ff4040'), 1, 0); break; }
-      case 'tentacle': { const sway = Math.sin(nowT * 2 + e.id) * 0.25; let mm = M(fm, mT(0, -0.3, 0)); for (let i = 0; i < 5; i++) { cyl(t, mm, 0.32 - i * 0.05, 0.28 - i * 0.05, 0.5, 6, C(i % 2 ? col : sh(col, 1.2))); mm = M(mm, mT(0, 0.5, 0), mRZ(sway * (e.st === 'wind' ? 2.5 : 1)), mRX(sway * 0.5)); for (const k of [0.3, -0.3]) box(t, M(mm, mT(k, 0.1, 0.2)), 0.08, 0.08, 0.04, hex('#80c0ff'), 0.6, 0); } break; }
-      case 'gronk': humanoid(t, fm, { h: 2.6, body: C(hex('#6a8a40')), skin: C(hex('#8aa050')), legcol: hex('#4a4a30'), anim, moving, held: 'hammer_gold', swing: e.st === 'wind' ? 0.15 : (e.st === 'cool' ? 0.75 : null), ears: true }); break;
-      case 'hollow': humanoid(t, fm, { h: 2.2, body: C(hex('#202048')), skin: C(hex('#e8e8e0')), legcol: hex('#101030'), anim, moving, crown: true, held: 'sword_obsidian', swing: e.st === 'wind' ? 0.15 : (e.st === 'cool' ? 0.75 : null) }); quad(t, M(fm, mT(-0.3, 1.9, 0)), [0, 0, -0.4], [0, 0, 0.4], [-0.4 + Math.sin(nowT * 3) * 0.1, -1.8, 0.5], [-0.4 + Math.sin(nowT * 3) * 0.1, -1.8, -0.5], C(hex('#2a2a60')), 0); break;
-      case 'cinder': { for (let i = 0; i < 6; i++) { const ph = anim * 0.6 + i * 0.8; sph(t, M(fm, mT(-i * 0.75 + 1.5, 0.6 + Math.abs(Math.sin(ph)) * 0.25, Math.sin(ph) * 0.15)), 0.7 - i * 0.06, 7, 4, i % 2 ? C(col) : C(sh(col, 0.55)), e.flash ? 1 : (i % 2 ? 0.7 : 0.15)); } sph(t, M(fm, mT(1.9, 0.9, 0)), 0.75, 7, 4, C(sh(col, 1.1)), e.flash ? 1 : 0.5); box(t, M(fm, mT(2.5, 1.1, -0.25)), 0.15, 0.2, 0.2, hex('#ffe040'), 1, 0); box(t, M(fm, mT(2.5, 1.1, 0.25)), 0.15, 0.2, 0.2, hex('#ffe040'), 1, 0); for (let k = 0; k < 4; k++) cyl(t, M(fm, mT(2.5, 0.55, (k - 1.5) * 0.25), mRX(Math.PI)), 0.07, 0, 0.3, 4, hex('#fff')); break; }
-      case 'leviathan': { const bob = Math.sin(nowT * 1.5) * 0.15; const bm = M(fm, mT(0, -1.0 + bob, 0)); sph(t, bm, 2.2, 8, 5, C(col), 0, 0.75); sph(t, M(bm, mT(0.6, 1.0, 0)), 1.5, 8, 5, C(sh(col, 1.3)), 0, 0.7); box(t, M(bm, mT(1.8, 1.4, -0.7)), 0.4, 0.5, 0.5, hex('#ffe040'), 1, 0); box(t, M(bm, mT(1.8, 1.4, 0.7)), 0.4, 0.5, 0.5, hex('#ffe040'), 1, 0); for (let k = 0; k < 7; k++) cyl(t, M(bm, mT(2.0, 0.6, (k - 3) * 0.35), mRX(Math.PI)), 0.1, 0, 0.5, 4, hex('#e0f0ff')); for (let k = 0; k < 6; k++) { const a = k * 1.05 + nowT * 0.3; let mm = M(bm, mT(Math.cos(a) * 2.0, 0.2, Math.sin(a) * 2.0)); for (let i = 0; i < 4; i++) { cyl(t, mm, 0.3 - i * 0.06, 0.25 - i * 0.06, 0.8, 5, C(sh(col, 0.9))); mm = M(mm, mT(0, 0.8, 0), mRX(Math.sin(nowT * 2 + k + i) * 0.35), mRZ(Math.cos(nowT * 1.7 + k) * 0.3)); } } break; }
-      default: humanoid(t, fm, { h: 1, body: C(col), anim, moving });
+      case 'slime': case 'slime_small': { const r = e.t === 'slime' ? 0.45 : 0.25; const b = Math.abs(Math.sin(nowT * 5 + e.id)); sph(t, M(fm, mT(0, r * 0.7 + b * 0.15, 0), mS(1 + b * 0.1, 0.7 + b * 0.25, 1 + b * 0.1)), r, 8, 5, C(col), FL ? 1 : 0.15); for (const z of [-0.3, 0.3]) { sph(t, M(fm, mT(r * 0.75, r * 0.85, z * r)), r * 0.18, 5, 3, [1, 1, 1]); sph(t, M(fm, mT(r * 0.9, r * 0.85, z * r)), r * 0.09, 4, 2, hex('#14121a')); } break; }
+      case 'goblin': humanoid(t, fm, { h: 0.95, body: col, skin: hex('#7aa040'), legcol: hex('#4a5a20'), anim, moving, ears: true, held: 'sword_wood', swing: sw, wind: isWind, flash: FL }); break;
+      case 'goblin_archer': humanoid(t, fm, { h: 0.95, body: col, skin: hex('#7aa040'), legcol: hex('#4a5a20'), anim, moving, ears: true, hair: hex('#4a3020'), held: 'bow_wood', bow: true, flash: FL }); break;
+      case 'skeleton': humanoid(t, fm, { h: 1.15, body: hex('#e8e8e0'), skin: hex('#f0f0e8'), legcol: hex('#d0d0c8'), anim, moving, held: 'sword_stone', shield: true, swing: sw, wind: isWind, flash: FL }); break;
+      case 'spiderling': spider(t, fm, { s: 0.35, col, anim, moving, flash: FL }); break;
+      case 'wolf': quadruped(t, fm, { col, anim, moving, flash: FL }); break;
+      case 'wolf_pet': quadruped(t, fm, { col, anim, moving, flash: FL }); box(t, M(fm, mT(0.5, 0.62, 0)), 0.3, 0.06, 0.44, hex('#ff4040'), 0, 0); break;
+      case 'treant': { const arm = isWind ? -2.4 : 0.3; cyl(t, fm, 0.5, 0.35, 1.6, 7, C(hex('#5a3a20'))); for (const s2 of [-1, 1]) cyl(t, M(fm, mT(0, 1.3, s2 * 0.45), mRX(s2 * (Math.PI / 2 - arm * 0.5)), mRZ(arm)), 0.12, 0.08, 1.1, 5, C(hex('#6b4426'))); sph(t, M(fm, mT(0, 2.1, 0)), 0.85, 7, 4, C(col), 0, 0.8); sph(t, M(fm, mT(0.3, 2.5, 0.2)), 0.5, 6, 3, C(sh(col, 1.2))); for (const z of [-0.15, 0.15]) sph(t, M(fm, mT(0.45, 1.2, z)), 0.07, 5, 3, [1, 0.9, 0.25], 1); for (const s2 of [-1, 1]) box(t, M(fm, mT(-0.1, 0, s2 * 0.35)), 0.5, 0.25, 0.25, C(hex('#4a2a18')), 0, 0.12); break; }
+      case 'crawler': { for (let i = 0; i < 4; i++) { const ph = anim + i * 0.9; sph(t, M(fm, mT(-i * 0.3 + 0.35, 0.28 + Math.abs(Math.sin(ph)) * 0.08, Math.sin(ph) * 0.05)), 0.26 - i * 0.03, 7, 4, i % 2 ? C(col) : C(sh(col, 0.6)), FL ? 1 : (i % 2 ? 0.6 : 0.1)); for (const s2 of [-1, 1]) capsule(t, M(fm, mT(-i * 0.3 + 0.35, 0.2, s2 * 0.25), mRX(s2 * 1.2), mRZ(Math.sin(ph) * 0.5)), 0.035, 0.3, 4, C(sh(col, 0.5))); } for (const z of [-0.1, 0.1]) sph(t, M(fm, mT(0.55, 0.42, z)), 0.05, 5, 3, [1, 0.9, 0.25], 1); break; }
+      case 'bat': { const fl = Math.sin(nowT * 18 + e.id); const bm = M(fm, mT(0, 1.3 + Math.sin(nowT * 6 + e.id) * 0.15, 0)); sph(t, bm, 0.13, 6, 4, C(col)); for (const s2 of [-1, 1]) quad(t, M(bm, mT(0, 0.05, s2 * 0.09), mRX(s2 * fl * 0.9)), [-0.12, 0, 0], [0.12, 0, 0], [0.05, 0.05, s2 * 0.5], [-0.15, 0.05, s2 * 0.5], C(sh(col, 0.9)), 0); for (const z of [-0.05, 0.05]) sph(t, M(bm, mT(0.11, 0.03, z)), 0.02, 4, 2, [1, 0.25, 0.25], 1); break; }
+      case 'tentacle': { const sway = Math.sin(nowT * 2 + e.id) * 0.25; let mm = M(fm, mT(0, -0.3, 0)); for (let i = 0; i < 5; i++) { cyl(t, mm, 0.32 - i * 0.05, 0.28 - i * 0.05, 0.5, 7, C(i % 2 ? col : sh(col, 1.2))); mm = M(mm, mT(0, 0.5, 0), mRZ(sway * (isWind ? 2.5 : 1)), mRX(sway * 0.5)); for (const k of [0.3, -0.3]) sph(t, M(mm, mT(k, 0.1, 0.2)), 0.05, 5, 3, hex('#80c0ff'), 0.6); } break; }
+      // ---- bosses ----
+      case 'gronk': humanoid(t, fm, { h: 2.7, body: hex('#6a8a40'), skin: hex('#8aa050'), legcol: hex('#4a4a30'), anim, moving, held: 'gronk_hammer', swing: sw, wind: isWind, ears: true, flash: FL }); break;
+      case 'hollow': humanoid(t, fm, { h: 2.3, body: hex('#202048'), skin: hex('#e8e8e0'), legcol: hex('#101030'), anim, moving, crown: true, held: 'hollow_blade', swing: sw, wind: isWind, flash: FL }); quad(t, M(fm, mT(-0.3, 2.0, 0)), [0, 0, -0.45], [0, 0, 0.45], [-0.45 + Math.sin(nowT * 3) * 0.1, -1.9, 0.55], [-0.45 + Math.sin(nowT * 3) * 0.1, -1.9, -0.55], C(hex('#2a2a60')), 0); break;
+      case 'bonecrusher': humanoid(t, fm, { h: 2.6, body: hex('#e0e0d0'), skin: hex('#eae6d6'), legcol: hex('#c8c8c0'), anim, moving, held: 'bonecleaver', swing: sw, wind: isWind, flash: FL }); for (let i = 0; i < 3; i++) box(t, M(fm, mT(0.36, 1.2 + i * 0.25, 0)), 0.04, 0.06, 0.7, C(hex('#c0c0b8')), 0, 0); break;
+      case 'warden': humanoid(t, fm, { h: 2.2, body: hex('#8090b0'), skin: hex('#606880'), legcol: hex('#505870'), anim, moving, helm: hex('#8090b0'), chest: hex('#9aa8c8'), held: 'greatsword_iron', shield: true, shieldId: 'warden_shield', swing: sw, wind: isWind, block: true, flash: FL }); break;
+      case 'matriarch': spider(t, fm, { s: 1.9, col, anim, moving, flash: FL }); break;
+      case 'frostmaw': quadruped(t, fm, { s: 2.2, col, anim, moving, flash: FL }); for (let k = 0; k < 4; k++) cyl(t, M(fm, mT(-0.3 + k * 0.3, 1.55, 0)), 0.08, 0, 0.35, 4, hex('#e0f8ff'), 0.7); break;
+      case 'lich': humanoid(t, fm, { h: 2.1, body: hex('#6040c0'), skin: hex('#c0c0e0'), legcol: hex('#30206a'), anim, moving, held: 'lich_staff', crown: true, wind: isWind, flash: FL }); sph(t, M(fm, mT(0, 2.3, 0)), 0.55, 8, 4, C(hex('#40308a')), 0.15, 0.4); break;
+      case 'titan': humanoid(t, fm, { h: 3.6, body: hex('#7080a0'), skin: hex('#8898b8'), legcol: hex('#505868'), anim: anim * 0.6, moving, held: null, swing: sw, wind: isWind, flash: FL }); for (let i = 0; i < 4; i++) box(t, M(fm, mT(-0.2, 2.3 + (i % 2) * 0.5, (i - 1.5) * 0.4), mRY(i)), 0.4, 0.4, 0.4, C(hex('#606878')), 0, 0); sph(t, M(fm, mT(0.35, 2.55, 0)), 0.16, 6, 4, [1, 0.6, 0.2], 1.0); break;
+      case 'cinder': { for (let i = 0; i < 6; i++) { const ph = anim * 0.6 + i * 0.8; sph(t, M(fm, mT(-i * 0.75 + 1.5, 0.6 + Math.abs(Math.sin(ph)) * 0.25, Math.sin(ph) * 0.15)), 0.7 - i * 0.06, 8, 5, i % 2 ? C(col) : C(sh(col, 0.55)), FL ? 1 : (i % 2 ? 0.7 : 0.15)); } sph(t, M(fm, mT(1.9, 0.9, 0)), 0.75, 8, 5, C(sh(col, 1.1)), FL ? 1 : 0.5); for (const z of [-0.25, 0.25]) sph(t, M(fm, mT(2.5, 1.1, z)), 0.12, 6, 4, [1, 0.9, 0.25], 1); for (let k = 0; k < 4; k++) cyl(t, M(fm, mT(2.5, 0.55, (k - 1.5) * 0.25), mRX(Math.PI)), 0.07, 0, 0.3, 4, hex('#fff')); break; }
+      case 'leviathan': { const bob = Math.sin(nowT * 1.5) * 0.15; const bm = M(fm, mT(0, -1.0 + bob, 0)); sph(t, bm, 2.2, 10, 6, C(col), 0, 0.75); sph(t, M(bm, mT(0.6, 1.0, 0)), 1.5, 9, 5, C(sh(col, 1.3)), 0, 0.7); for (const z of [-0.7, 0.7]) { sph(t, M(bm, mT(1.8, 1.4, z)), 0.3, 7, 4, [1, 0.9, 0.25], 1); sph(t, M(bm, mT(2.05, 1.4, z)), 0.12, 5, 3, hex('#14121a')); } for (let k = 0; k < 7; k++) cyl(t, M(bm, mT(2.0, 0.6, (k - 3) * 0.35), mRX(Math.PI)), 0.1, 0, 0.5, 4, hex('#e0f0ff')); for (let k = 0; k < 6; k++) { const a = k * 1.05 + nowT * 0.3; let mm = M(bm, mT(Math.cos(a) * 2.0, 0.2, Math.sin(a) * 2.0)); for (let i = 0; i < 4; i++) { cyl(t, mm, 0.3 - i * 0.06, 0.25 - i * 0.06, 0.8, 6, C(sh(col, 0.9))); mm = M(mm, mT(0, 0.8, 0), mRX(Math.sin(nowT * 2 + k + i) * 0.35), mRZ(Math.cos(nowT * 1.7 + k) * 0.3)); } } break; }
+      default: humanoid(t, fm, { h: 1, body: col, anim, moving, flash: FL });
     }
+    if (e.elite) { cyl(t, M(m, mT(0, 0.02, 0)), e.r * 1.5, e.r * 1.5, 0.03, 12, hex('#c060ff'), 1.0); for (let k = 0; k < 3; k++) { const a = nowT * 2 + k * 2.09; sph(t, M(m, mT(Math.cos(a) * e.r * 1.4, 0.6 + Math.sin(nowT * 4 + k) * 0.2, Math.sin(a) * e.r * 1.4)), 0.07, 5, 3, hex('#c060ff'), 1.0); } }
   }
 
   // ================= terrain & static object chunks =================
@@ -344,7 +394,7 @@
       case 'dmg': F.floats.push({ x: ev.x + (Math.random() - .5) * 0.4, y: ev.y + 0.6, z: 1.5, s: String(ev.v), c: ev.c, t: 0, big: ev.crit }); break;
       case 'txt': if (!ev.to || ev.to === me) F.floats.push({ x: ev.x, y: ev.y + 0.8, z: 1.6, s: ev.s, c: ev.c, t: 0, small: ev.small }); break;
       case 'hit': for (let i = 0; i < ev.n; i++) F.parts.push({ x: ev.x, y: ev.y, z: 0.8, vx: (Math.random() - .5) * 4, vy: (Math.random() - .5) * 4, vz: Math.random() * 3, c: hex(ev.c), t: 0, life: 0.4 + Math.random() * 0.3, g: 9 }); break;
-      case 'die': for (let i = 0; i < 18; i++) F.parts.push({ x: ev.x, y: ev.y, z: 0.6, vx: (Math.random() - .5) * 6, vy: (Math.random() - .5) * 6, vz: Math.random() * 5, c: i % 3 ? hex(ev.c) : [1, 1, 1], t: 0, life: 0.5 + Math.random() * 0.5, g: 10, sz: 0.14 }); break;
+      case 'die': if (ev.k) F.corpses.push({ k: ev.k, x: ev.x, y: ev.y, face: ev.f || 0, r: ev.r, el: ev.el, id: Math.random() * 1000 | 0, age: 0 }); for (let i = 0; i < 18; i++) F.parts.push({ x: ev.x, y: ev.y, z: 0.6, vx: (Math.random() - .5) * 6, vy: (Math.random() - .5) * 6, vz: Math.random() * 5, c: i % 3 ? hex(ev.c) : [1, 1, 1], t: 0, life: 0.5 + Math.random() * 0.5, g: 10, sz: 0.14 }); break;
       case 'boom': F.booms.push({ x: ev.x, y: ev.y, r: ev.r, t: 0, c: ev.c || '#ffb040' }); for (let i = 0; i < 16; i++) F.parts.push({ x: ev.x, y: ev.y, z: 0.5, vx: (Math.random() - .5) * 8, vy: (Math.random() - .5) * 8, vz: Math.random() * 4, c: hex(ev.c || '#ffb040'), t: 0, life: 0.45, g: 4, sz: 0.16, e: 1 }); break;
       case 'zap': F.zaps.push({ x1: ev.x1, y1: ev.y1, x2: ev.x2, y2: ev.y2, t: 0 }); break;
       case 'slash': F.slashes.push({ x: ev.x, y: ev.y, a: ev.a, r: ev.r, t: 0 }); break;
@@ -352,27 +402,32 @@
       case 'ping': F.pings.push({ x: ev.x, y: ev.y, col: ev.col, name: ev.name, t: 0 }); break;
       case 'dust': for (let i = 0; i < 6; i++) F.parts.push({ x: ev.x, y: ev.y, z: 0.1, vx: (Math.random() - .5) * 2, vy: (Math.random() - .5) * 2, vz: 1, c: [0.8, 0.75, 0.6], t: 0, life: 0.35, g: 2 }); break;
       case 'fire': F.parts.push({ x: ev.x + (Math.random() - .5) * 0.4, y: ev.y + (Math.random() - .5) * 0.4, z: 0.6, vx: 0, vy: 0, vz: 1.5, c: Math.random() < 0.5 ? [1, 0.42, 0.1] : [1, 0.82, 0.25], t: 0, life: 0.4, g: -3, e: 1 }); break;
-      case 'shake': if (!ev.id || ev.id === me) R.shake = Math.max(R.shake, ev.v); break;
+      case 'shake': if ((!ev.id || ev.id === me) && (!G.Input.settings || G.Input.settings.shake)) R.shake = Math.max(R.shake, ev.v); break;
       case 'hitstop': if (ev.to === me) R.hitstop = 0.05; break;
       case 'wobble': F.wobble[ev.i] = 0.25; break;
       case 'tell': R.tellFlash[ev.id] = 0.3; break;
+      case 'bossin': R.banner = { txt: G.ENEMIES[ev.k].name, sub: 'NIGHT BOSS', t: 0 }; break;
+      case 'nev': { const e = G.NIGHT_EVENTS.find(x => x.id === ev.id); if (e && ev.id !== 'clear') R.banner = { txt: e.name, sub: e.desc, t: 0, col: '#ffd24a' }; break; }
     }
   };
 
   // ================= frame =================
   R.frame = function (V, dt, L) {
-    if (!gl) return;
+    if (!gl) return; L.dt = dt;
     const me = V.players[V.me]; const world = V.world; nowT = V.now;
     if (R.hitstop > 0) R.hitstop -= dt;
     if (R.shake > 0) R.shake = Math.max(0, R.shake - dt * 18);
-    if (me) { R.cam.x = me.x; R.cam.y = me.y; R.cam.z = R.groundZ(world, me.x, me.y) + (me.downed ? 0.35 : EYE) + (L.jumpZ || 0) + (L.bob || 0); }
+    if (me) { R.cam.x = me.x; R.cam.y = me.y; R.cam.z = R.groundZ(world, me.x, me.y) + (me.downed ? 0.35 : EYE) + (L.jumpZ || 0) + (L.bob || 0) - (L.land || 0); }
     R.cam.yaw = L.yaw; R.cam.pitch = L.pitch;
+    if (me && me.flash && R.kick < 0.02) R.kick = 0.08; R.kick = Math.max(0, R.kick - dt * 0.4);
+    const rollTarget = me && me.dodgeT ? (L.dodgeDir || 1) * 0.35 : 0; R.roll = G.lerp(R.roll, rollTarget, Math.min(1, dt * 12));
     const shx = (Math.random() - .5) * R.shake * 0.01, shy = (Math.random() - .5) * R.shake * 0.01;
-    const yaw = R.cam.yaw + shx, pitch = G.clamp(R.cam.pitch + shy, -1.5, 1.5);
+    const yaw = R.cam.yaw + shx, pitch = G.clamp(R.cam.pitch + shy - R.kick, -1.5, 1.5);
     const fx = Math.cos(yaw) * Math.cos(pitch), fz = Math.sin(pitch), fy = Math.sin(yaw) * Math.cos(pitch);
-    const fov = (L.sprinting ? 80 : 74) * Math.PI / 180;
+    const baseFov = (G.Input && G.Input.settings ? G.Input.settings.fov : 74); R.fovCur = G.lerp(R.fovCur || baseFov, baseFov + (L.sprinting ? 6 : 0), Math.min(1, dt * 6)); const fov = R.fovCur * Math.PI / 180;
     perspective(proj, fov, R.W / R.H, 0.05, 80);
     lookAt(view, R.cam.x, R.cam.z, R.cam.y, fx, fz, fy);
+    if (Math.abs(R.roll) > 0.001) { const rz = mRZ(R.roll); view = mmul(rz, view); const b2 = camBasis; const r = b2.r, u = b2.u; const c = Math.cos(R.roll), sn = Math.sin(R.roll); camBasis = { r: [r[0] * c + u[0] * sn, r[1] * c + u[1] * sn, r[2] * c + u[2] * sn], u: [u[0] * c - r[0] * sn, u[1] * c - r[1] * sn, u[2] * c - r[2] * sn], f: b2.f }; }
     vp = mmul(proj, view);
     // sky state
     const darkness = G.Sim.darkness({ time: V.time }); const night = G.clamp(darkness / 0.9, 0, 1);
@@ -382,8 +437,9 @@
     const sunStr = (1 - night) * G.clamp(sunDir[1] * 2.2, 0.15, 1) * 0.85;
     sunCol = [sunStr * (1 - dusk * 0.1), sunStr * (0.95 - dusk * 0.3), sunStr * (0.85 - dusk * 0.5)];
     ambient = G.lerp(0.55, 0.16, night) - dusk * 0.08;
-    const dayFog = [0.74, 0.83, 0.93], duskFog = [0.9, 0.6, 0.45], nightFog = [0.05, 0.06, 0.13];
+    const dayFog = [0.74, 0.83, 0.93], duskFog = [0.9, 0.6, 0.45], nightFog = V.nev === 'fog' ? [0.12, 0.13, 0.17] : (V.nev === 'bloodmoon' ? [0.12, 0.04, 0.06] : [0.05, 0.06, 0.13]);
     fog = dayFog.map((c, i) => G.lerp(G.lerp(c, duskFog[i], dusk), nightFog[i], night));
+    R.fogNear = V.nev === 'fog' && night > 0.5 ? 6 : 26;
     // lights
     lights = [];
     const cx0 = Math.floor(R.cam.x), cy0 = Math.floor(R.cam.y);
@@ -411,7 +467,7 @@
     gl.depthMask(true);
     // ---- world ----
     gl.useProgram(prog);
-    gl.uniformMatrix4fv(prog.u.uVP, false, vp); gl.uniform3f(prog.u.uCam, R.cam.x, R.cam.z, R.cam.y); gl.uniform1f(prog.u.uAmb, ambient); gl.uniform1f(prog.u.uTime, nowT); gl.uniform1f(prog.u.uWater, 0);
+    gl.uniformMatrix4fv(prog.u.uVP, false, vp); gl.uniform3f(prog.u.uCam, R.cam.x, R.cam.z, R.cam.y); gl.uniform1f(prog.u.uAmb, ambient); gl.uniform1f(prog.u.uTime, nowT); gl.uniform1f(prog.u.uWater, 0); gl.uniform1f(prog.u.uFogNear, R.fogNear || 26);
     gl.uniform3f(prog.u.uSunDir, sunDir[0], sunDir[1], sunDir[2]); gl.uniform3fv(prog.u.uSunCol, sunCol);
     gl.uniform4fv(prog.u.uLights, lp); gl.uniform3fv(prog.u.uLightCol, lc); gl.uniform1i(prog.u.uNL, lights.length);
     gl.uniform3fv(prog.u.uFog, fog); gl.uniform1f(prog.u.uAlpha, 1);
@@ -432,6 +488,7 @@
     // ---- water ----
     gl.enable(gl.BLEND); gl.depthMask(false); gl.uniform1f(prog.u.uWater, 1); gl.uniform1f(prog.u.uAlpha, 0.75);
     for (const c of vis) { if (!c.wn) continue; gl.bindBuffer(gl.ARRAY_BUFFER, c.wvbo); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, c.wn); }
+    if (trail.n) { gl.uniform1f(prog.u.uWater, 0); gl.uniform1f(prog.u.uAlpha, 0.45); if (!trailBuf) trailBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, trailBuf); gl.bufferData(gl.ARRAY_BUFFER, trail.arr.subarray(0, trail.n * VF), gl.DYNAMIC_DRAW); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, trail.n); }
     gl.uniform1f(prog.u.uWater, 0); gl.uniform1f(prog.u.uAlpha, 1); gl.depthMask(true); gl.disable(gl.BLEND);
     // ---- first-person arms (drawn last, depth cleared so they never clip into walls) ----
     if (me && !me.dead && !me.downed) { gl.clear(gl.DEPTH_BUFFER_BIT); dyn.n = 0; buildHands(me, L); gl.bindBuffer(gl.ARRAY_BUFFER, dynBuf); gl.bufferData(gl.ARRAY_BUFFER, dyn.arr.subarray(0, dyn.n * VF), gl.DYNAMIC_DRAW); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, dyn.n); }
@@ -439,73 +496,87 @@
     drawMinimap(V);
   };
 
+  let trail = { arr: new Float32Array(VF * 3 * 4000), n: 0 }, trailBuf = null;
+  function swingTrail(px, py, gz, sw, col) { // fan of translucent quads along the arc travelled so far
+    const prog = Math.min(1, sw.t / sw.dur); if (prog < 0.2 || prog > 0.85) return;
+    const a0 = sw.ang - sw.arc / 2, a1 = a0 + sw.arc * Math.min(1, (prog - 0.2) / 0.5); const steps = 8; const rIn = 0.5, rOut = sw.reach + 0.2, z = gz + (sw.anim === 'slam' ? 1.2 : sw.anim === 'chop' ? 1.0 : 0.95);
+    for (let i = 0; i < steps; i++) { const t0 = a0 + (a1 - a0) * i / steps, t1 = a0 + (a1 - a0) * (i + 1) / steps; const dz = sw.anim === 'slam' ? -0.6 * (i / steps) : sw.anim === 'chop' ? -0.5 * (i / steps) : 0; const I = m4(); quad(trail, I, [px + Math.cos(t0) * rIn, z + dz, py + Math.sin(t0) * rIn], [px + Math.cos(t0) * rOut, z + dz, py + Math.sin(t0) * rOut], [px + Math.cos(t1) * rOut, z + dz, py + Math.sin(t1) * rOut], [px + Math.cos(t1) * rIn, z + dz, py + Math.sin(t1) * rIn], col, 1.0); }
+  }
   function buildDynamic(V, me, L) {
-    const t = dyn, world = V.world, F = R.fx;
+    const t = dyn, world = V.world, F = R.fx; trail.n = 0;
     // drops
-    for (const d of V.drops) { const gz = R.groundZ(world, d.x, d.y); const bob = Math.sin(nowT * 3 + d.id) * 0.05; itemMesh(t, M(mT(d.x, gz + 0.2 + bob, d.y), mRY(nowT * 1.5 + d.id), mRZ(0.5)), d.item, true); }
+    for (const d of V.drops) { const gz = R.groundZ(world, d.x, d.y); const bob = Math.sin(nowT * 3 + d.id) * 0.05; itemMesh(t, M(mT(d.x, gz + 0.25 + bob, d.y), mRY(nowT * 1.5 + d.id), mRZ(0.5)), d.item, true, d); if (d.aff || d.q >= 3) { const c = hex(G.RARITY_COL[d.q || 0]); cyl(t, M(mT(d.x, gz + 0.02, d.y)), 0.3, 0.3, 0.02, 10, c, 1.0); cyl(t, M(mT(d.x, gz, d.y)), 0.025, 0.005, 1.6 + (d.q || 0) * 0.4, 4, c, 0.9); } }
     // enemies
     for (const e of V.enemies) {
       if (e.hidden) continue; const gz = R.groundZ(world, e.x, e.y); const zoff = e.t === 'leviathan' ? -0.6 : 0;
-      creature(t, M(mT(e.x, gz + zoff, e.y), mRY(e.face), mS(e.stun ? 1 : 1)), e, V);
+      creature(t, M(mT(e.x, gz + zoff, e.y), mRY(e.face)), e, V);
       if (e.burn) F.parts.push({ x: e.x + (Math.random() - .5) * 0.6, y: e.y + (Math.random() - .5) * 0.6, z: gz + 0.5, vx: 0, vy: 0, vz: 1.5, c: [1, 0.42, 0.1], t: 0, life: 0.3, g: -3, e: 1 });
-      if (e.st === 'charge' || e.st === 'lunge') for (let i = 0; i < 2; i++) F.parts.push({ x: e.x, y: e.y, z: gz + 0.1, vx: (Math.random() - .5) * 2, vy: (Math.random() - .5) * 2, vz: 1, c: [0.8, 0.75, 0.6], t: 0, life: 0.3, g: 0 });
+      if (/charge|lunge|pounce/.test(e.st)) for (let i = 0; i < 2; i++) F.parts.push({ x: e.x, y: e.y, z: gz + 0.1, vx: (Math.random() - .5) * 2, vy: (Math.random() - .5) * 2, vz: 1, c: [0.8, 0.75, 0.6], t: 0, life: 0.3, g: 0 });
     }
+    // corpses (death tumble)
+    for (let i = F.corpses.length - 1; i >= 0; i--) { const c = F.corpses[i]; c.age += L.dt; if (c.age > 1.6) { F.corpses.splice(i, 1); continue; } const gz = R.groundZ(world, c.x, c.y); const k = Math.min(1, c.age * 2.2); const sink = c.age > 0.9 ? (c.age - 0.9) * 1.4 : 0; creature(t, M(mT(c.x, gz - sink, c.y), mRY(c.face), mRX(k * 1.5), mS(1, 1 - k * 0.15, 1)), { t: c.k, id: c.id, st: 'idle', face: c.face, flash: c.age < 0.1, r: c.r, elite: c.el, tm: 0 }, V); }
     // other players
     for (const id in V.players) {
       const p = V.players[id]; if (p.dead || p === me) continue; const gz = R.groundZ(world, p.x, p.y);
-      const it = p.inv[p.held]; const col = hex(p.col);
-      const o = { h: 1.2, body: p.flash ? [1, 1, 1] : col, skin: hex('#f0c8a0'), hair: hex('#5a3a20'), anim: p.anim * Math.PI, moving: p.moving, held: it ? it.id : null, swing: p.swing ? p.swing.t / p.swing.dur : null, block: p.blocking, chest: p.armor.chest ? hex(G.ITEMS[p.armor.chest].col) : null, helm: p.armor.head ? hex(G.ITEMS[p.armor.head].col) : null, legcol: p.armor.legs ? hex(G.ITEMS[p.armor.legs].col) : hex('#3a3040') };
-      if (p.downed) humanoid(t, M(mT(p.x, gz + 0.15, p.y), mRY(p.face), mRZ(1.5)), o); else humanoid(t, M(mT(p.x, gz, p.y), mRY(p.face)), o);
+      const it = p.inv[p.held]; const col = hex(p.col); const d = it ? G.ITEMS[it.id] : null;
+      const o = { h: 1.2, body: col, skin: hex('#f0c8a0'), hair: hex('#5a3a20'), anim: p.anim * Math.PI, moving: p.moving, held: it && d.type !== 'shield' ? it.id : null, heldInst: it, swing: p.swing ? p.swing.t / p.swing.dur : null, wind: p.charge > 0, block: p.blocking, shield: d && d.type === 'shield', shieldId: d && d.type === 'shield' ? it.id : null, bow: d && (d.type === 'bow' || d.type === 'staff'), chest: p.armor.chest ? hex(G.ITEMS[p.armor.chest].col) : null, uniqueChest: p.armor.chest && G.ITEMS[p.armor.chest].unique, helm: p.armor.head ? hex(G.ITEMS[p.armor.head].col) : null, uniqueHelm: p.armor.head && G.ITEMS[p.armor.head].unique, helmId: p.armor.head, legcol: p.armor.legs ? hex(G.ITEMS[p.armor.legs].col) : hex('#3a3040'), flash: !!p.flash, hit: !!p.flash };
+      if (p.downed) humanoid(t, M(mT(p.x, gz + 0.15, p.y), mRY(p.face), mRZ(1.5)), o); else { humanoid(t, M(mT(p.x, gz, p.y), mRY(p.face), mRZ(p.dodgeT ? 0.5 : 0)), o); if (p.swing) swingTrail(p.x, p.y, gz, p.swing, it && it.aff ? hex(G.RARITY_COL[it.q || 0]) : [1, 1, 0.9]); }
+      if (p.slow) F.parts.push({ x: p.x + (Math.random() - .5) * 0.6, y: p.y + (Math.random() - .5) * 0.6, z: gz + 0.3, vx: 0, vy: 0, vz: 0.5, c: [0.7, 0.9, 1], t: 0, life: 0.5, g: 0, e: 1 });
     }
+    // my own swing trail
+    if (me && !me.dead && me.swing) { const it = me.inv[me.held]; swingTrail(me.x, me.y, R.groundZ(world, me.x, me.y), me.swing, it && it.aff ? hex(G.RARITY_COL[it.q || 0]) : (it && G.ITEMS[it.id].burn ? [1, 0.6, 0.2] : [1, 1, 0.9])); }
     // projectiles
     for (const pr of V.projs) {
       const a = pr.a !== undefined ? pr.a : Math.atan2(pr.vy, pr.vx); const z = R.groundZ(world, pr.x, pr.y) + 0.9;
-      if (pr.type === 'arrow') box(t, M(mT(pr.x, z, pr.y), mRY(a)), 0.7, 0.04, 0.04, [0.85, 0.78, 0.65], 0.2, 0);
+      if (pr.type === 'arrow') { box(t, M(mT(pr.x, z, pr.y), mRY(a)), 0.7, 0.04, 0.04, [0.85, 0.78, 0.65], 0.2, 0); cyl(t, M(mT(pr.x, z, pr.y), mRY(a), mT(0.35, 0, 0), mRZ(-1.57)), 0.05, 0, 0.12, 4, [0.6, 0.6, 0.65]); }
       else if (pr.type === 'glob') sph(t, M(mT(pr.x, z - 0.1, pr.y)), 0.16, 5, 3, [1, 0.45, 0.1], 1.0);
+      else if (pr.type === 'fire') { sph(t, M(mT(pr.x, z - 0.1, pr.y), mS(1 + Math.sin(nowT * 30) * 0.15)), 0.22, 6, 4, [1, 0.5, 0.1], 1.0); F.parts.push({ x: pr.x, y: pr.y, z: z - 0.1, vx: (Math.random() - .5), vy: (Math.random() - .5), vz: 1, c: [1, 0.7, 0.2], t: 0, life: 0.3, g: 0, e: 1 }); }
+      else if (pr.type === 'ice') { cyl(t, M(mT(pr.x, z - 0.1, pr.y), mRY(nowT * 6)), 0.2, 0, 0.3, 4, [0.7, 0.9, 1], 1.0); cyl(t, M(mT(pr.x, z - 0.1, pr.y), mRY(nowT * 6), mRX(Math.PI)), 0.2, 0, 0.3, 4, [0.7, 0.9, 1], 1.0); }
+      else if (pr.type === 'shadow') sph(t, M(mT(pr.x, z - 0.1, pr.y)), 0.18, 6, 4, [0.4, 0.3, 0.9], 1.0);
+      else if (pr.type === 'lich') { sph(t, M(mT(pr.x, z - 0.1, pr.y)), 0.2, 6, 4, [0.6, 0.4, 1], 1.0); F.parts.push({ x: pr.x, y: pr.y, z: z, vx: 0, vy: 0, vz: 0.5, c: [0.6, 0.4, 1], t: 0, life: 0.3, g: 0, e: 1 }); }
+      else if (pr.type === 'web') { for (let k = 0; k < 4; k++) box(t, M(mT(pr.x, z - 0.1, pr.y), mRY(k * 0.78 + nowT * 5)), 0.5, 0.02, 0.02, [0.9, 0.9, 1], 0.7, 0); }
       else inst(t, PF.rock, M(mT(pr.x, z - 0.4, pr.y), mRY(nowT * 4), mS(0.8)));
     }
-    // puddles
     for (const p of V.puddles) { const gz = R.groundZ(world, p.x, p.y); cyl(t, M(mT(p.x, gz + 0.03, p.y)), p.r, p.r * 0.9, 0.04, 8, [1, 0.4, 0.1], 1.0); }
-    // particles
     for (const p of F.parts) { const sz = p.sz || 0.08; box(t, M(mT(p.x, p.z, p.y), mRY(p.t * 5)), sz, sz, sz, p.c, p.e ? 1 : 0.35, 0); }
-    // fire particles for campfires/torches in view
     const cx0 = Math.floor(R.cam.x), cy0 = Math.floor(R.cam.y);
     for (let ty = cy0 - 14; ty <= cy0 + 14; ty++) for (let tx = cx0 - 14; tx <= cx0 + 14; tx++) { if (tx < 0 || ty < 0 || tx >= W || ty >= W) continue; const o = world.objs.get(ty * W + tx); if (!o) continue; if (o.t === 'campfire' && Math.random() < 0.3) F.parts.push({ x: tx + .5 + (Math.random() - .5) * 0.3, y: ty + .5 + (Math.random() - .5) * 0.3, z: R.groundZ(world, tx + .5, ty + .5) + 0.6, vx: 0, vy: 0, vz: 1.4, c: Math.random() < 0.5 ? [1, 0.42, 0.1] : [1, 0.82, 0.25], t: 0, life: 0.5, g: -2, e: 1, sz: 0.1 }); else if (o.t === 'torch' && Math.random() < 0.15) F.parts.push({ x: tx + .5, y: ty + .5, z: R.groundZ(world, tx + .5, ty + .5) + 1.0, vx: 0, vy: 0, vz: 1.2, c: [1, 0.7, 0.2], t: 0, life: 0.35, g: -2, e: 1, sz: 0.06 }); }
-    // build ghost
     if (L.ghost) { const g = L.ghost; const gz = R.groundZ(world, g.tx + .5, g.ty + .5); const col = g.ok ? [0.4, 1, 0.4] : [1, 0.35, 0.35]; box(t, M(mT(g.tx + .5, gz + 0.02, g.ty + .5)), 0.96, 0.03, 0.96, col, 1.0); const p = PF[g.obj]; if (p) { const tmp = { arr: new Float32Array(p.length), n: 0 }; inst(tmp, p, M(mT(g.tx + .5, gz, g.ty + .5))); for (let i = 0; i < tmp.n; i++) { const o = i * VF; tmp.arr[o + 6] = (tmp.arr[o + 6] + col[0]) / 2; tmp.arr[o + 7] = (tmp.arr[o + 7] + col[1]) / 2; tmp.arr[o + 8] = (tmp.arr[o + 8] + col[2]) / 2; tmp.arr[o + 9] = 0.6; } grow(t, tmp.n); t.arr.set(tmp.arr.subarray(0, tmp.n * VF), t.n * VF); t.n += tmp.n; } }
-    // pings: tall beacon
     for (const p of F.pings) { const gz = R.groundZ(world, p.x, p.y); cyl(t, M(mT(p.x, gz, p.y)), 0.12, 0.05, 8, 5, hex(p.col), 1.0); }
   }
 
   function buildHands(me, L) {
-    // camera-space rig: right = camBasis.r, up = camBasis.u, fwd = camBasis.f
     const b = camBasis; const C = m4();
     C[0] = b.r[0]; C[1] = b.r[1]; C[2] = b.r[2]; C[4] = b.u[0]; C[5] = b.u[1]; C[6] = b.u[2]; C[8] = b.f[0]; C[9] = b.f[1]; C[10] = b.f[2];
     C[12] = R.cam.x; C[13] = R.cam.z; C[14] = R.cam.y;
-    const bob = (L.bob || 0) * 0.6, sway = Math.sin((L.walkT || 0) * 0.5) * 0.01;
+    const bob = (L.bob || 0) * 0.6, sway = Math.sin((L.walkT || 0) * 0.5) * 0.012, idle = Math.sin(nowT * 1.5) * 0.006;
     const it = me.inv[me.held]; const d = it ? G.ITEMS[it.id] : null;
-    let swing = me.swing ? me.swing.t / me.swing.dur : 0; const sw = Math.sin(swing * Math.PI);
-    // right arm: hand sits low and forward; forearm runs back toward the shoulder
-    let hand = M(C, mT(0.36 + sway, -0.36 + bob, 0.82), mRX(-0.15));
-    if (me.swing) hand = M(C, mT(0.36 + sway - sw * 0.3, -0.36 + bob + sw * 0.28, 0.82 + sw * 0.1), mRX(-0.15 - sw * 1.3), mRZ(sw * 0.7));
-    if (me.blocking) hand = M(C, mT(0.12, -0.2 + bob, 0.7), mRX(-0.1), mRY(-0.3));
-    if (d && d.type === 'bow') { const pull = me.draw ? Math.min(1, me.draw / d.draw) : 0; hand = M(C, mT(0.02, -0.22 + bob, 0.8 + pull * 0.05), mRX(-0.15), mRY(1.3), mRZ(-0.2)); }
-    const skin = hex('#f0c8a0'), sleeve = hex(me.col);
-    box(dyn, M(hand, mT(0.04, -0.05, -0.3), mRX(0.12), mRY(-0.15)), 0.1, 0.1, 0.6, sleeve, 0, 0);
-    box(dyn, hand, 0.11, 0.11, 0.11, skin, 0, 0);
-    if (it) {
-      if (d.type === 'weapon' || d.type === 'tool') itemMesh(dyn, M(hand, mT(0, 0.04, 0.02), mRX(-0.75), mRZ(0.35)), it.id, false);
-      else if (d.type === 'bow') itemMesh(dyn, M(hand, mT(0, 0, 0), mRY(0.2)), it.id, false);
-      else if (d.type === 'shield') itemMesh(dyn, M(hand, mT(0, 0.1, 0.08), mRY(0.1)), it.id, false);
-      else if (it.id === 'torch_hand') itemMesh(dyn, M(hand, mT(0, -0.08, 0.04), mRX(-0.3), mS(0.6)), it.id, false);
-      else if (d.type === 'place') itemMesh(dyn, M(hand, mT(0, 0.08, 0.06), mRY(nowT * 0.6), mS(0.6)), it.id, true);
-      else itemMesh(dyn, M(hand, mT(0, 0.1, 0.05), mRY(nowT * 0.5)), it.id, true);
-      if (d.type === 'bow' && me.draw > 0) {
-        const lh = M(C, mT(0.28 - Math.min(1, me.draw / d.draw) * 0.28, -0.22 + bob, 0.7)); box(dyn, lh, 0.11, 0.11, 0.11, skin, 0, 0); box(dyn, M(lh, mT(0, -0.05, -0.25), mRX(0.3)), 0.1, 0.1, 0.4, sleeve, 0, 0); itemMesh(dyn, M(lh, mT(0, 0.02, 0.3), mRX(1.57)), 'arrow', false);
-      }
+    const prog = me.swing ? Math.min(1, me.swing.t / me.swing.dur) : 0; const sw = Math.sin(prog * Math.PI); const anim = me.swing ? (me.swing.anim || 'slash') : null; const combo = me.swing ? (me.swing.combo || 0) : 0;
+    const big = d && d.big; const skin = hex('#f0c8a0'), sleeve = hex(me.col);
+    // rest pose
+    let hand = M(C, mT(0.36 + sway, -0.36 + bob + idle, 0.82), mRX(-0.15));
+    if (me.charge > 0) { const c = me.charge; hand = M(C, mT(0.34 + sway, -0.22 + bob + c * 0.15 + Math.sin(nowT * 40) * 0.006 * c, 0.72), mRX(-0.15 - c * 1.2), mRZ(-0.25 * c)); }
+    if (me.swing) {
+      if (anim === 'slash') { const dir = combo === 1 ? -1 : 1; const ang = (prog - 0.5) * 2.4 * dir; hand = M(C, mT(0.36 * Math.cos(ang) - 0.05, -0.34 + bob + sw * 0.1, 0.8 + sw * 0.1), mRY(-ang * 0.9), mRX(0.15 + sw * 0.5), mRZ(ang * 0.8)); }
+      else if (anim === 'chop' || anim === 'slam') { const lift = prog < 0.35 ? prog / 0.35 : Math.max(-0.4, 1 - (prog - 0.35) / 0.65 * 1.6); hand = M(C, mT(0.32 + sway, -0.34 + bob + Math.max(0, lift) * 0.4, 0.78 + (prog > 0.35 ? (prog - 0.35) * 0.35 : 0)), mRX(0.45 - lift * 1.5), mRZ(-0.15)); }
+      else if (anim === 'thrust') { const push = prog < 0.4 ? -prog / 0.4 * 0.15 : (prog - 0.4) / 0.6; hand = M(C, mT(0.3 + sway - Math.max(0, push) * 0.2, -0.32 + bob, 0.8 + push * 0.5), mRX(-0.05 - Math.max(0, push) * 0.2), mRY(-0.2)); }
     }
-    // left hand when blocking or bare-handed
-    if (!it || me.blocking) { const lh = M(C, mT(-0.36 - sway, -0.38 + bob, 0.8), mRX(-0.15)); box(dyn, M(lh, mT(-0.04, -0.05, -0.3), mRX(0.12), mRY(0.15)), 0.1, 0.1, 0.6, sleeve, 0, 0); box(dyn, lh, 0.11, 0.11, 0.11, skin, 0, 0); }
+    if (me.blocking) hand = M(C, mT(0.12, -0.2 + bob, 0.7), mRX(-0.1), mRY(-0.3));
+    if (d && (d.type === 'bow' || d.type === 'staff')) { const pull = me.draw ? Math.min(1, me.draw / d.draw) : 0; hand = d.type === 'bow' ? M(C, mT(0.02, -0.22 + bob, 0.8 + pull * 0.05), mRX(-0.15), mRY(1.3), mRZ(-0.2)) : M(C, mT(0.3 + sway, -0.4 + bob + pull * 0.15, 0.75), mRX(-0.5 - pull * 0.5), mRZ(0.2)); }
+    box(dyn, M(hand, mT(0.03, -0.04, -0.17), mRX(0.1), mRY(-0.12)), 0.09, 0.09, 0.34, sleeve, 0, 0);
+    sph(dyn, M(hand, mT(0, 0, 0)), 0.07, 6, 4, skin);
+    if (it) {
+      if (d.type === 'weapon' || d.type === 'tool') itemMesh(dyn, M(hand, mT(0, 0.03, 0.02), mRX(anim === 'thrust' ? 1.5 : (big ? 0.95 : 0.75)), mRZ(0.2), mS(big ? 0.62 : 0.85)), it.id, false, it);
+      else if (d.type === 'bow') itemMesh(dyn, M(hand, mT(0, 0, 0), mRY(0.2)), it.id, false, it);
+      else if (d.type === 'staff') itemMesh(dyn, M(hand, mT(0, -0.35, 0.05), mRX(0.2), mS(0.8)), it.id, false, it);
+      else if (d.type === 'shield') itemMesh(dyn, M(hand, mT(0, 0.1, 0.08), mRY(0.1)), it.id, false, it);
+      else if (it.id === 'torch_hand') itemMesh(dyn, M(hand, mT(0, -0.08, 0.04), mRX(0.25), mS(0.6)), it.id, false);
+      else if (d.type === 'place') itemMesh(dyn, M(hand, mT(0, 0.08, 0.06), mRY(nowT * 0.6), mS(0.6)), it.id, true);
+      else itemMesh(dyn, M(hand, mT(0, 0.1, 0.05), mRY(nowT * 0.5)), it.id, true, it);
+      if (d.type === 'bow' && me.draw > 0) { const lh = M(C, mT(0.28 - Math.min(1, me.draw / d.draw) * 0.28, -0.22 + bob, 0.7)); sph(dyn, lh, 0.07, 6, 4, skin); box(dyn, M(lh, mT(0, -0.04, -0.15), mRX(0.2)), 0.09, 0.09, 0.3, sleeve, 0, 0); itemMesh(dyn, M(lh, mT(0, 0.02, 0.3), mRX(1.57)), 'arrow', false); }
+      if (big && !me.blocking) { const lh = M(hand, mT(-0.06, 0.16, -0.02)); sph(dyn, lh, 0.07, 6, 4, skin); box(dyn, M(lh, mT(-0.2, -0.08, -0.14), mRX(0.15), mRY(0.7)), 0.09, 0.09, 0.34, sleeve, 0, 0); }
+    }
+    if (!it || me.blocking) { const lh = M(C, mT(-0.36 - sway, -0.38 + bob + idle, 0.8), mRX(-0.15)); box(dyn, M(lh, mT(-0.03, -0.04, -0.17), mRX(0.1), mRY(0.12)), 0.09, 0.09, 0.34, sleeve, 0, 0); sph(dyn, lh, 0.07, 6, 4, skin); if (!it && me.swing) { /* punch: left/right alternate handled by hand pose above */ } }
   }
 
   // ================= 2D overlay =================
@@ -516,6 +587,7 @@
     for (const e of V.enemies) {
       if (e.hidden) continue; const d = G.ENEMIES[e.t]; const gz = R.groundZ(V.world, e.x, e.y); const top = R.project(e.x, e.y, gz + (d.boss ? e.r * 3.0 : e.r * 3.0) + 0.3); if (!top) continue;
       const sc = G.clamp(14 / top.d, 0.5, 2.2);
+      if (e.elite) { x.fillStyle = '#c060ff'; x.font = Math.round(9 * sc) + 'px monospace'; x.textAlign = 'center'; x.fillText('ELITE', top.x, top.y - 14 * sc); }
       if (!d.boss && e.hp < e.maxHp) { const w = 26 * sc; x.fillStyle = '#000'; x.fillRect(top.x - w / 2, top.y, w, 3 * sc); x.fillStyle = (e.pet || e.owner) ? '#60ff60' : '#e03030'; x.fillRect(top.x - w / 2, top.y, w * Math.max(0, e.hp / e.maxHp), 3 * sc); }
       if (/wind$/.test(e.st)) { x.fillStyle = Math.floor(nowT * 12) % 2 ? '#ff3030' : '#ffe040'; x.font = 'bold ' + Math.round(18 * sc) + 'px monospace'; x.textAlign = 'center'; x.fillText('!', top.x, top.y - 4); }
       if (e.stun) { x.fillStyle = '#ffe040'; x.font = Math.round(10 * sc) + 'px monospace'; x.textAlign = 'center'; x.fillText('* *', top.x, top.y - 4); }
@@ -547,6 +619,7 @@
       if (me.downed) { x.fillStyle = 'rgba(60,0,0,0.45)'; x.fillRect(0, 0, R.W, R.H); x.fillStyle = '#ff6060'; x.font = 'bold 24px monospace'; x.textAlign = 'center'; x.fillText('YOU ARE DOWN — ' + me.bleed + 's', cx, cy - 30); x.font = '13px monospace'; x.fillStyle = '#fff'; x.fillText('a teammate can revive you (hold E)', cx, cy - 10); }
       if (me.dark && darkness > 0.8) { x.fillStyle = '#8080ff'; x.font = '13px monospace'; x.textAlign = 'center'; x.fillText('the dark bites… find light', cx, cy + 44); }
     }
+    if (R.banner) { R.banner.t += dt; const bt = R.banner.t; if (bt > 4) R.banner = null; else { const a = Math.min(1, bt * 3) * Math.min(1, (4 - bt)); x.globalAlpha = a; x.textAlign = 'center'; x.fillStyle = 'rgba(0,0,0,0.5)'; x.fillRect(0, R.H * 0.28, R.W, 62); x.font = 'bold 30px monospace'; x.fillStyle = R.banner.col || '#ff5050'; x.fillText(R.banner.txt, cx, R.H * 0.28 + 36); x.font = '12px monospace'; x.fillStyle = '#fff'; x.fillText(R.banner.sub, cx, R.H * 0.28 + 54); x.globalAlpha = 1; } }
     let by = 10;
     for (const e of V.enemies) if (G.ENEMIES[e.t].boss) { const d = G.ENEMIES[e.t]; const w = Math.min(360, R.W - 60); const x0 = (R.W - w) / 2; x.fillStyle = '#000'; x.fillRect(x0 - 2, by - 2, w + 4, 12); x.fillStyle = '#601010'; x.fillRect(x0, by, w, 8); x.fillStyle = '#e03030'; x.fillRect(x0, by, w * Math.max(0, e.hp / e.maxHp), 8); x.fillStyle = '#fff'; x.font = '11px monospace'; x.textAlign = 'center'; x.fillText(d.name, R.W / 2, by + 22); by += 28; }
   }

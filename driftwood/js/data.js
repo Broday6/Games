@@ -49,19 +49,55 @@
     const tier = i + 1;
     I['axe_' + t] = { id: 'axe_' + t, name: TNAME[i] + ' Axe', type: 'tool', tool: 'axe', tier, power: 1 + i, dmg: 4 + i * 4, spd: 1.6, reach: 1.3, arc: 1.4, kb: 3, col: TIERCOL[i] };
     I['pick_' + t] = { id: 'pick_' + t, name: TNAME[i] + ' Pickaxe', type: 'tool', tool: 'pick', tier, power: 1 + i, dmg: 3 + i * 3, spd: 1.6, reach: 1.3, arc: 1.2, kb: 2, col: TIERCOL[i] };
-    I['sword_' + t] = { id: 'sword_' + t, name: TNAME[i] + ' Sword', type: 'weapon', tier, dmg: [7, 12, 19, 28, 40][i], spd: 2.6, reach: 1.6, arc: 2.0, kb: 4, col: TIERCOL[i] };
+    I['sword_' + t] = { id: 'sword_' + t, name: TNAME[i] + ' Sword', type: 'weapon', tier, dmg: [7, 12, 19, 28, 40][i], spd: 2.6, reach: 1.6, arc: 2.0, kb: 4, col: TIERCOL[i], anim: 'slash' };
     if (i >= 2) {
       I['helm_' + t] = { id: 'helm_' + t, name: TNAME[i] + ' Helm', type: 'armor', slot: 'head', def: [0, 0, 6, 10, 15][i], col: TIERCOL[i] };
       I['chest_' + t] = { id: 'chest_' + t, name: TNAME[i] + ' Chestplate', type: 'armor', slot: 'chest', def: [0, 0, 10, 16, 24][i], col: TIERCOL[i] };
       I['legs_' + t] = { id: 'legs_' + t, name: TNAME[i] + ' Leggings', type: 'armor', slot: 'legs', def: [0, 0, 8, 13, 20][i], col: TIERCOL[i] };
     }
   });
+  I.helm_bone = { id: 'helm_bone', name: 'Bone Helm', type: 'armor', slot: 'head', def: 4, col: '#eae6d6' };
+  I.chest_bone = { id: 'chest_bone', name: 'Bone Harness', type: 'armor', slot: 'chest', def: 7, col: '#eae6d6' };
+  I.legs_bone = { id: 'legs_bone', name: 'Bone Greaves', type: 'armor', slot: 'legs', def: 6, col: '#eae6d6' };
+  // boss armour: unique effects (eff fields are read by Sim.stats)
+  I.crown_hollow = { id: 'crown_hollow', name: 'Crown of the Hollow King', type: 'armor', slot: 'head', def: 12, col: '#ffd24a', unique: true, eff: { dodges: 2, darkImmune: true }, desc: '+2 dodge charges, the dark cannot bite you' };
+  I.helm_titan = { id: 'helm_titan', name: 'Titan Visor', type: 'armor', slot: 'head', def: 22, col: '#7080a0', unique: true, eff: { maxHp: 40, speed: -0.08 }, desc: '+40 max HP, -8% speed' };
+  I.chest_dragonscale = { id: 'chest_dragonscale', name: 'Wyrmscale Plate', type: 'armor', slot: 'chest', def: 24, col: '#ff5030', unique: true, eff: { fireImmune: true, atk: 0.2 }, desc: 'immune to fire and lava, +20% attack' };
+  I.chest_warden = { id: 'chest_warden', name: 'Wardenplate', type: 'armor', slot: 'chest', def: 34, col: '#8090b0', unique: true, eff: { thorns: 0.35, speed: -0.1 }, desc: 'reflects 35% of melee damage, -10% speed' };
+  I.chest_lich = { id: 'chest_lich', name: 'Lichrobe', type: 'armor', slot: 'chest', def: 10, col: '#6040c0', unique: true, eff: { ls: 0.12, stamRegen: 10 }, desc: '12% lifesteal, faster stamina regen' };
+  I.legs_spider = { id: 'legs_spider', name: 'Silkweave Leggings', type: 'armor', slot: 'legs', def: 10, col: '#a0a0ff', unique: true, eff: { speed: 0.25, dodgeCost: 0.5 }, desc: '+25% speed, dodges cost half stamina' };
+  I.legs_frostmaw = { id: 'legs_frostmaw', name: 'Frostmaw Greaves', type: 'armor', slot: 'legs', def: 18, col: '#a0e0ff', unique: true, eff: { frostAura: true }, desc: 'nearby enemies are slowed' };
+  I.legs_gronk = { id: 'legs_gronk', name: "Gronk's Loincloth", type: 'armor', slot: 'legs', def: 14, col: '#6a8a40', unique: true, eff: { kbImmune: true, maxHp: 25 }, desc: '+25 max HP, heavy attacks charge twice as fast' };
+  // trinkets (4th equipment slot)
+  I.trinket_rabbit = { id: 'trinket_rabbit', name: "Lucky Rabbit's Foot", type: 'armor', slot: 'trinket', def: 0, col: '#f0e0d0', eff: { crit: 0.15, coinMul: 0.25 }, desc: '+15% crit, +25% coins' };
+  I.trinket_vampire = { id: 'trinket_vampire', name: 'Vampire Amulet', type: 'armor', slot: 'trinket', def: 0, col: '#a02060', eff: { ls: 0.08, maxHp: -10 }, desc: '8% lifesteal, -10 max HP' };
+  I.trinket_phoenix = { id: 'trinket_phoenix', name: 'Phoenix Pendant', type: 'armor', slot: 'trinket', def: 0, col: '#ff9030', unique: true, eff: { phoenix: true }, desc: 'self-revive once per run' };
+  I.trinket_storm = { id: 'trinket_storm', name: 'Stormheart', type: 'armor', slot: 'trinket', def: 0, col: '#80c0ff', unique: true, eff: { chain: 0.25 }, desc: '25% chance hits arc lightning to 3 enemies' };
+  I.trinket_hunger = { id: 'trinket_hunger', name: 'Everfull Gourd', type: 'armor', slot: 'trinket', def: 0, col: '#c0a060', eff: { hunger: 0.5, regen: 0.5 }, desc: 'hunger drains half as fast, +0.5 HP/s' };
+  I.trinket_titan = { id: 'trinket_titan', name: 'Titan Core', type: 'armor', slot: 'trinket', def: 8, col: '#7080a0', unique: true, eff: { atk: 0.3, dmgTaken: 0.2 }, desc: '+30% attack, +20% damage taken' };
   I.helm_leather = { id: 'helm_leather', name: 'Leather Cap', type: 'armor', slot: 'head', def: 3, col: '#8d7a68' };
   I.chest_leather = { id: 'chest_leather', name: 'Leather Tunic', type: 'armor', slot: 'chest', def: 5, col: '#8d7a68' };
   I.legs_leather = { id: 'legs_leather', name: 'Leather Pants', type: 'armor', slot: 'legs', def: 4, col: '#8d7a68' };
-  I.spear_iron = { id: 'spear_iron', name: 'Iron Spear', type: 'weapon', tier: 3, dmg: 16, spd: 2.2, reach: 2.4, arc: 0.7, kb: 6, col: '#c8c8d0' };
-  I.hammer_gold = { id: 'hammer_gold', name: 'Golden Warhammer', type: 'weapon', tier: 4, dmg: 45, spd: 1.1, reach: 1.7, arc: 2.6, kb: 10, col: '#ffd24a' };
-  I.blade_ember = { id: 'blade_ember', name: 'Emberblade', type: 'weapon', tier: 5, dmg: 34, spd: 3.2, reach: 1.7, arc: 2.0, kb: 4, burn: true, col: '#ff8a3a' };
+  I.spear_iron = { id: 'spear_iron', name: 'Iron Spear', type: 'weapon', tier: 3, dmg: 16, spd: 2.2, reach: 2.4, arc: 0.7, kb: 6, col: '#c8c8d0', anim: 'thrust' };
+  I.hammer_gold = { id: 'hammer_gold', name: 'Golden Warhammer', type: 'weapon', tier: 4, dmg: 45, spd: 1.1, reach: 1.7, arc: 2.6, kb: 10, col: '#ffd24a', anim: 'slam', big: true };
+  I.blade_ember = { id: 'blade_ember', name: 'Emberblade', type: 'weapon', tier: 5, dmg: 34, spd: 3.2, reach: 1.7, arc: 2.0, kb: 4, burn: true, col: '#ff8a3a', anim: 'slash' };
+  I.dagger_iron = { id: 'dagger_iron', name: 'Iron Dagger', type: 'weapon', tier: 3, dmg: 11, spd: 4.4, reach: 1.25, arc: 1.2, kb: 1.5, crit: 0.15, col: '#c8c8d0', anim: 'thrust' };
+  I.dagger_obsidian = { id: 'dagger_obsidian', name: 'Obsidian Dagger', type: 'weapon', tier: 5, dmg: 22, spd: 4.8, reach: 1.25, arc: 1.2, kb: 1.5, crit: 0.25, col: '#7a5aa0', anim: 'thrust' };
+  I.greatsword_iron = { id: 'greatsword_iron', name: 'Iron Greatsword', type: 'weapon', tier: 3, dmg: 30, spd: 1.3, reach: 2.1, arc: 3.0, kb: 8, col: '#c8c8d0', anim: 'slash', big: true };
+  I.greatsword_gold = { id: 'greatsword_gold', name: 'Golden Greatsword', type: 'weapon', tier: 4, dmg: 44, spd: 1.3, reach: 2.2, arc: 3.0, kb: 9, col: '#ffd24a', anim: 'slash', big: true };
+  I.crossbow_iron = { id: 'crossbow_iron', name: 'Iron Crossbow', type: 'bow', dmg: 30, draw: 1.3, pierce: true, col: '#8a6a40' };
+  I.staff_ember = { id: 'staff_ember', name: 'Ember Staff', type: 'staff', dmg: 26, draw: 0.6, cost: 18, col: '#ff6a1a' };
+  I.staff_frost = { id: 'staff_frost', name: 'Frost Staff', type: 'staff', dmg: 18, draw: 0.5, cost: 14, frost: true, col: '#80d0ff' };
+  // boss weapons (unique legendaries with specials, handled in the sim)
+  I.gronk_hammer = { id: 'gronk_hammer', name: "Gronk's Skullcrusher", type: 'weapon', tier: 5, dmg: 60, spd: 1.0, reach: 1.9, arc: 2.8, kb: 12, col: '#6a8a40', anim: 'slam', big: true, unique: true, special: 'shock', desc: 'heavy attacks send a shockwave that hits everything within 4m' };
+  I.hollow_blade = { id: 'hollow_blade', name: 'Crownblade', type: 'weapon', tier: 5, dmg: 36, spd: 3.0, reach: 1.7, arc: 2.0, kb: 4, col: '#4050c0', anim: 'slash', unique: true, special: 'shadowbolt', desc: 'every swing fires a shadow bolt' };
+  I.wyrm_fang = { id: 'wyrm_fang', name: "Wyrm's Fang", type: 'weapon', tier: 5, dmg: 26, spd: 5.0, reach: 1.3, arc: 1.2, kb: 1.5, crit: 0.3, burn: true, col: '#ff5030', anim: 'thrust', unique: true, special: 'firetrail', desc: 'hits leave burning ground' };
+  I.bonecleaver = { id: 'bonecleaver', name: 'Bonecleaver', type: 'weapon', tier: 5, dmg: 55, spd: 1.4, reach: 2.3, arc: 3.1, kb: 9, col: '#eae6d6', anim: 'slash', big: true, unique: true, special: 'execute', desc: 'double damage to enemies below half health' };
+  I.warden_shield = { id: 'warden_shield', name: "Warden's Bulwark", type: 'shield', block: 0.95, col: '#8090b0', unique: true, special: 'parrywave', desc: 'blocks 95%; a parry blasts everything nearby' };
+  I.venom_bow = { id: 'venom_bow', name: 'Venomfang Bow', type: 'bow', dmg: 34, draw: 0.7, col: '#60c040', unique: true, special: 'poison', desc: 'arrows poison and slow' };
+  I.frost_maul = { id: 'frost_maul', name: 'Frostmaw Maul', type: 'weapon', tier: 5, dmg: 52, spd: 1.2, reach: 1.9, arc: 2.6, kb: 10, frost: true, col: '#a0e0ff', anim: 'slam', big: true, unique: true, special: 'freeze', desc: 'heavy attacks freeze everything within 4m for 2s' };
+  I.lich_staff = { id: 'lich_staff', name: "Lich's Staff", type: 'staff', dmg: 40, draw: 0.5, cost: 14, chain: true, col: '#6040c0', unique: true, special: 'lichbolt', desc: 'bolts chain to 4 enemies and heal you' };
+  I.titan_fist = { id: 'titan_fist', name: "Titan's Fist", type: 'weapon', tier: 5, dmg: 48, spd: 2.0, reach: 1.5, arc: 1.8, kb: 14, col: '#7080a0', anim: 'thrust', unique: true, special: 'punch', desc: 'every third hit is a quaking punch' };
   I.bow_wood = { id: 'bow_wood', name: 'Wooden Bow', type: 'bow', dmg: 10, draw: 1.0, col: '#a0702e' };
   I.bow_iron = { id: 'bow_iron', name: 'Iron Longbow', type: 'bow', dmg: 20, draw: 0.8, col: '#c8c8d0' };
   I.bow_gold = { id: 'bow_gold', name: 'Golden Bow', type: 'bow', dmg: 32, draw: 0.6, col: '#ffd24a' };
@@ -85,6 +121,42 @@
   G.ITEM_LIST = Object.keys(I);
   G.ITEM_IDX = {}; G.ITEM_LIST.forEach((k, i) => G.ITEM_IDX[k] = i);
   G.STACK = (id) => (I[id].type === 'material' || I[id].type === 'food' || I[id].type === 'arrow' || I[id].type === 'place') ? 99 : 1;
+  // tools default to a chop animation
+  for (const k in I) if (I[k].type === 'tool') I[k].anim = 'chop';
+
+  // ---- weapon affixes (roguelike loot) ----
+  G.AFFIX = {
+    swift: { name: 'Swift', desc: '+25% attack speed', col: '#8fd3ff', spd: 1.25 },
+    brutal: { name: 'Brutal', desc: '+25% damage', col: '#ff6060', dmg: 1.25 },
+    vampiric: { name: 'Vampiric', desc: '10% lifesteal', col: '#c040a0', ls: 0.10 },
+    flaming: { name: 'Flaming', desc: 'hits set enemies ablaze', col: '#ff8a3a', burn: true },
+    frozen: { name: 'Frozen', desc: 'hits slow enemies', col: '#c0f0ff', frost: true },
+    lucky: { name: 'Lucky', desc: '+15% crit chance', col: '#ffe060', crit: 0.15 },
+    heavy: { name: 'Heavy', desc: 'double knockback, +10% damage', col: '#d0d0d0', kb: 2, dmg: 1.1 },
+    keen: { name: 'Keen', desc: '+20% reach', col: '#a0ffa0', reach: 1.2 },
+    cursed: { name: 'Cursed', desc: '+45% damage, -20 max HP while held', col: '#a040ff', dmg: 1.45, hp: -20 },
+  };
+  G.AFFIX_LIST = Object.keys(G.AFFIX);
+  G.itemName = (s) => { const d = I[s.id]; if (!s.aff || !s.aff.length) return d.name; return s.aff.map(a => G.AFFIX[a].name).join(' ') + ' ' + d.name; };
+
+  // ---- starting classes (roguelike meta) ----
+  G.CLASSES = [
+    { id: 'castaway', name: 'Castaway', desc: 'Nothing but your fists and your wits.', items: [], pw: {}, unlock: null },
+    { id: 'warrior', name: 'Warrior', desc: 'Starts with a stone sword, a wooden shield and a leather tunic. +6 defense.', items: [['sword_stone', 1], ['shield_wood', 1], ['chest_leather', 1]], pw: { ironskin: 1 }, unlock: { key: 'bestDay', n: 3, txt: 'reach day 3' } },
+    { id: 'hunter', name: 'Hunter', desc: 'Starts with a bow, 30 arrows and cooked meat. +12% speed.', items: [['bow_wood', 1], ['arrow', 30], ['cooked_meat', 3]], pw: { sneakers: 1 }, unlock: { key: 'kills', n: 60, txt: 'slay 60 monsters in total' } },
+    { id: 'builder', name: 'Builder', desc: 'Starts with a workbench, campfire, 30 wood, 10 stone and 4 torches. +15 max HP.', items: [['workbench', 1], ['campfire', 1], ['wood', 30], ['stone', 10], ['torch_hand', 4]], pw: { broth: 1 }, unlock: { key: 'bosses', n: 1, txt: 'slay a guardian' } },
+  ];
+
+  // ---- night events (random modifiers announced at dusk) ----
+  G.NIGHT_EVENTS = [
+    { id: 'clear', name: 'Clear Night', desc: 'Nothing unusual. Yet.', w: 3 },
+    { id: 'bloodmoon', name: 'Blood Moon', desc: 'Monsters hit 30% harder and drop double coins.', w: 2, dmg: 1.3, coins: 2 },
+    { id: 'fog', name: 'Dead Fog', desc: 'You can barely see. Monsters spawn closer.', w: 2 },
+    { id: 'swarm', name: 'The Swarm', desc: 'Bats. So many bats.', w: 2 },
+    { id: 'bounty', name: "Smuggler's Night", desc: 'Chests cost half price tonight.', w: 2, chest: 0.5 },
+    { id: 'eclipse', name: 'Long Dark', desc: 'The night lasts 40% longer.', w: 1, len: 1.4 },
+    { id: 'elite', name: 'Champions Rise', desc: 'Far more elite monsters tonight.', w: 2, elite: 0.35 },
+  ];
 
   // ---- recipes ----
   const R = [];
@@ -102,19 +174,24 @@
   rec('floor_wood', 4, { wood: 4 }, 'workbench'); rec('spikes', 2, { wood: 4, stone: 2, iron_bar: 1 }, 'workbench');
   rec('helm_leather', 1, { wolf_pelt: 3, rope: 1 }, 'workbench'); rec('chest_leather', 1, { wolf_pelt: 5, rope: 2 }, 'workbench');
   rec('legs_leather', 1, { wolf_pelt: 4, rope: 1 }, 'workbench');
+  rec('helm_bone', 1, { bone: 4, rope: 1 }, 'workbench'); rec('chest_bone', 1, { bone: 8, rope: 2 }, 'workbench'); rec('legs_bone', 1, { bone: 6, rope: 1 }, 'workbench');
+  rec('trinket_rabbit', 1, { wolf_pelt: 2, gold_bar: 2, slime_gel: 3 }, 'anvil'); rec('trinket_hunger', 1, { wood: 10, berry: 10, rope: 2 }, 'workbench'); rec('trinket_vampire', 1, { bone: 6, gold_bar: 3, ember: 1 }, 'anvil');
   rec('iron_bar', 1, { iron_ore: 2, coal: 1 }, 'furnace'); rec('gold_bar', 1, { gold_ore: 2, coal: 1 }, 'furnace');
   rec('coal', 2, { wood: 3 }, 'furnace');
   rec('anvil', 1, { iron_bar: 8, stone: 10 }, 'workbench');
   rec('axe_iron', 1, { iron_bar: 4, stick: 2 }, 'anvil'); rec('pick_iron', 1, { iron_bar: 4, stick: 2 }, 'anvil');
   rec('sword_iron', 1, { iron_bar: 6, stick: 1 }, 'anvil'); rec('spear_iron', 1, { iron_bar: 4, stick: 4 }, 'anvil');
   rec('bow_iron', 1, { iron_bar: 4, wood: 4, rope: 3 }, 'anvil'); rec('shield_iron', 1, { iron_bar: 6, wood: 2 }, 'anvil');
+  rec('dagger_iron', 1, { iron_bar: 3, stick: 1 }, 'anvil'); rec('greatsword_iron', 1, { iron_bar: 10, stick: 2 }, 'anvil'); rec('crossbow_iron', 1, { iron_bar: 6, wood: 6, rope: 3 }, 'anvil');
   rec('helm_iron', 1, { iron_bar: 5 }, 'anvil'); rec('chest_iron', 1, { iron_bar: 8 }, 'anvil'); rec('legs_iron', 1, { iron_bar: 6 }, 'anvil');
   rec('axe_gold', 1, { gold_bar: 4, stick: 2 }, 'anvil'); rec('pick_gold', 1, { gold_bar: 4, stick: 2 }, 'anvil');
   rec('sword_gold', 1, { gold_bar: 6, stick: 1 }, 'anvil'); rec('hammer_gold', 1, { gold_bar: 10, wood: 4 }, 'anvil');
   rec('bow_gold', 1, { gold_bar: 5, wood: 4, rope: 3 }, 'anvil');
+  rec('greatsword_gold', 1, { gold_bar: 12, stick: 2 }, 'anvil'); rec('staff_frost', 1, { gold_bar: 4, wood: 6, slime_gel: 8 }, 'anvil');
   rec('helm_gold', 1, { gold_bar: 5 }, 'anvil'); rec('chest_gold', 1, { gold_bar: 8 }, 'anvil'); rec('legs_gold', 1, { gold_bar: 6 }, 'anvil');
   rec('axe_obsidian', 1, { obsidian: 6, gold_bar: 2 }, 'anvil'); rec('pick_obsidian', 1, { obsidian: 6, gold_bar: 2 }, 'anvil');
   rec('sword_obsidian', 1, { obsidian: 8, gold_bar: 2 }, 'anvil'); rec('blade_ember', 1, { obsidian: 6, ember: 3, gold_bar: 2 }, 'anvil');
+  rec('dagger_obsidian', 1, { obsidian: 5, gold_bar: 1 }, 'anvil'); rec('staff_ember', 1, { obsidian: 4, ember: 4, wood: 6 }, 'anvil');
   rec('helm_obsidian', 1, { obsidian: 6, iron_bar: 2 }, 'anvil'); rec('chest_obsidian', 1, { obsidian: 10, iron_bar: 2 }, 'anvil');
   rec('legs_obsidian', 1, { obsidian: 8, iron_bar: 2 }, 'anvil');
   rec('cooked_meat', 1, { raw_meat: 1 }, 'campfire'); rec('bread', 2, { wheat: 3 }, 'campfire');
@@ -189,6 +266,16 @@
   pw('timeshard', 'Time Shard', 3, 'dodge freezes nearby enemies 1s', '#c0a0ff');
   pw('gluttony', 'Gluttony', 3, 'food is twice as effective', '#ffa0c0');
   pw('warlord', "Warlord's Crown", 3, '+50% attack, +50% damage taken', '#ff4040');
+  pw('backstab', 'Backstab', 1, '+30% damage to enemies not facing you', '#c0c0ff');
+  pw('heavyhitter', 'Heavy Hitter', 1, 'heavy attacks +40% damage', '#ff9060');
+  pw('finisher', 'Finisher', 1, 'combo finisher +40% damage', '#ffe0a0');
+  pw('splitshot', 'Split Shot', 2, 'bows fire an extra arrow', '#a0d0a0');
+  pw('fireaura', 'Ember Aura', 2, 'enemies near you slowly burn', '#ff6a1a');
+  pw('scavenger', 'Scavenger', 0, '+20% resource drops', '#a0c060');
+  pw('ironlungs', 'Iron Lungs', 0, '+30 stamina regen', '#80ffd0');
+  pw('treasure', 'Treasure Sense', 2, 'weapon drops roll one rarity higher', '#ffd24a');
+  pw('glass', 'Glass Cannon', 3, '+100% attack, max HP halved', '#ff80ff');
+  pw('lastword', 'Last Word', 2, 'when downed, explode for massive damage', '#ff4040');
   G.POWERUPS = P; G.PW = {}; P.forEach(p => G.PW[p.id] = p);
   G.RARITY_COL = ['#c8c8c8', '#50e050', '#ff5050', '#ffd24a'];
   G.RARITY_NAME = ['Common', 'Uncommon', 'Rare', 'Legendary'];
@@ -208,13 +295,37 @@
   en('bat', { name: 'Bat', hp: 6, dmg: 3, spd: 5.5, r: 0.2, ai: 'bat', coins: 1, col: '#503060', drops: [], minNight: 1, windup: 0.2, reach: 0.6 });
   en('wolf_pet', { name: 'Wolf Companion', hp: 80, dmg: 12, spd: 5.5, r: 0.4, ai: 'pet', coins: 0, col: '#d0c0a0', drops: [], minNight: 99, windup: 0.3, reach: 1.0 });
   en('tentacle', { name: 'Tentacle', hp: 120, dmg: 18, spd: 0, r: 0.6, ai: 'tentacle', coins: 5, col: '#3a5a7a', drops: [], minNight: 99, windup: 0.9, reach: 2.6 });
+  en('spiderling', { name: 'Spiderling', hp: 14, dmg: 5, spd: 4.8, r: 0.25, ai: 'chase', coins: 1, col: '#503060', drops: [], minNight: 99, windup: 0.35, reach: 0.7 });
+  // night bosses (arrive with the heavy wave from night 2)
+  en('bonecrusher', { name: 'Bonecrusher', hp: 700, dmg: 24, spd: 2.6, r: 0.9, ai: 'bonecrusher', coins: 50, col: '#e0e0d0', drops: [['bone', 8, 12]], minNight: 99, boss: true, windup: 0.9, reach: 2.0, night: true, loot: 'bonecleaver', armor: 'helm_bone' });
+  en('warden', { name: 'The Warden', hp: 1000, dmg: 20, spd: 2.4, r: 0.8, ai: 'warden', coins: 60, col: '#8090b0', drops: [['iron_bar', 6, 10]], minNight: 99, boss: true, windup: 0.8, reach: 1.9, night: true, loot: 'warden_shield', armor: 'chest_warden' });
+  en('matriarch', { name: 'The Matriarch', hp: 1100, dmg: 18, spd: 3.4, r: 1.1, ai: 'matriarch', coins: 70, col: '#402050', drops: [['rope', 10, 15]], minNight: 99, boss: true, windup: 0.7, reach: 2.2, night: true, loot: 'venom_bow', armor: 'legs_spider' });
+  en('frostmaw', { name: 'Frostmaw', hp: 1400, dmg: 26, spd: 4.2, r: 0.9, ai: 'frostmaw', coins: 80, col: '#a0e0ff', drops: [['wolf_pelt', 8, 12]], minNight: 99, boss: true, windup: 0.6, reach: 1.8, night: true, loot: 'frost_maul', armor: 'legs_frostmaw' });
+  en('lich', { name: 'The Lich', hp: 1500, dmg: 24, spd: 2.6, r: 0.7, ai: 'lich', coins: 100, col: '#6040c0', drops: [['gold_bar', 6, 10]], minNight: 99, boss: true, windup: 0.8, reach: 8, night: true, loot: 'lich_staff', armor: 'chest_lich' });
+  en('titan', { name: 'The Titan', hp: 2600, dmg: 36, spd: 1.8, r: 1.4, ai: 'titan', coins: 140, col: '#7080a0', drops: [['obsidian', 8, 12], ['stone', 20, 30]], minNight: 99, boss: true, windup: 1.2, reach: 2.6, night: true, loot: 'titan_fist', armor: 'helm_titan' });
   // bosses
-  en('gronk', { name: 'Gronk, the Meadow Ogre', hp: 900, dmg: 26, spd: 2.4, r: 1.0, ai: 'gronk', coins: 60, col: '#6a8a40', drops: [['emerald', 1, 1]], minNight: 99, boss: true, windup: 1.0, reach: 2.0 });
-  en('hollow', { name: 'The Hollow King', hp: 1300, dmg: 22, spd: 2.8, r: 0.8, ai: 'hollow', coins: 90, col: '#4050a0', drops: [['sapphire', 1, 1]], minNight: 99, boss: true, windup: 0.9, reach: 2.0 });
-  en('cinder', { name: 'Cinderwyrm', hp: 1800, dmg: 30, spd: 3.0, r: 1.1, ai: 'cinder', coins: 120, col: '#e04020', drops: [['ruby', 1, 1], ['ember', 3, 5]], minNight: 99, boss: true, windup: 1.0, reach: 2.4 });
-  en('leviathan', { name: 'The Leviathan', hp: 2600, dmg: 34, spd: 0, r: 1.6, ai: 'leviathan', coins: 0, col: '#204060', drops: [], minNight: 99, boss: true, windup: 1.2, reach: 3.0 });
+  en('gronk', { name: 'Gronk, the Meadow Ogre', hp: 900, dmg: 26, spd: 2.4, r: 1.0, ai: 'gronk', coins: 60, col: '#6a8a40', drops: [['emerald', 1, 1]], minNight: 99, boss: true, windup: 1.0, reach: 2.0, loot: 'gronk_hammer', armor: 'legs_gronk' });
+  en('hollow', { name: 'The Hollow King', hp: 1300, dmg: 22, spd: 2.8, r: 0.8, ai: 'hollow', coins: 90, col: '#4050a0', drops: [['sapphire', 1, 1]], minNight: 99, boss: true, windup: 0.9, reach: 2.0, loot: 'hollow_blade', armor: 'crown_hollow' });
+  en('cinder', { name: 'Cinderwyrm', hp: 1800, dmg: 30, spd: 3.0, r: 1.1, ai: 'cinder', coins: 120, col: '#e04020', drops: [['ruby', 1, 1], ['ember', 3, 5]], minNight: 99, boss: true, windup: 1.0, reach: 2.4, loot: 'wyrm_fang', armor: 'chest_dragonscale' });
+  en('leviathan', { name: 'The Leviathan', hp: 2600, dmg: 34, spd: 0, r: 1.6, ai: 'leviathan', coins: 0, col: '#204060', drops: [], minNight: 99, boss: true, windup: 1.2, reach: 3.0, armor: 'trinket_storm' });
   G.ENEMIES = E; G.EN_LIST = Object.keys(E); G.EN_IDX = {}; G.EN_LIST.forEach((k, i) => G.EN_IDX[k] = i);
 
+  G.NIGHT_BOSSES = ['bonecrusher', 'warden', 'matriarch', 'frostmaw', 'lich', 'titan'];
+  G.XP_FOR = (lvl) => Math.round(40 * Math.pow(1.35, lvl - 1)); // xp needed to go from lvl to lvl+1
+  // permanent upgrades bought with Shards at the Camp between runs
+  G.META = [
+    { id: 'vitality', name: 'Vitality', desc: '+10 max HP per rank', max: 5, cost: [30, 50, 80, 120, 170] },
+    { id: 'might', name: 'Might', desc: '+6% attack per rank', max: 5, cost: [30, 50, 80, 120, 170] },
+    { id: 'swift', name: 'Swiftness', desc: '+4% move speed per rank', max: 5, cost: [30, 50, 80, 120, 170] },
+    { id: 'fortune', name: 'Fortune', desc: '+12% coins per rank', max: 5, cost: [25, 40, 60, 90, 130] },
+    { id: 'lungs', name: 'Endurance', desc: '+15% stamina regen per rank', max: 3, cost: [30, 60, 100] },
+    { id: 'sense', name: 'Chest Sense', desc: 'chests 10% cheaper per rank', max: 3, cost: [40, 80, 140] },
+    { id: 'sharp', name: 'Sharp Start', desc: 'start every run with a stone axe and pickaxe', max: 1, cost: [60] },
+    { id: 'chance', name: 'Second Chance', desc: 'start every run with Second Wind', max: 1, cost: [120] },
+    { id: 'boons', name: 'Wider Choice', desc: 'boon picks offer 4 options instead of 3', max: 1, cost: [150] },
+    { id: 'scholar', name: 'Scholar', desc: '+20% XP per rank', max: 3, cost: [40, 80, 140] },
+    { id: 'armory', name: 'Armory', desc: 'weapon drops get an extra affix chance', max: 2, cost: [90, 180] },
+  ];
   G.BOAT_NEED = { wood: 60, iron_bar: 20, rope: 10, emerald: 1, sapphire: 1, ruby: 1 };
   G.PLAYER_COLORS = ['#ff5a5a', '#5aa0ff', '#5aff8a', '#ffd25a', '#d05aff', '#5affff', '#ff9a5a', '#ffffff'];
 })(window.G);

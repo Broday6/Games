@@ -81,6 +81,7 @@
     armor(x, d) { if (d.slot === 'head') { px(x, 3, 5, 10, 7, d.col); px(x, 4, 3, 8, 2, d.col); px(x, 5, 8, 6, 2, OUT); } else if (d.slot === 'chest') { px(x, 3, 3, 10, 10, d.col); px(x, 1, 3, 2, 5, d.col); px(x, 13, 3, 2, 5, d.col); px(x, 6, 5, 4, 5, shade(d.col, -30)); } else { px(x, 3, 3, 10, 4, d.col); px(x, 3, 7, 4, 7, d.col); px(x, 9, 7, 4, 7, d.col); } },
     place(x, d) { const oc = Sp.obj(d.obj); x.drawImage(oc, 0, oc.height === 32 ? 8 : 0, 16, 16, 0, 0, 16, 16); },
     key(x, d) { px(x, 6, 2, 4, 12, '#6a4a30'); px(x, 5, 3, 6, 3, d.col); px(x, 5, 8, 6, 3, d.col); px(x, 7, 4, 2, 1, OUT); px(x, 7, 9, 2, 1, OUT); },
+    staff(x, d) { px(x, 7, 4, 2, 11, '#6a4a30'); x.fillStyle = d.col; x.beginPath(); x.arc(8, 4, 3, 0, 7); x.fill(); px(x, 7, 3, 1, 1, '#fff'); },
     gem(x, d) { x.fillStyle = d.col; x.beginPath(); x.moveTo(8, 2); x.lineTo(13, 7); x.lineTo(8, 14); x.lineTo(3, 7); x.fill(); px(x, 6, 5, 2, 2, '#ffffff'); },
   };
   Sp.item = function (id) {

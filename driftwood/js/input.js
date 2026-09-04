@@ -1,31 +1,47 @@
-// DRIFTWOOD — first-person keyboard & mouse input (pointer lock)
+// DRIFTWOOD — first-person keyboard & mouse input (pointer lock) with rebindable keys and settings
 (function (G) {
   'use strict';
-  const In = { keys: {}, mouse: { l: false, r: false }, yaw: -Math.PI / 2, pitch: 0, onAction: null, onKey: null, locked: false, ptrLocked: false, wantLock: false, sens: 0.0022, canvas: null, aim: { x: 0, y: 0 } };
+  const DEFAULT_BINDS = { forward: 'w', back: 's', left: 'a', right: 'd', sprint: 'Shift', jump: ' ', dodge: 'q', interact: 'e', eat: 'f', ping: 't', inventory: 'Tab', chat: 'Enter', mute: 'm', menu: 'Escape' };
+  const BIND_NAMES = { forward: 'Move forward', back: 'Move back', left: 'Strafe left', right: 'Strafe right', sprint: 'Sprint', jump: 'Jump', dodge: 'Dodge roll', interact: 'Interact / revive', eat: 'Quick eat', ping: 'Ping', inventory: 'Inventory & crafting', chat: 'Chat', mute: 'Mute', menu: 'Menu' };
+  const DEFAULT_SETTINGS = { sens: 1.0, fov: 74, invertY: false, quality: 0.75, shake: true, bob: true };
+  const In = { keys: {}, mouse: { l: false, r: false }, yaw: -Math.PI / 2, pitch: 0, onAction: null, onKey: null, locked: false, ptrLocked: false, wantLock: false, canvas: null, aim: { x: 0, y: 0 }, binds: null, settings: null, BIND_NAMES, DEFAULT_BINDS, capture: null };
   G.Input = In;
+  const load = (k, def) => { try { return Object.assign({}, def, JSON.parse(localStorage.getItem(k) || '{}')); } catch (e) { return Object.assign({}, def); } };
+  In.binds = load('driftwood_binds', DEFAULT_BINDS); In.settings = load('driftwood_settings', DEFAULT_SETTINGS);
+  In.saveBinds = () => { try { localStorage.setItem('driftwood_binds', JSON.stringify(In.binds)); } catch (e) { } };
+  In.saveSettings = () => { try { localStorage.setItem('driftwood_settings', JSON.stringify(In.settings)); } catch (e) { } if (G.Render && G.Render.resize) G.Render.resize(); };
+  In.resetBinds = () => { In.binds = Object.assign({}, DEFAULT_BINDS); In.saveBinds(); };
+  In.keyName = (k) => k === ' ' ? 'Space' : k.length === 1 ? k.toUpperCase() : k;
+  const norm = (e) => e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  In.actionsFor = (k) => Object.keys(In.binds).filter(a => In.binds[a] === k);
+  In.is = (action) => !!In.keys[In.binds[action]];
+
   In.init = function (canvas) {
     In.canvas = canvas;
     window.addEventListener('keydown', (e) => {
+      const k = norm(e);
+      if (In.capture) { e.preventDefault(); if (k !== 'Escape') { In.binds[In.capture] = k; In.saveBinds(); } const cb = In.onCaptured; In.capture = null; if (cb) cb(); return; }
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
-      const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
       if (In.onKey && In.onKey(k, e) === true) { e.preventDefault(); return; }
       if (In.locked) return;
       if (!In.keys[k]) {
         In.keys[k] = true;
-        if (k === ' ') { In.onAction && In.onAction({ a: 'jump' }); e.preventDefault(); }
-        if (k === 'q') In.onAction && In.onAction({ a: 'dodge' });
-        if (k >= '1' && k <= '9') In.onAction && In.onAction({ a: 'held', slot: +k - 1 });
-        if (k === 'e') In.onAction && In.onAction({ a: 'interact' });
-        if (k === 't') In.onAction && In.onAction({ a: 'ping' });
-        if (k === 'f') In.onAction && In.onAction({ a: 'quickeat' });
+        for (const a of In.actionsFor(k)) {
+          if (a === 'jump') { In.onAction && In.onAction({ a: 'jump' }); e.preventDefault(); }
+          else if (a === 'dodge') In.onAction && In.onAction({ a: 'dodge' });
+          else if (a === 'interact') In.onAction && In.onAction({ a: 'interact' });
+          else if (a === 'ping') In.onAction && In.onAction({ a: 'ping' });
+          else if (a === 'eat') In.onAction && In.onAction({ a: 'quickeat' });
+        }
+        if (k >= '1' && k <= '9' && !e.altKey) In.onAction && In.onAction({ a: 'held', slot: +k - 1 });
       }
       if (k === 'Tab') e.preventDefault();
     });
-    window.addEventListener('keyup', (e) => { const k = e.key.length === 1 ? e.key.toLowerCase() : e.key; In.keys[k] = false; });
+    window.addEventListener('keyup', (e) => { In.keys[norm(e)] = false; });
     window.addEventListener('blur', () => { In.keys = {}; In.mouse.l = false; In.mouse.r = false; });
     canvas.addEventListener('mousemove', (e) => {
-      if (!In.ptrLocked) return;
-      In.yaw += e.movementX * In.sens; In.pitch = G.clamp(In.pitch - e.movementY * In.sens, -1.45, 1.45);
+      if (!In.ptrLocked) return; const s = 0.0022 * (In.settings.sens || 1);
+      In.yaw += e.movementX * s; In.pitch = G.clamp(In.pitch - e.movementY * s * (In.settings.invertY ? -1 : 1), -1.45, 1.45);
     });
     canvas.addEventListener('mousedown', (e) => {
       e.preventDefault();
@@ -43,13 +59,12 @@
   In.lock = function () { if (!In.canvas || !In.canvas.requestPointerLock) return; try { const p = In.canvas.requestPointerLock({ unadjustedMovement: true }); if (p && p.catch) p.catch(plain); } catch (e) { plain(); } };
   In.unlock = function () { try { document.exitPointerLock(); } catch (e) { } };
   In.forward = () => ({ x: Math.cos(In.yaw), y: Math.sin(In.yaw) });
-  // movement axes in world space, relative to where the player looks
   In.packet = function (px, py) {
-    const K = In.keys; let f = 0, s = 0;
-    if (K.w || K.ArrowUp) f += 1; if (K.s || K.ArrowDown) f -= 1; if (K.d || K.ArrowRight) s += 1; if (K.a || K.ArrowLeft) s -= 1;
+    let f = 0, s = 0;
+    if (In.is('forward') || In.keys.ArrowUp) f += 1; if (In.is('back') || In.keys.ArrowDown) f -= 1; if (In.is('right') || In.keys.ArrowRight) s += 1; if (In.is('left') || In.keys.ArrowLeft) s -= 1;
     const fx = Math.cos(In.yaw), fy = Math.sin(In.yaw), rx = -fy, ry = fx;
     let ax = fx * f + rx * s, ay = fy * f + ry * s; const l = Math.hypot(ax, ay); if (l > 1) { ax /= l; ay /= l; }
     In.aim = { x: px + fx * 3, y: py + fy * 3 };
-    return { ax: +ax.toFixed(3), ay: +ay.toFixed(3), aimx: +In.aim.x.toFixed(2), aimy: +In.aim.y.toFixed(2), sprint: !!K.Shift, attack: In.mouse.l && !In.locked && In.ptrLocked, sec: In.mouse.r && !In.locked && In.ptrLocked, interact: !!K.e };
+    return { ax: +ax.toFixed(3), ay: +ay.toFixed(3), aimx: +In.aim.x.toFixed(2), aimy: +In.aim.y.toFixed(2), sprint: In.is('sprint'), attack: In.mouse.l && !In.locked && In.ptrLocked, sec: In.mouse.r && !In.locked && In.ptrLocked, interact: In.is('interact') };
   };
 })(window.G);

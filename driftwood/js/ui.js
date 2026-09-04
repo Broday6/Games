@@ -1,7 +1,11 @@
 // DRIFTWOOD — DOM UI: lobby, HUD, inventory, crafting, chat, end screen
 (function (G) {
   'use strict';
-  const UI = { open: false, drag: null, color: G.PLAYER_COLORS[0], lastInv: '', lastPw: '', chatOpen: false };
+  const UI = { open: false, drag: null, color: G.PLAYER_COLORS[0], lastInv: '', lastPw: '', chatOpen: false, cls: 'castaway', lastOffer: null };
+  // ---- persistent meta (per browser) ----
+  UI.loadMeta = () => { try { return Object.assign({ shards: 0, up: {}, log: { bestDay: 0, kills: 0, bosses: 0, wins: 0, runs: 0, chests: 0 } }, JSON.parse(localStorage.getItem('driftwood_meta') || '{}')); } catch (e) { return { shards: 0, up: {}, log: { bestDay: 0, kills: 0, bosses: 0, wins: 0, runs: 0, chests: 0 } }; } };
+  UI.saveMeta = (m) => { try { localStorage.setItem('driftwood_meta', JSON.stringify(m)); } catch (e) { } };
+  UI.classUnlocked = (c, meta) => !c.unlock || (meta.log[c.unlock.key] || 0) >= c.unlock.n;
   G.UI = UI;
   const $ = (id) => document.getElementById(id);
   const I = G.ITEMS;
@@ -10,13 +14,21 @@
     // swatches
     const sw = $('swatches');
     G.PLAYER_COLORS.forEach((c, i) => { const d = document.createElement('div'); d.className = 'swatch' + (i === 0 ? ' sel' : ''); d.style.background = c; d.onclick = () => { UI.color = c; [...sw.children].forEach(x => x.classList.remove('sel')); d.classList.add('sel'); }; sw.appendChild(d); });
-    try { const saved = JSON.parse(localStorage.getItem('driftwood') || '{}'); if (saved.name) $('name').value = saved.name; if (saved.color) { UI.color = saved.color; [...sw.children].forEach((x, i) => x.classList.toggle('sel', G.PLAYER_COLORS[i] === saved.color)); } } catch (e) { }
+    try { const saved = JSON.parse(localStorage.getItem('driftwood') || '{}'); if (saved.name) $('name').value = saved.name; if (saved.color) { UI.color = saved.color; [...sw.children].forEach((x, i) => x.classList.toggle('sel', G.PLAYER_COLORS[i] === saved.color)); } if (saved.cls) UI.cls = saved.cls; } catch (e) { }
+    UI.renderClasses(); $('btn-camp').onclick = () => UI.showCamp(null); $('camp-done').onclick = () => { $('camp').classList.add('hidden'); if (G.Main.started) location.reload(); };
+    $('btn-settings').onclick = () => UI.showSettings(); $('menu-settings').onclick = () => UI.showSettings(); $('settings-done').onclick = () => UI.hideSettings();
+    $('menu-resume').onclick = () => { UI.setResume(false); UI.paused = false; G.Input.lock(); }; $('resume').onclick = (e) => { if (e.target.id === 'resume') { UI.setResume(false); UI.paused = false; G.Input.lock(); } }; $('menu-quit').onclick = () => location.reload();
+    $('binds-reset').onclick = () => { G.Input.resetBinds(); UI.renderBinds(); };
+    const S = G.Input.settings; const sync = () => { $('set-sens').value = S.sens; $('sens-v').textContent = S.sens.toFixed(1) + '×'; $('set-fov').value = S.fov; $('fov-v').textContent = S.fov + '°'; $('set-q').value = S.quality; $('q-v').textContent = Math.round(S.quality * 100) + '%'; $('set-inv').checked = !!S.invertY; $('set-shake').checked = !!S.shake; $('set-bob').checked = !!S.bob; };
+    sync();
+    $('set-sens').oninput = () => { S.sens = +$('set-sens').value; G.Input.saveSettings(); sync(); }; $('set-fov').oninput = () => { S.fov = +$('set-fov').value; G.Input.saveSettings(); sync(); }; $('set-q').oninput = () => { S.quality = +$('set-q').value; G.Input.saveSettings(); sync(); };
+    $('set-inv').onchange = () => { S.invertY = $('set-inv').checked; G.Input.saveSettings(); }; $('set-shake').onchange = () => { S.shake = $('set-shake').checked; G.Input.saveSettings(); }; $('set-bob').onchange = () => { S.bob = $('set-bob').checked; G.Input.saveSettings(); };
     // tabs
     const tabs = { host: $('tab-host'), join: $('tab-join'), solo: $('tab-solo') };
     for (const k in tabs) tabs[k].onclick = () => { for (const j in tabs) { tabs[j].classList.toggle('sel', j === k); $('pane-' + j).classList.toggle('hidden', j !== k); } $('manual-host').classList.toggle('hidden', k === 'join'); $('manual-client').classList.toggle('hidden', k !== 'join'); };
     $('manual-client').classList.add('hidden');
     $('randseed').onclick = () => $('seed').value = Math.random().toString(36).slice(2, 8).toUpperCase();
-    const name = () => { const n = $('name').value.trim() || 'Castaway'; try { localStorage.setItem('driftwood', JSON.stringify({ name: n, color: UI.color })); } catch (e) { } return n; };
+    const name = () => { const n = $('name').value.trim() || 'Castaway'; try { localStorage.setItem('driftwood', JSON.stringify({ name: n, color: UI.color, cls: UI.cls })); } catch (e) { } return n; };
     $('btn-host').onclick = () => { $('btn-host').disabled = true; G.Main.host(name(), UI.color, $('seed').value.trim()); };
     $('btn-start').onclick = () => G.Main.startHostGame();
     $('btn-join').onclick = () => { const code = $('joincode').value.trim().toUpperCase(); if (code.length < 5) return UI.status('Enter the 5-letter room code.'); $('btn-join').disabled = true; G.Main.join(name(), UI.color, code); };
@@ -31,20 +43,58 @@
     // hotbar / inventory grids
     const hb = $('hotbar'); for (let i = 0; i < 9; i++) hb.appendChild(mkSlot(i, true));
     const grid = $('invgrid'); for (let i = 0; i < 27; i++) grid.appendChild(mkSlot(i, false));
-    const arm = $('armor'); ['head', 'chest', 'legs'].forEach(s => { const d = document.createElement('div'); d.className = 'slot'; d.dataset.l = s; d.dataset.armor = s; const c = document.createElement('canvas'); c.width = 16; c.height = 16; d.appendChild(c); d.oncontextmenu = (e) => { e.preventDefault(); G.Main.act({ a: 'unequip', slot: s }); }; d.onclick = () => G.Main.act({ a: 'unequip', slot: s }); d.onmouseenter = () => { const V = G.Main.view(); const me = V && V.players[V.me]; if (me && me.armor[s]) tip(d, me.armor[s]); }; d.onmouseleave = hideTip; arm.appendChild(d); });
+    const arm = $('armor'); ['head', 'chest', 'legs', 'trinket'].forEach(s => { const d = document.createElement('div'); d.className = 'slot'; d.dataset.l = s; d.dataset.armor = s; const c = document.createElement('canvas'); c.width = 16; c.height = 16; d.appendChild(c); d.oncontextmenu = (e) => { e.preventDefault(); G.Main.act({ a: 'unequip', slot: s }); }; d.onclick = () => G.Main.act({ a: 'unequip', slot: s }); d.onmouseenter = () => { const V = G.Main.view(); const me = V && V.players[V.me]; if (me && me.armor[s]) tip(d, me.armor[s]); }; d.onmouseleave = hideTip; arm.appendChild(d); });
     // chat
     $('chatin').addEventListener('keydown', (e) => { if (e.key === 'Enter') { const v = $('chatin').value.trim(); if (v) G.Main.act({ a: 'chat', msg: v }); closeChat(); e.preventDefault(); } else if (e.key === 'Escape') { closeChat(); } e.stopPropagation(); });
     G.Input.onKey = (k, e) => {
       if (UI.chatOpen) return false;
-      if (k === 'Enter') { openChat(); return true; }
-      if (k === 'Tab' || k === 'i') { UI.toggleInv(); return true; }
-      if (k === 'Escape') { if (UI.open) { UI.toggleInv(false); return true; } if (!$('confirm').classList.contains('hidden')) { $('confirm').classList.add('hidden'); return true; } }
-      if (k === 'm') { const m = G.Audio.toggleMute(); UI.toast(m ? 'Muted' : 'Sound on', ''); return true; }
+      if (!$('settings').classList.contains('hidden')) { if (k === 'Escape') UI.hideSettings(); return true; }
+      const B = G.Input.binds;
+      if (k === B.chat && G.Main.started) { openChat(); return true; }
+      if (k === B.inventory && G.Main.started) { UI.toggleInv(); return true; }
+      if (k === 'Escape' || k === B.menu) { if (UI.open) { UI.toggleInv(false); return true; } if (!$('confirm').classList.contains('hidden')) { $('confirm').classList.add('hidden'); return true; } if (G.Main.started && k !== 'Escape') { G.Input.unlock(); UI.setResume(true); return true; } }
+      if (k === B.mute) { const m = G.Audio.toggleMute(); UI.toast(m ? 'Muted' : 'Sound on', ''); return true; }
+      if (UI.lastOffer && k >= '1' && k <= '4' && e.altKey) { G.Main.act({ a: 'pick', i: +k - 1 }); return true; }
       return false;
     };
     G.Net.onStatus = UI.status;
   };
   UI.status = (s) => { $('status').textContent = s || ''; };
+  UI.renderClasses = function () {
+    const meta = UI.loadMeta(); const box = $('classes'); box.innerHTML = '';
+    if (!UI.classUnlocked(G.CLASSES.find(c => c.id === UI.cls) || G.CLASSES[0], meta)) UI.cls = 'castaway';
+    G.CLASSES.forEach(c => { const d = document.createElement('div'); const ok = UI.classUnlocked(c, meta); d.className = 'cls' + (c.id === UI.cls ? ' sel' : '') + (ok ? '' : ' locked'); d.innerHTML = '<b>' + c.name + '</b><span>' + (ok ? c.desc : 'Unlock: ' + c.unlock.txt) + '</span>'; if (ok) d.onclick = () => { UI.cls = c.id; UI.renderClasses(); }; box.appendChild(d); });
+    const ranks = Object.values(meta.up).reduce((a, b) => a + b, 0);
+    $('metaline').textContent = meta.shards + ' shards · ' + ranks + ' upgrade ranks · best day ' + meta.log.bestDay + ' · ' + meta.log.wins + ' escapes';
+  };
+  UI.showCamp = function (run) {
+    const meta = UI.loadMeta(); $('camp').classList.remove('hidden'); $('hud').classList.add('hidden'); $('end').classList.add('hidden'); $('lobby').classList.add('hidden'); $('boon').classList.add('hidden');
+    $('camp-run').innerHTML = run ? '<div>' + (run.win ? '<b style="color:var(--acc)">You escaped the island.</b>' : '<b style="color:#e03030">The island kept you.</b>') + ' Days: <b>' + run.day + '</b> · Bosses: <b>' + run.bosses + '</b> · Kills: <b>' + run.kills + '</b> · Level <b>' + run.lvl + '</b> · Seed <b>' + esc(run.seed) + '</b></div><div>Shards earned: <b style="color:var(--acc)">+' + run.shards + '</b></div>' : '<div>Total: <b>' + meta.log.runs + '</b> runs · best day <b>' + meta.log.bestDay + '</b> · <b>' + meta.log.kills + '</b> kills · <b>' + meta.log.bosses + '</b> guardians slain · <b>' + meta.log.wins + '</b> escapes</div>';
+    const draw = () => {
+      const m = UI.loadMeta(); $('shards').textContent = m.shards; const list = $('camp-list'); list.innerHTML = '';
+      G.META.forEach(u => { const r = m.up[u.id] || 0; const d = document.createElement('div'); d.className = 'meta' + (r >= u.max ? ' max' : ''); const cost = r < u.max ? u.cost[r] : null; d.innerHTML = '<div class="i"><b>' + u.name + '</b><span>' + u.desc + '</span></div><div class="r">' + '◆'.repeat(r) + '◇'.repeat(u.max - r) + '</div>'; const b = document.createElement('button'); b.textContent = cost === null ? 'MAX' : cost + ' ◈'; b.disabled = cost === null || m.shards < cost; b.onclick = () => { const mm = UI.loadMeta(); if ((mm.up[u.id] || 0) < u.max && mm.shards >= u.cost[mm.up[u.id] || 0]) { mm.shards -= u.cost[mm.up[u.id] || 0]; mm.up[u.id] = (mm.up[u.id] || 0) + 1; UI.saveMeta(mm); G.Audio.play('craft'); draw(); UI.renderClasses(); } }; d.appendChild(b); list.appendChild(d); });
+      $('camplog').textContent = 'Classes unlock from the log: ' + G.CLASSES.filter(c => c.unlock).map(c => c.name + (UI.classUnlocked(c, m) ? ' ✓' : ' (' + c.unlock.txt + ')')).join(' · ');
+    };
+    draw();
+  };
+  UI.recordRun = function (V, win, shards) {
+    const meta = UI.loadMeta(); const me = V.players[V.me] || {};
+    meta.shards += shards; meta.log.runs++; meta.log.bestDay = Math.max(meta.log.bestDay, V.day); meta.log.kills += me.kills || 0; meta.log.bosses += V.stats.bosses || 0; meta.log.chests += V.stats.chests || 0; if (win) meta.log.wins++;
+    UI.saveMeta(meta);
+    return { win, day: V.day, bosses: V.stats.bosses || 0, kills: me.kills || 0, lvl: me.lvl || 1, seed: V.world.seed, shards };
+  };
+  UI.boon = function (me) {
+    const o = me.offer !== undefined ? me.offer : (me.offers && me.offers.length ? me.offers[0] : null); const key = o ? JSON.stringify(o) : null;
+    if (key !== UI.lastOffer) {
+      UI.lastOffer = key; $('boon').classList.toggle('hidden', !o);
+      if (o) {
+        $('boon-title').textContent = (o.why ? o.why + ' — ' : '') + 'choose a boon';
+        const box = $('boon-opts'); box.innerHTML = '';
+        o.opts.forEach((id, i) => { const p = G.PW[id]; const d = document.createElement('div'); d.className = 'boonopt'; d.style.borderColor = G.RARITY_COL[p.rarity]; const c = document.createElement('canvas'); c.width = 16; c.height = 16; c.getContext('2d').drawImage(G.Sprites.powerup(id), 0, 0); d.appendChild(c); const b = document.createElement('b'); b.textContent = p.name + (me.pw[id] ? ' ×' + (me.pw[id] + 1) : ''); b.style.color = G.RARITY_COL[p.rarity]; d.appendChild(b); const sp = document.createElement('span'); sp.textContent = p.desc; d.appendChild(sp); const k = document.createElement('div'); k.className = 'k'; k.textContent = G.RARITY_NAME[p.rarity] + ' · Alt+' + (i + 1); d.appendChild(k); d.onclick = () => G.Main.act({ a: 'pick', i }); box.appendChild(d); });
+      }
+    }
+    if (o) $('boon-timer').textContent = 'auto-pick in ' + Math.max(0, 25 - Math.round(me.offerT || 0)) + 's · the game keeps running';
+  };
   UI.showHostInfo = (code) => { $('hostinfo').classList.remove('hidden'); $('roomcode').textContent = code; };
   UI.setLobbyPlayers = (names) => { $('players').innerHTML = 'Players: ' + names.map(n => '<b style="color:' + n.col + '">' + esc(n.name) + '</b>').join(', '); };
   UI.enterGame = (seed) => { $('lobby').classList.add('hidden'); $('hud').classList.remove('hidden'); $('seedlbl').textContent = 'seed ' + seed; };
@@ -61,7 +111,8 @@
   let toastT = null;
   UI.toast = function (title, desc, col) { const t = $('toast'); t.innerHTML = '<div style="color:' + (col || '#ffd24a') + '">' + esc(title) + '</div><div class="d">' + esc(desc || '') + '</div>'; t.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => t.style.opacity = 0, 3000); };
   UI.confirm = function (html, onYes) { const c = $('confirm'); c.innerHTML = html + '<div class="row" style="justify-content:center"><button id="cy" class="primary">Set sail</button><button id="cn">Not yet</button></div>'; c.classList.remove('hidden'); $('cy').onclick = () => { c.classList.add('hidden'); onYes(); }; $('cn').onclick = () => c.classList.add('hidden'); };
-  UI.end = function (win, V) {
+  UI.end = function (win, V, shards) {
+    const run = UI.recordRun(V, win, shards || 0); UI.showCamp(run); return;
     const e = $('end'); e.classList.remove('hidden'); e.querySelector('h1').textContent = win ? 'YOU ESCAPED THE ISLAND' : 'THE ISLAND KEEPS YOU';
     e.querySelector('h1').style.color = win ? '#ffd24a' : '#e03030';
     const me = V.players[V.me];
@@ -83,16 +134,20 @@
         else { G.Main.act({ a: 'move', from: UI.drag, to: i }); clearDrag(); }
       };
       d.oncontextmenu = (e) => { e.preventDefault(); clearDrag(); G.Main.act({ a: 'equip', slot: i }); };
-      d.onmouseenter = () => { const V = G.Main.view(); const me = V && V.players[V.me]; if (me && me.inv[i]) tip(d, me.inv[i].id); };
+      d.onmouseenter = () => { const V = G.Main.view(); const me = V && V.players[V.me]; if (me && me.inv[i]) tip(d, me.inv[i].id, me.inv[i]); };
       d.onmouseleave = hideTip;
     }
     return d;
   }
   function clearDrag() { UI.drag = null; document.querySelectorAll('.slot.drag').forEach(x => x.classList.remove('drag')); }
-  function tip(el, id) {
-    const d = I[id]; if (!d) return; const t = $('tip'); let s = '<b>' + d.name + '</b>';
+  function tip(el, id, inst) {
+    const d = I[id]; if (!d) return; const t = $('tip'); let s = '<b style="color:' + (inst && (inst.aff || inst.q >= 3) ? G.RARITY_COL[inst.q || 0] : (d.unique ? G.RARITY_COL[3] : 'var(--acc)')) + '">' + (inst ? G.itemName(inst) : d.name) + '</b>';
+    if (inst && inst.aff) for (const a of inst.aff) s += '<div style="color:' + G.AFFIX[a].col + '">' + G.AFFIX[a].name + ': ' + G.AFFIX[a].desc + '</div>';
+    if (d.desc) s += '<div style="color:#ffd24a">' + d.desc + '</div>';
     if (d.type === 'weapon' || d.type === 'tool') s += '<div class="d">' + Math.round(d.dmg) + ' dmg · ' + d.spd + '/s · reach ' + d.reach + (d.tool ? ' · ' + d.tool + ' tier ' + d.tier : '') + '</div>';
-    if (d.type === 'armor') s += '<div class="d">+' + d.def + ' defense (' + d.slot + ') — right-click to equip</div>';
+    if (d.type === 'armor') s += '<div class="d">' + (d.def ? '+' + d.def + ' defense ' : '') + '(' + d.slot + ') — right-click to equip</div>';
+    if (d.type === 'staff') s += '<div class="d">' + d.dmg + ' spell damage · hold RMB to charge, release to cast (' + d.cost + ' stamina)</div>';
+    if (d.type === 'weapon' || d.type === 'tool') s += '<div class="d">hold RMB for a heavy attack · 3rd hit in a row is a combo finisher</div>';
     if (d.type === 'food') s += '<div class="d">+' + d.hunger + ' food, +' + d.hp + ' HP' + (d.buff ? ' · buff: ' + (d.buff.hp ? '+' + d.buff.hp + ' max HP ' : '') + (d.buff.stam ? '+' + d.buff.stam + ' stamina regen ' : '') + 'for ' + Math.round(d.buff.dur / 60) + ' min' : '') + ' — right-click or Q to eat</div>';
     if (d.type === 'bow') s += '<div class="d">' + d.dmg + ' dmg · hold RMB to draw, release to fire · needs arrows</div>';
     if (d.type === 'shield') s += '<div class="d">blocks ' + Math.round(d.block * 100) + '% · hold RMB · block in the first instant to PARRY</div>';
@@ -107,6 +162,7 @@
     const c = el.querySelector('canvas'), x = c.getContext('2d'); x.clearRect(0, 0, 16, 16);
     if (s) { x.drawImage(G.Sprites.item(s.id), 0, 0); }
     const n = el.querySelector('.n'); if (n) n.textContent = s && s.n > 1 ? s.n : '';
+    el.classList.remove('q1', 'q2', 'q3'); if (s && (s.aff || s.q >= 3 || (I[s.id] && I[s.id].unique))) el.classList.add('q' + Math.max(1, s.q || 3));
   }
   UI.toggleInv = function (force) {
     UI.open = force === undefined ? !UI.open : force;
@@ -114,7 +170,22 @@
     if (UI.open) { UI.lastInv = ''; UI.refreshCraft(true); G.Input.unlock(); UI.setResume(false); }
     else if (G.Main.started) { G.Input.lock(); }
   };
-  UI.setResume = function (show) { $('resume').classList.toggle('hidden', !show); };
+  UI.setResume = function (show) { $('resume').classList.toggle('hidden', !show); UI.paused = show && G.Main.mode === 'host' && G.Net.count() === 0; $('resume-title').textContent = UI.paused ? 'Paused' : (G.Main.started ? 'Menu — the island keeps turning' : 'Click to play'); };
+  UI.showSettings = function () { $('settings').classList.remove('hidden'); UI.renderBinds(); G.Input.unlock(); };
+  UI.hideSettings = function () { $('settings').classList.add('hidden'); G.Input.capture = null; if (G.Main.started) UI.setResume(true); };
+  UI.renderBinds = function () {
+    const list = $('bindlist'); list.innerHTML = '';
+    for (const a in G.Input.DEFAULT_BINDS) { const d = document.createElement('div'); d.className = 'bind'; const lbl = document.createElement('span'); lbl.textContent = G.Input.BIND_NAMES[a]; d.appendChild(lbl); const b = document.createElement('button'); b.textContent = G.Input.keyName(G.Input.binds[a]); b.onclick = () => { document.querySelectorAll('.bind button').forEach(x => x.classList.remove('listening')); b.classList.add('listening'); b.textContent = 'press a key…'; G.Input.capture = a; G.Input.onCaptured = () => UI.renderBinds(); }; d.appendChild(b); list.appendChild(d); }
+  };
+  UI.objective = function (V) {
+    const gems = ['emerald', 'sapphire', 'ruby'].filter(g => V.boat[g] >= 1).length; const dead = Object.keys(V.bosses).filter(k => V.bosses[k] === 'dead').length;
+    let txt;
+    if (V.phase === 'siege') txt = 'Hold the dock!'; else if (V.phase === 'final') txt = 'Slay the Leviathan';
+    else if (V.boat.done) txt = 'The ship is ready — set sail from the wreck when everyone is ready';
+    else if (gems >= 3) txt = 'Bring 60 wood, 20 iron bars, 10 rope to the wreck (' + V.boat.wood + '/60 · ' + V.boat.iron_bar + '/20 · ' + V.boat.rope + '/10)';
+    else txt = 'Guardian gems ' + gems + '/3 · bosses slain ' + dead + '/10' + (V.day === 1 ? ' · craft a workbench, torch and campfire before dark' : '');
+    return txt;
+  };
 
   // ---------- HUD refresh ----------
   UI.update = function (V, hint) {
@@ -124,7 +195,9 @@
     set('stbar', me.stam, 100, 'Stamina');
     set('fdbar', me.hunger, 100, me.hunger < 25 ? 'Food — STARVING' : 'Food');
     $('coins').textContent = '⬤ ' + me.coins + ' coins';
-    $('dodges').textContent = 'Dodge ' + '◆'.repeat(me.dodgeCh) + '◇'.repeat(Math.max(0, (1 + (me.pw.feather || 0)) - me.dodgeCh));
+    $('dodges').textContent = 'Dodge ' + '◆'.repeat(me.dodgeCh) + '◇'.repeat(Math.max(0, (1 + (me.pw.feather || 0)) - me.dodgeCh)) + (me.charge > 0 ? ' · HEAVY ' + Math.round(me.charge * 100) + '%' : '');
+    const xpNext = me.xpNext || G.XP_FOR(me.lvl || 1); set('xpbar', me.xp, xpNext, 'Lv ' + me.lvl + ' · ' + Math.round(me.xp) + '/' + xpNext + ' xp');
+    UI.boon(me);
     const pwKey = JSON.stringify(me.pw);
     if (pwKey !== UI.lastPw) { UI.lastPw = pwKey; const w = $('pws'); w.innerHTML = ''; for (const k in me.pw) { const d = document.createElement('div'); d.className = 'pwicon'; d.title = G.PW[k].name + ': ' + G.PW[k].desc; const c = document.createElement('canvas'); c.width = 16; c.height = 16; c.getContext('2d').drawImage(G.Sprites.powerup(k), 0, 0); d.appendChild(c); const s = document.createElement('span'); s.textContent = me.pw[k] > 1 ? me.pw[k] : ''; d.appendChild(s); w.appendChild(d); } }
     $('buffs').textContent = me.buffs.map(b => I[b.id].name + ' ' + G.fmtTime(b.t)).join(' · ');
@@ -134,13 +207,13 @@
     const rem = t < G.DUSK_AT ? G.DUSK_AT - t : t < G.NIGHT_AT ? G.NIGHT_AT - t : G.DAY_LEN - t;
     let ct = (phase === 'Night' ? 'dawn in ' : phase === 'Dusk' ? 'night in ' : 'dusk in ') + G.fmtTime(rem) + ' · difficulty ' + V.diff.toFixed(1) + 'x';
     if (V.phase === 'siege') ct = '<span class="siege">HOLD THE DOCK — ' + V.siegeT + 's</span>'; if (V.phase === 'final') ct = '<span class="siege">KILL THE LEVIATHAN</span>';
-    $('clock').querySelector('.time').innerHTML = ct;
+    $('clock').querySelector('.time').innerHTML = ct; $('objective').textContent = UI.objective(V);
     // hotbar & inventory
     const invKey = JSON.stringify(me.inv) + me.held + JSON.stringify(me.armor);
     if (invKey !== UI.lastInv) {
       UI.lastInv = invKey;
       const hb = $('hotbar').children; for (let i = 0; i < 9; i++) { drawSlot(hb[i], me.inv[i]); hb[i].classList.toggle('sel', i === me.held); }
-      if (UI.open) { const g = $('invgrid').children; for (let i = 0; i < 27; i++) { drawSlot(g[i], me.inv[i]); g[i].classList.toggle('sel', i === me.held); } const a = $('armor').children; ['head', 'chest', 'legs'].forEach((s, i) => drawSlot(a[i], me.armor[s] ? { id: me.armor[s], n: 1 } : null)); UI.refreshCraft(); const st = G.Sim.stats(me); $('invstats').textContent = 'Defense ' + st.def + ' · Attack x' + st.atk.toFixed(2) + ' · Speed x' + (st.speed / 4.4).toFixed(2) + ' · Crit ' + Math.round(st.crit * 100) + '%'; }
+      if (UI.open) { const g = $('invgrid').children; for (let i = 0; i < 27; i++) { drawSlot(g[i], me.inv[i]); g[i].classList.toggle('sel', i === me.held); } const a = $('armor').children; ['head', 'chest', 'legs', 'trinket'].forEach((s, i) => drawSlot(a[i], me.armor[s] ? { id: me.armor[s], n: 1 } : null)); UI.refreshCraft(); const st = G.Sim.stats(me); $('invstats').textContent = 'Defense ' + st.def + ' · Attack x' + st.atk.toFixed(2) + ' · Speed x' + (st.speed / 4.4).toFixed(2) + ' · Crit ' + Math.round(st.crit * 100) + '%'; }
     } else if (UI.open) { UI.craftT = (UI.craftT || 0) + 1; if (UI.craftT % 30 === 0) UI.refreshCraft(); }
     $('hint').textContent = hint || ''; $('hint').style.display = hint ? '' : 'none';
     $('netlbl').textContent = V.netlbl || '';

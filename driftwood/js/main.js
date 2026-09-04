@@ -19,7 +19,7 @@
     if (M.S) return;
     seed = seed || Math.random().toString(36).slice(2, 8).toUpperCase();
     M.S = Sim.create(seed); M.me = 'host'; M.mode = 'host'; M.world = M.S.world;
-    Sim.addPlayer(M.S, 'host', name, col);
+    Sim.addPlayer(M.S, 'host', name, col, UI.cls, UI.loadMeta().up);
     updateLobbyPlayers();
   }
   M.host = function (name, col, seed) {
@@ -40,11 +40,11 @@
   M.join = function (name, col, code) { M.pending = { name, col }; M.mode = 'client'; Net.join(code, (ok) => { if (!ok) document.getElementById('btn-join').disabled = false; }); };
   M.prepareClient = function (name, col) { M.pending = { name, col }; M.mode = 'client'; };
   function updateLobbyPlayers() { if (M.S) UI.setLobbyPlayers(Object.values(M.S.players).map(p => ({ name: p.name, col: p.col }))); }
-  function onLockChange(locked) { UI.setResume(!locked && M.started && !UI.open && !UI.chatOpen); }
+  function onLockChange(locked) { if (!document.getElementById('settings').classList.contains('hidden')) return; UI.setResume(!locked && M.started && !UI.open && !UI.chatOpen); }
 
   // ---------- networking ----------
   function onJoin(id) {
-    if (M.mode === 'client') { Net.send('host', { t: 'hello', name: M.pending ? M.pending.name : 'Castaway', col: M.pending ? M.pending.col : '#fff' }); UI.status('Connected — waiting for host…'); }
+    if (M.mode === 'client') { Net.send('host', { t: 'hello', name: M.pending ? M.pending.name : 'Castaway', col: M.pending ? M.pending.col : '#fff', cls: UI.cls, meta: UI.loadMeta().up }); UI.status('Connected — waiting for host…'); }
   }
   function onLeave(id) {
     if (M.mode === 'host' && M.S) { Sim.removePlayer(M.S, id); updateLobbyPlayers(); }
@@ -54,7 +54,7 @@
     if (M.mode === 'host') {
       if (!M.S) return;
       if (msg.t === 'hello') {
-        if (!M.S.players[from]) Sim.addPlayer(M.S, from, msg.name, msg.col);
+        if (!M.S.players[from]) Sim.addPlayer(M.S, from, msg.name, msg.col, G.CLASSES.some(c => c.id === msg.cls) ? msg.cls : 'castaway', (msg.meta && typeof msg.meta === 'object') ? msg.meta : {});
         updateLobbyPlayers();
         Net.send(from, { t: 'welcome', id: from, seed: M.S.world.seed, snap: Sim.snapshot(M.S, true) });
         if (M.started) Net.send(from, { t: 'start' });
@@ -76,11 +76,11 @@
     if (!M.world) return;
     if (snap.objs) for (const [i, o] of snap.objs) { if (o) M.world.objs.set(i, o); else M.world.objs.delete(i); if (o && G.OBJS[o.t].floor) { M.world.tiles[i] = G.T.WATER; R.dirtyTile(i); } }
     if (snap.tiles) for (const [i, v] of snap.tiles) { M.world.tiles[i] = v; R.dirtyTile(i); }
-    const enemies = snap.enemies.map(a => ({ id: a[0], t: G.EN_LIST[a[1]], x: a[2], y: a[3], hp: a[4], maxHp: a[5], st: a[6], face: a[7], flash: a[8], r: a[9], stun: a[10], hidden: a[11], pet: a[12], burn: a[13], tm: a[14] }));
+    const enemies = snap.enemies.map(a => ({ id: a[0], t: G.EN_LIST[a[1]], x: a[2], y: a[3], hp: a[4], maxHp: a[5], st: a[6], face: a[7], flash: a[8], r: a[9], stun: a[10], hidden: a[11], pet: a[12], burn: a[13], tm: a[14], elite: a[15] }));
     const projs = snap.projs.map(a => ({ id: a[0], type: a[1], x: a[2], y: a[3], a: a[4] }));
-    const drops = snap.drops.map(a => ({ id: a[0], item: a[1] < 0 ? 'coin' : G.ITEM_LIST[a[1]], x: a[2], y: a[3], n: a[4] }));
+    const drops = snap.drops.map(a => ({ id: a[0], item: a[1] < 0 ? 'coin' : G.ITEM_LIST[a[1]], x: a[2], y: a[3], n: a[4], aff: a[5] || null, q: a[6] || 0 }));
     const puddles = snap.puddles.map(a => ({ x: a[0], y: a[1], r: a[2], t: a[3] }));
-    M.snapPrev = M.snapCur; M.snapCur = { time: snap.time, day: snap.day, phase: snap.phase, siegeT: snap.siegeT, boat: snap.boat, bosses: snap.bosses, players: snap.players, enemies, projs, drops, puddles, stats: snap.stats, diff: snap.diff, at: performance.now() / 1000 };
+    M.snapPrev = M.snapCur; M.snapCur = { time: snap.time, day: snap.day, phase: snap.phase, nev: snap.nev, siegeT: snap.siegeT, boat: snap.boat, bosses: snap.bosses, players: snap.players, enemies, projs, drops, puddles, stats: snap.stats, diff: snap.diff, at: performance.now() / 1000 };
     M.snapT = M.snapCur.at;
     const me = snap.players[M.me];
     if (me) {
@@ -99,7 +99,9 @@
         case 'sfx': if (me && ev.x !== undefined) A.play(ev.n, ev.x, ev.y, me.x, me.y); else A.play(ev.n); break;
         case 'chat': UI.chat(ev); break;
         case 'pw': if (ev.to === M.me) { const p = G.PW[ev.id]; UI.toast(p.name, p.desc, G.RARITY_COL[p.rarity]); A.play('pw'); } break;
-        case 'end': A.play(ev.win ? 'win' : 'lose'); In.unlock(); setTimeout(() => UI.end(ev.win, M.V), 1200); break;
+        case 'end': A.play(ev.win ? 'win' : 'lose'); In.unlock(); { const sh = ev.shards ? (ev.shards[M.me] || 0) : 0; setTimeout(() => UI.end(ev.win, M.V, sh), 1500); } break;
+        case 'nev': { const e = G.NIGHT_EVENTS.find(x => x.id === ev.id); if (e && ev.id !== 'clear') A.play('horn'); break; }
+        case 'bossin': A.play('roar'); break;
         case 'sail': In.unlock(); UI.confirm('<b>The ship is ready.</b><p>Setting sail will summon everything the island has left.<br>Hold the dock for 90 seconds, then kill what rises.<br>Make sure everyone is here and stocked up.</p>', () => M.act({ a: 'sail' })); break;
         case 'boatinfo': { const b = V ? V.boat : null; if (b) UI.toast('Ship repairs', Object.keys(G.BOAT_NEED).map(k => G.ITEMS[k].name + ' ' + b[k] + '/' + G.BOAT_NEED[k]).join(' · ')); break; }
         case 'tile': if (M.world) { M.world.tiles[ev.i] = ev.v; R.dirtyTile(ev.i); } break;
@@ -128,7 +130,7 @@
 
   // ---------- view construction ----------
   function hostView() {
-    const S = M.S; const V = { world: S.world, time: S.time, day: S.day, phase: S.phase, siegeT: Math.ceil(S.siegeT), boat: S.boat, bosses: S.bosses, players: S.players, enemies: S.enemies, projs: S.projs, drops: S.drops, puddles: S.puddles, stats: S.stats, diff: Sim.difficulty(S), me: 'host', now: performance.now() / 1000, elapsed: S.elapsed };
+    const S = M.S; const V = { world: S.world, time: S.time, day: S.day, phase: S.phase, nev: S.nev, siegeT: Math.ceil(S.siegeT), boat: S.boat, bosses: S.bosses, players: S.players, enemies: S.enemies, projs: S.projs, drops: S.drops, puddles: S.puddles, stats: S.stats, diff: Sim.difficulty(S), me: 'host', now: performance.now() / 1000, elapsed: S.elapsed };
     const me = S.players.host; V.chestDisc = me ? Sim.stats(me).chestDisc : 1;
     V.netlbl = Net.count() ? 'hosting · ' + (Net.count() + 1) + ' players' : (M.mode === 'host' && Net.room ? 'room ' + Net.room + ' · waiting for friends' : 'solo');
     return V;
@@ -147,7 +149,7 @@
     const prevE = {}; if (p) for (const e of p.enemies) prevE[e.id] = e;
     const enemies = c.enemies.map(e => { const pe = prevE[e.id]; if (!pe) return e; return Object.assign({}, e, { x: G.lerp(pe.x, e.x, Math.min(1, alpha)), y: G.lerp(pe.y, e.y, Math.min(1, alpha)) }); });
     const me = c.players[M.me];
-    return { world: M.world, time: c.time + (now - c.at), day: c.day, phase: c.phase, siegeT: c.siegeT, boat: c.boat, bosses: c.bosses, players, enemies, projs: c.projs, drops: c.drops, puddles: c.puddles, stats: c.stats, diff: c.diff, me: M.me, now, elapsed: 0, chestDisc: me ? Sim.stats(me).chestDisc : 1, netlbl: 'connected · ' + M.pingMs + 'ms' };
+    return { world: M.world, time: c.time + (now - c.at), day: c.day, phase: c.phase, nev: c.nev, siegeT: c.siegeT, boat: c.boat, bosses: c.bosses, players, enemies, projs: c.projs, drops: c.drops, puddles: c.puddles, stats: c.stats, diff: c.diff, me: M.me, now, elapsed: 0, chestDisc: me ? Sim.stats(me).chestDisc : 1, netlbl: 'connected · ' + M.pingMs + 'ms' };
   }
   M.view = () => M.V;
   M.simForUI = () => M.mode === 'host' ? M.S : { world: M.world };
@@ -182,7 +184,7 @@
   function lookingAt(V, me) {
     const w = V.world; const f = In.forward();
     for (let s = 0.6; s <= 3.2; s += 0.4) { const x = me.x + f.x * s, y = me.y + f.y * s; const o = w.objs.get(G.idx(x, y)); if (o && !o.stub) { const d = G.OBJS[o.t]; let txt = d.name; if (d.tool && d.tool !== 'none' && d.tier > 1) txt += ' — needs ' + (d.tool === 'axe' ? 'axe' : 'pickaxe') + ' tier ' + d.tier + '+'; if (d.built && o.hp < d.hp) txt += ' (' + Math.ceil(o.hp) + '/' + d.hp + ')'; return txt; } }
-    for (const e of V.enemies) { if (e.hidden) continue; const d = G.dist(me.x, me.y, e.x, e.y); if (d > 12) continue; const a = G.angleTo(me.x, me.y, e.x, e.y); if (Math.abs(G.angDiff(In.yaw, a)) < Math.atan2(e.r + 0.2, d)) return G.ENEMIES[e.t].name + ' ' + Math.round(e.hp) + '/' + e.maxHp; }
+    for (const e of V.enemies) { if (e.hidden) continue; const d = G.dist(me.x, me.y, e.x, e.y); if (d > 12) continue; const a = G.angleTo(me.x, me.y, e.x, e.y); if (Math.abs(G.angDiff(In.yaw, a)) < Math.atan2(e.r + 0.2, d)) return (e.elite ? 'ELITE ' : '') + G.ENEMIES[e.t].name + ' ' + Math.round(e.hp) + '/' + e.maxHp; }
     return '';
   }
 
@@ -194,7 +196,7 @@
     if (!M.started) { if (M.mode === 'client' && M.snapCur && Net.count() && now - M.lastIn > 1) { M.lastIn = now; Net.send('host', { t: 'ping', k: performance.now() }); } return; }
     let mePos = M.mode === 'host' ? M.S.players.host : (M.pred || { x: 0, y: 0 });
     if (M.mode === 'host') {
-      const S = M.S; M.acc += dt;
+      const S = M.S; if (!UI.paused) M.acc += dt; else M.acc = 0;
       let steps = 0;
       while (M.acc >= STEP && steps < 5) { Sim.setInput(S, 'host', In.packet(mePos.x, mePos.y)); Sim.step(S, STEP); Sim.flushChanges(S); M.acc -= STEP; steps++; }
       if (steps === 5) M.acc = 0;
@@ -209,14 +211,16 @@
     }
     const V = M.V; const me = V.players[V.me];
     // local first-person motion: jump & head bob
-    if (M.jumpZ > 0 || M.vz > 0) { M.vz -= 12 * dt; M.jumpZ = Math.max(0, M.jumpZ + M.vz * dt); if (M.jumpZ === 0) M.vz = 0; }
-    const moving = me && me.moving && !me.dead && !me.downed; const sprinting = moving && In.keys.Shift && me.stam > 0;
-    if (moving && M.jumpZ === 0) M.walkT += dt * (sprinting ? 13 : 9); M.bob = moving && M.jumpZ === 0 ? Math.sin(M.walkT) * 0.035 : G.lerp(M.bob, 0, dt * 8);
+    if (M.jumpZ > 0 || M.vz > 0) { M.vz -= 12 * dt; const wasUp = M.jumpZ > 0; M.jumpZ = Math.max(0, M.jumpZ + M.vz * dt); if (M.jumpZ === 0) { if (wasUp) { M.land = 0.12; A.play('thud'); } M.vz = 0; } }
+    M.land = Math.max(0, (M.land || 0) - dt * 0.6);
+    if (me && me.dodgeT && !M.dodging) { M.dodging = true; const f = In.forward(); M.dodgeDir = (In.is('left') || In.keys.ArrowLeft) ? -1 : (In.is('right') || In.keys.ArrowRight) ? 1 : (In.is('back') ? 0.5 : 0.3); } else if (me && !me.dodgeT) M.dodging = false;
+    const moving = me && me.moving && !me.dead && !me.downed; const sprinting = moving && In.is('sprint') && me.stam > 0;
+    if (moving && M.jumpZ === 0) M.walkT += dt * (sprinting ? 13 : 9); M.bob = moving && M.jumpZ === 0 && In.settings.bob ? Math.sin(M.walkT) * 0.035 : G.lerp(M.bob, 0, dt * 8);
     // build ghost
     let ghost = null;
     if (me && !me.dead) { const it = me.inv[me.held]; if (it && G.ITEMS[it.id].type === 'place') { const t = targetTile(); if (t) { const d = G.ITEMS[it.id]; const od = G.OBJS[d.obj]; const tt = G.tileAt(V.world, t.tx, t.ty); const ok = G.inWorld(t.tx, t.ty) && G.dist(me.x, me.y, t.tx + .5, t.ty + .5) <= 5.5 && !V.world.objs.has(G.idx(t.tx, t.ty)) && (od.floor ? (tt === G.T.WATER || tt === G.T.DEEP) : (tt > G.T.WATER && tt !== G.T.LAVA)); ghost = { obj: d.obj, tx: t.tx, ty: t.ty, ok }; } } }
     UI.update(V, hintFor(V));
-    R.frame(V, dt, { yaw: In.yaw, pitch: In.pitch, jumpZ: M.jumpZ, bob: M.bob, walkT: M.walkT, sprinting, ghost, lookingAt: me && !me.dead ? lookingAt(V, me) : '' });
+    R.frame(V, dt, { yaw: In.yaw, pitch: In.pitch, jumpZ: M.jumpZ, bob: M.bob, walkT: M.walkT, sprinting, ghost, land: M.land, dodgeDir: M.dodgeDir, lookingAt: me && !me.dead ? lookingAt(V, me) : '' });
     A.setNight(Sim.darkness({ time: V.time }));
   }
 })(window.G);

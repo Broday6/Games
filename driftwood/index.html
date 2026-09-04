@@ -10,7 +10,22 @@
 <body>
 <canvas id="game" width="640" height="360"></canvas>
 <canvas id="overlay" width="640" height="360"></canvas>
-<div id="resume" class="hidden"><div class="panel"><b>Click to play</b><div class="small">mouse look · Esc to release the mouse</div></div></div>
+<div id="resume" class="hidden"><div class="panel"><b id="resume-title">Paused</b><div class="small">click the world to play · mouse look · Esc opens this menu</div><div class="row" style="justify-content:center;margin-top:10px"><button id="menu-resume" class="primary">Resume</button><button id="menu-settings">Controls & settings</button><button id="menu-quit">Quit to lobby</button></div></div></div>
+<div id="settings" class="hidden"><div class="panel">
+  <h3>Controls & settings</h3>
+  <div class="row" style="gap:16px;align-items:flex-start">
+    <div style="flex:1"><div class="small" style="margin-bottom:6px">Click a key to rebind it, then press the new key (Esc cancels). Hotbar is always 1–9, attack LMB, secondary RMB.</div><div id="bindlist"></div><button id="binds-reset" style="margin-top:6px">Reset to defaults</button></div>
+    <div style="width:260px">
+      <div class="setrow"><label>Mouse sensitivity <span id="sens-v"></span></label><input type="range" id="set-sens" min="0.3" max="3" step="0.1"></div>
+      <div class="setrow"><label>Field of view <span id="fov-v"></span></label><input type="range" id="set-fov" min="60" max="105" step="1"></div>
+      <div class="setrow"><label>Render quality <span id="q-v"></span></label><input type="range" id="set-q" min="0.4" max="1" step="0.05"></div>
+      <div class="setrow"><label><input type="checkbox" id="set-inv"> Invert mouse Y</label></div>
+      <div class="setrow"><label><input type="checkbox" id="set-shake"> Screen shake</label></div>
+      <div class="setrow"><label><input type="checkbox" id="set-bob"> Head bob</label></div>
+    </div>
+  </div>
+  <div class="row" style="justify-content:flex-end"><button id="settings-done" class="primary">Done</button></div>
+</div></div>
 
 <div id="lobby">
   <div class="panel">
@@ -18,6 +33,8 @@
     <div class="sub">A co-op survival roguelike. Wash ashore, gather, craft, survive the nights, slay the three guardians, repair the ship, escape.</div>
     <div class="row"><label>Name</label><input id="name" maxlength="14" placeholder="Your name" style="flex:1"></div>
     <div class="row"><label>Colour</label><div class="swatches" id="swatches"></div></div>
+    <div class="row" style="align-items:flex-start"><label>Class</label><div id="classes" class="classes"></div></div>
+    <div class="row"><label>Camp</label><span class="small" id="metaline"></span><button id="btn-camp">Open the Camp</button><button id="btn-settings">Controls & settings</button></div>
     <div class="tabs">
       <button id="tab-host" class="sel">Host a game</button>
       <button id="tab-join">Join a friend</button>
@@ -57,11 +74,11 @@
     </div>
     <div class="controls">
       <div><b>Mouse</b> look · <b>WASD</b> move · <b>Shift</b> sprint · <b>Space</b> jump</div>
-      <div><b>Q</b> dodge roll (i-frames) · <b>LMB</b> attack / gather / place · <b>RMB</b> draw bow / block</div>
+      <div><b>Q</b> dodge roll · <b>LMB</b> attack (3-hit combos) · <b>hold RMB</b> heavy attack / draw bow / cast / block</div>
       <div><b>E</b> interact / hold to revive · <b>F</b> eat · <b>T</b> ping</div>
       <div><b>1-9</b> hotbar · <b>Tab</b> inventory & crafting · <b>Enter</b> chat · <b>M</b> mute</div>
       <div>Nights get harder. Light keeps monsters out.</div>
-      <div>Find the 3 altars, craft their totems, take the gems to the ship.</div>
+      <div>10 bosses: a night boss every night from night 2, three altar guardians, and what waits at sea.</div>
     </div>
   </div>
 </div>
@@ -73,10 +90,11 @@
     <div class="bar" id="fdbar"><div></div><span></span></div>
     <div id="coins"></div>
     <div id="dodges"></div>
+    <div class="bar" id="xpbar"><div></div><span></span></div>
     <div id="pws"></div>
     <div id="buffs"></div>
   </div>
-  <div id="clock"><div class="day"></div><div class="time"></div></div>
+  <div id="clock"><div class="day"></div><div class="time"></div><div class="obj" id="objective"></div></div>
   <canvas id="minimap" width="150" height="150"></canvas>
   <div id="seedlbl"></div>
   <div id="hotbar"></div>
@@ -100,6 +118,15 @@
   </div>
 </div>
 <div id="tip" class="panel hidden"></div>
+<div id="boon" class="hidden"><div class="panel"><h3 id="boon-title">Choose a boon</h3><div id="boon-opts"></div><div class="small" id="boon-timer"></div></div></div>
+<div id="camp" class="hidden"><div class="panel">
+  <h1>The Camp</h1>
+  <div class="small">Between runs the castaways rest here. Spend <b style="color:var(--acc)">Shards</b> earned from every run — win or lose — on permanent upgrades. Progress is saved in this browser.</div>
+  <div id="camp-run" class="stats"></div>
+  <div class="row"><span class="code" id="shards">0</span><span class="small">shards</span><span class="small" id="camplog" style="margin-left:auto"></span></div>
+  <div id="camp-list"></div>
+  <div class="row" style="justify-content:flex-end;margin-top:8px"><button id="camp-done" class="primary">Back to the lobby</button></div>
+</div></div>
 <div id="confirm" class="panel hidden"></div>
 <div id="end" class="hidden"><div class="panel"><h1></h1><div class="stats"></div><button id="btn-again" class="primary">Back to lobby</button></div></div>
 
