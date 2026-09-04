@@ -39,19 +39,23 @@
       gl_Position = uVP * vec4(p, 1.0); vPos = p; vNrm = n; vCol = aCol; vEm = aEm;
       float d = distance(p, uCam); vFog = clamp((d - uFogNear) / (uFogNear < 10.0 ? 12.0 : 40.0), 0.0, 1.0); }`;
   const FS = `precision mediump float;
-    uniform vec3 uFog; uniform float uAlpha; uniform vec3 uSunDir; uniform vec3 uSunCol; uniform float uAmb; uniform vec4 uLights[16]; uniform vec3 uLightCol[16]; uniform int uNL; uniform vec3 uCam;
+    uniform vec3 uFog; uniform float uAlpha; uniform vec3 uSunDir; uniform vec3 uSunCol; uniform float uAmb; uniform vec4 uLights[16]; uniform vec3 uLightCol[16]; uniform int uNL; uniform highp vec3 uCam; uniform highp float uWater;
     varying vec3 vCol; varying float vFog; varying vec3 vNrm; varying vec3 vPos; varying float vEm;
     void main(){ vec3 n = normalize(vNrm); if(!gl_FrontFacing) n = -n;
       vec3 L = vec3(uAmb) * (0.7 + 0.3 * n.y);
       L += uSunCol * max(0.0, dot(n, uSunDir));
       for(int i=0;i<16;i++){ if(i>=uNL) break; vec3 d = uLights[i].xyz - vPos; float dist = length(d); float a = clamp(1.0 - dist/uLights[i].w, 0.0, 1.0); L += uLightCol[i] * a * a * 1.9 * max(0.3, dot(n, d/dist)); }
       vec3 c = vCol * max(L, vec3(vEm));
+      if(uWater > 0.5){ vec3 v = normalize(uCam - vPos); vec3 h = normalize(v + uSunDir); float sp = pow(max(dot(n, h), 0.0), 90.0); c += uSunCol * sp * 1.2; c += vec3(0.08,0.1,0.14) * pow(1.0 - max(dot(n, v), 0.0), 2.0); }
       c = mix(c, uFog, vFog);
       gl_FragColor = vec4(c, uAlpha); }`;
   const SKY_VS = `attribute vec2 aP; varying vec2 vP; void main(){ vP = aP; gl_Position = vec4(aP, 0.999, 1.0); }`;
   const SKY_FS = `precision mediump float; varying vec2 vP;
     uniform vec3 uRight, uUp, uFwd, uSunDir, uMoonDir; uniform float uTanH, uAspect, uDusk, uNight, uTime;
     float hash(vec3 p){ p = fract(p*0.3183099 + vec3(0.1,0.2,0.3)); p *= 17.0; return fract(p.x*p.y*p.z*(p.x+p.y+p.z)); }
+    float hash2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(hash2(i), hash2(i+vec2(1,0)), f.x), mix(hash2(i+vec2(0,1)), hash2(i+vec2(1,1)), f.x), f.y); }
+    float fbm(vec2 p){ return 0.5*vnoise(p) + 0.25*vnoise(p*2.03) + 0.125*vnoise(p*4.11) + 0.0625*vnoise(p*8.3); }
     void main(){ vec3 dir = normalize(uFwd + uRight*vP.x*uTanH*uAspect + uUp*vP.y*uTanH);
       float h = max(dir.y, 0.0);
       vec3 day = mix(vec3(0.78,0.87,0.96), vec3(0.28,0.52,0.9), pow(h, 0.55));
@@ -63,6 +67,7 @@
       c += vec3(1.0,0.72,0.42) * pow(max(s,0.0), 40.0) * 0.45 * sunOn;
       float m = dot(dir, uMoonDir); c += vec3(0.92,0.93,1.0) * smoothstep(0.9988, 0.9996, m) * uNight; c += vec3(0.5,0.55,0.8)*pow(max(m,0.0),90.0)*0.3*uNight;
       float st = hash(floor(dir*220.0)); c += vec3(1.0) * step(0.9975, st) * uNight * smoothstep(0.0, 0.15, dir.y) * (0.6 + 0.4*sin(uTime*3.0 + st*100.0));
+      if(dir.y > 0.02){ vec2 cp = dir.xz / (dir.y + 0.15) * 1.6 + vec2(uTime*0.012, uTime*0.004); float cl = fbm(cp); float cov = smoothstep(0.52, 0.72, cl); float shade = 0.75 + 0.25*smoothstep(0.55, 0.9, cl); vec3 cc = mix(vec3(0.95,0.96,1.0)*shade, vec3(0.9,0.6,0.5)*shade, uDusk); cc = mix(cc, vec3(0.12,0.13,0.2)*shade, uNight); c = mix(c, cc, cov * smoothstep(0.02, 0.12, dir.y) * 0.95); }
       if(dir.y < 0.0) c = mix(c, c*0.9, clamp(-dir.y*8.0, 0.0, 1.0));
       gl_FragColor = vec4(c, 1.0); }`;
   function shader(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
@@ -135,6 +140,11 @@
     vert(t, xf(m, a[0], a[1], a[2]), n, col, em); vert(t, xf(m, b[0], b[1], b[2]), n, col, em); vert(t, xf(m, c[0], c[1], c[2]), n, col, em);
   }
   function quad(t, m, a, b, c, d, col, em, c0) { tri(t, m, a, b, c, col, em, c0); tri(t, m, a, c, d, col, em, c0); }
+  function tri3(t, m, a, b, c, ca, cb, cc, em) { // flat normal (forced upward), per-vertex colours
+    let ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx; if (ny < 0) { nx = -nx; ny = -ny; nz = -nz; }
+    const n = xfn(m, nx, ny, nz); grow(t, 3); vert(t, xf(m, a[0], a[1], a[2]), n, ca, em); vert(t, xf(m, b[0], b[1], b[2]), n, cb, em); vert(t, xf(m, c[0], c[1], c[2]), n, cc, em);
+  }
   function box(t, m, sx, sy, sz, col, em, cy) { // centered at (0, cy||sy/2, 0)
     const x = sx / 2, z = sz / 2, y0 = (cy === undefined ? sy / 2 : cy) - sy / 2, y1 = y0 + sy; const c0 = [0, (y0 + y1) / 2, 0];
     const p = [[-x, y0, -z], [x, y0, -z], [x, y0, z], [-x, y0, z], [-x, y1, -z], [x, y1, -z], [x, y1, z], [-x, y1, z]];
@@ -337,27 +347,32 @@
   }
 
   // ================= terrain & static object chunks =================
+  // colour of a tile with its per-tile variation; corners blend the four surrounding tiles for a painterly, non-gridded ground
+  function tileCol(world, X, Y) { if (X < 0 || Y < 0 || X >= W || Y >= W) return [0.1, 0.25, 0.5]; const tile = world.tiles[Y * W + X]; const r = h2(X, Y); return sh(hex(G.TILE_INFO[tile].col), 0.92 + r * 0.16); }
+  function cornerCol(world, X, Y) { const a = tileCol(world, X - 1, Y - 1), b = tileCol(world, X, Y - 1), c = tileCol(world, X - 1, Y), d = tileCol(world, X, Y); return [(a[0] + b[0] + c[0] + d[0]) / 4, (a[1] + b[1] + c[1] + d[1]) / 4, (a[2] + b[2] + c[2] + d[2]) / 4]; }
   function buildChunk(world, cxI, cyI) {
-    const t = { arr: new Float32Array(CH * CH * 6 * VF), n: 0 }, w = { arr: new Float32Array(CH * CH * 6 * VF), n: 0 }, ob = { arr: new Float32Array(VF * 3 * 4000), n: 0 };
+    const t = { arr: new Float32Array(CH * CH * 6 * VF), n: 0 }, w = { arr: new Float32Array(CH * CH * 6 * VF), n: 0 }, ob = { arr: new Float32Array(VF * 3 * 6000), n: 0 }, sb = { arr: new Float32Array(VF * 3 * 1200), n: 0 };
     const I = m4();
     for (let ty = 0; ty < CH; ty++) for (let tx = 0; tx < CH; tx++) {
       const X = cxI * CH + tx, Y = cyI * CH + ty; if (X >= W || Y >= W) continue;
-      const tile = world.tiles[Y * W + X]; const info = G.TILE_INFO[tile];
+      const tile = world.tiles[Y * W + X];
       const h00 = cornerH(world, X, Y), h10 = cornerH(world, X + 1, Y), h01 = cornerH(world, X, Y + 1), h11 = cornerH(world, X + 1, Y + 1);
-      const r = h2(X, Y); let col = sh(hex(info.col), 0.93 + r * 0.14);
       const em = tile === T.LAVA ? 1.0 : 0;
-      // GL: (x, up, z) with z = sim y. Two triangles per tile, each its own normal (flat shaded low-poly).
+      const own = tileCol(world, X, Y);
+      // corners blend neighbours, but keep hard edges against water/lava/sand so beaches and shores stay crisp
+      const blend = (cc) => tile <= T.SAND || tile === T.LAVA ? own : [own[0] * 0.45 + cc[0] * 0.55, own[1] * 0.45 + cc[1] * 0.55, own[2] * 0.45 + cc[2] * 0.55];
+      const c00 = blend(cornerCol(world, X, Y)), c10 = blend(cornerCol(world, X + 1, Y)), c01 = blend(cornerCol(world, X, Y + 1)), c11 = blend(cornerCol(world, X + 1, Y + 1));
       const a = [X, h00, Y], b = [X + 1, h10, Y], c = [X + 1, h11, Y + 1], d = [X, h01, Y + 1];
-      if ((X + Y) % 2) { tri(t, I, a, c, b, col, em, [X + .5, -100, Y + .5]); tri(t, I, a, d, c, sh(col, 0.96), em, [X + .5, -100, Y + .5]); }
-      else { tri(t, I, a, d, b, col, em, [X + .5, -100, Y + .5]); tri(t, I, b, d, c, sh(col, 0.96), em, [X + .5, -100, Y + .5]); }
-      // flip: terrain normals must face up
-      for (let k = t.n - 6; k < t.n; k++) { const o = k * VF; if (t.arr[o + 4] < 0) { t.arr[o + 3] *= -1; t.arr[o + 4] *= -1; t.arr[o + 5] *= -1; } }
+      if ((X + Y) % 2) { tri3(t, I, a, c, b, c00, c11, c10, em); tri3(t, I, a, d, c, sh(c00, 0.97), sh(c01, 0.97), sh(c11, 0.97), em); }
+      else { tri3(t, I, a, d, b, c00, c01, c10, em); tri3(t, I, b, d, c, sh(c10, 0.97), sh(c01, 0.97), sh(c11, 0.97), em); }
       if (tile <= T.WATER) { const wc = tile === T.DEEP ? [0.12, 0.3, 0.6] : [0.22, 0.5, 0.8]; quad(w, I, [X, WATER_Y, Y], [X, WATER_Y, Y + 1], [X + 1, WATER_Y, Y + 1], [X + 1, WATER_Y, Y], wc, 0.05, [X + .5, -100, Y + .5]); }
-      // static object
-      const o = world.objs.get(Y * W + X); if (o) staticObject(ob, world, o, X, Y);
+      const o = world.objs.get(Y * W + X);
+      if (o) { staticObject(ob, world, o, X, Y); const d2 = O[o.t]; if (d2.solid && !d2.wall && !d2.floor) { const gz = R.groundZ(world, X + .5, Y + .5); cyl(sb, M(mT(X + .5, gz + 0.012, Y + .5)), d2.tall ? 0.75 : (d2.isChest ? 0.5 : 0.55), d2.tall ? 0.75 : 0.5, 0.005, 8, [0, 0, 0], 0); } }
+      // grass tufts on open grass: cheap blades that make the ground read as lush instead of flat
+      if ((tile === T.GRASS || tile === T.DARKGRASS) && !o) { const n = tile === T.GRASS ? 2 : 3; for (let k = 0; k < n; k++) { const gx = X + 0.15 + h2(X * 3 + k, Y) * 0.7, gy = Y + 0.15 + h2(X, Y * 5 + k) * 0.7; const gz = R.groundZ(world, gx, gy); const g = M(mT(gx, gz, gy), mRY(h2(X + k, Y + 11) * 6.28)); const gc = sh(own, 1.12 + (k % 2) * 0.1); blade(ob, g, 0.09, 0.25 + h2(X, Y + k) * 0.2, gc, 0, 0.1); blade(ob, M(g, mRY(1.1)), 0.08, 0.2 + h2(X + 1, Y + k) * 0.2, sh(gc, 0.9), 0, -0.08); } }
     }
     const mk = (src) => { const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, src.arr.subarray(0, src.n * VF), gl.STATIC_DRAW); return b; };
-    return { vbo: mk(t), n: t.n, wvbo: mk(w), wn: w.n, obo: mk(ob), on: ob.n };
+    return { vbo: mk(t), n: t.n, wvbo: mk(w), wn: w.n, obo: mk(ob), on: ob.n, sbo: mk(sb), sn: sb.n };
   }
   function staticObject(t, world, o, X, Y) {
     const d = O[o.t]; const gz = R.groundZ(world, X + .5, Y + .5); const rot = h2(X + 3, Y + 7) * 6.283;
@@ -368,7 +383,7 @@
     inst(t, p, m);
   }
   function chunk(world, cxI, cyI) { const k = cxI + ',' + cyI; return chunks[k] || (chunks[k] = buildChunk(world, cxI, cyI)); }
-  function dropChunk(k) { const c = chunks[k]; if (!c) return; gl.deleteBuffer(c.vbo); gl.deleteBuffer(c.wvbo); gl.deleteBuffer(c.obo); delete chunks[k]; }
+  function dropChunk(k) { const c = chunks[k]; if (!c) return; gl.deleteBuffer(c.vbo); gl.deleteBuffer(c.wvbo); gl.deleteBuffer(c.obo); gl.deleteBuffer(c.sbo); delete chunks[k]; }
   R.dirtyTile = (i) => { const X = i % W, Y = Math.floor(i / W); for (const [ox, oy] of [[0, 0], [1, 0], [0, 1], [1, 1], [-1, 0], [0, -1]]) dropChunk(Math.floor((X + ox) / CH) + ',' + Math.floor((Y + oy) / CH)); };
   R.resetWorld = () => { for (const k in chunks) dropChunk(k); miniBase = null; };
   // the client/host mutate world.objs directly; detect changes cheaply by hashing object state per chunk each frame
@@ -488,7 +503,14 @@
     // ---- water ----
     gl.enable(gl.BLEND); gl.depthMask(false); gl.uniform1f(prog.u.uWater, 1); gl.uniform1f(prog.u.uAlpha, 0.75);
     for (const c of vis) { if (!c.wn) continue; gl.bindBuffer(gl.ARRAY_BUFFER, c.wvbo); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, c.wn); }
-    if (trail.n) { gl.uniform1f(prog.u.uWater, 0); gl.uniform1f(prog.u.uAlpha, 0.45); if (!trailBuf) trailBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, trailBuf); gl.bufferData(gl.ARRAY_BUFFER, trail.arr.subarray(0, trail.n * VF), gl.DYNAMIC_DRAW); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, trail.n); }
+    gl.uniform1f(prog.u.uWater, 0);
+    // blob shadows (static per chunk + dynamic entities)
+    gl.uniform1f(prog.u.uAlpha, 0.38);
+    for (const c of vis) { if (!c.sn) continue; gl.bindBuffer(gl.ARRAY_BUFFER, c.sbo); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, c.sn); }
+    if (shad.n) { if (!shadBuf) shadBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, shadBuf); gl.bufferData(gl.ARRAY_BUFFER, shad.arr.subarray(0, shad.n * VF), gl.DYNAMIC_DRAW); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, shad.n); }
+    if (trail.n) { gl.uniform1f(prog.u.uAlpha, 0.45); if (!trailBuf) trailBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, trailBuf); gl.bufferData(gl.ARRAY_BUFFER, trail.arr.subarray(0, trail.n * VF), gl.DYNAMIC_DRAW); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, trail.n); }
+    // additive light glows
+    if (glow.n) { gl.blendFunc(gl.SRC_ALPHA, gl.ONE); gl.uniform1f(prog.u.uAlpha, 0.22); if (!glowBuf) glowBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, glowBuf); gl.bufferData(gl.ARRAY_BUFFER, glow.arr.subarray(0, glow.n * VF), gl.DYNAMIC_DRAW); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, glow.n); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); }
     gl.uniform1f(prog.u.uWater, 0); gl.uniform1f(prog.u.uAlpha, 1); gl.depthMask(true); gl.disable(gl.BLEND);
     // ---- first-person arms (drawn last, depth cleared so they never clip into walls) ----
     if (me && !me.dead && !me.downed) { gl.clear(gl.DEPTH_BUFFER_BIT); dyn.n = 0; buildHands(me, L); gl.bindBuffer(gl.ARRAY_BUFFER, dynBuf); gl.bufferData(gl.ARRAY_BUFFER, dyn.arr.subarray(0, dyn.n * VF), gl.DYNAMIC_DRAW); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, dyn.n); }
@@ -497,18 +519,29 @@
   };
 
   let trail = { arr: new Float32Array(VF * 3 * 4000), n: 0 }, trailBuf = null;
+  let shad = { arr: new Float32Array(VF * 3 * 3000), n: 0 }, shadBuf = null, glow = { arr: new Float32Array(VF * 3 * 1000), n: 0 }, glowBuf = null;
+  function shadowDisc(x, y, gz, r) { cyl(shad, M(mT(x, gz + 0.02, y)), r, r, 0.004, 8, [0, 0, 0], 0); }
+  function glowQuad(x, y, z, r, col) { // soft radial glow: fan with bright centre and black rim (additive blend makes the rim vanish)
+    const b = camBasis; if (!b) return; const n = [-b.f[0], -b.f[1], -b.f[2]]; const N = 12; grow(glow, N * 3);
+    const P = (sx, sy) => [x + (b.r[0] * sx + b.u[0] * sy) * r, z + (b.r[1] * sx + b.u[1] * sy) * r, y + (b.r[2] * sx + b.u[2] * sy) * r];
+    const c0 = [x, z, y], black = [0, 0, 0];
+    for (let i = 0; i < N; i++) { const a0 = i / N * 6.2832, a1 = (i + 1) / N * 6.2832; vert(glow, c0, n, col, 1.0); vert(glow, P(Math.cos(a0), Math.sin(a0)), n, black, 1.0); vert(glow, P(Math.cos(a1), Math.sin(a1)), n, black, 1.0); }
+  }
   function swingTrail(px, py, gz, sw, col) { // fan of translucent quads along the arc travelled so far
     const prog = Math.min(1, sw.t / sw.dur); if (prog < 0.2 || prog > 0.85) return;
     const a0 = sw.ang - sw.arc / 2, a1 = a0 + sw.arc * Math.min(1, (prog - 0.2) / 0.5); const steps = 8; const rIn = 0.5, rOut = sw.reach + 0.2, z = gz + (sw.anim === 'slam' ? 1.2 : sw.anim === 'chop' ? 1.0 : 0.95);
     for (let i = 0; i < steps; i++) { const t0 = a0 + (a1 - a0) * i / steps, t1 = a0 + (a1 - a0) * (i + 1) / steps; const dz = sw.anim === 'slam' ? -0.6 * (i / steps) : sw.anim === 'chop' ? -0.5 * (i / steps) : 0; const I = m4(); quad(trail, I, [px + Math.cos(t0) * rIn, z + dz, py + Math.sin(t0) * rIn], [px + Math.cos(t0) * rOut, z + dz, py + Math.sin(t0) * rOut], [px + Math.cos(t1) * rOut, z + dz, py + Math.sin(t1) * rOut], [px + Math.cos(t1) * rIn, z + dz, py + Math.sin(t1) * rIn], col, 1.0); }
   }
   function buildDynamic(V, me, L) {
-    const t = dyn, world = V.world, F = R.fx; trail.n = 0;
+    const t = dyn, world = V.world, F = R.fx; trail.n = 0; shad.n = 0; glow.n = 0;
+    // glows for the lights we gathered (night only so the day stays clean)
+    const darkG = G.clamp(G.Sim.darkness({ time: V.time }) / 0.9, 0, 1); if (darkG > 0.2) for (const l of lights) { if (l.c[0] < 0.5) continue; const gz0 = l.z; glowQuad(l.x, l.y, gz0, l.r * 0.3, l.c.map(c => c * darkG * 0.9)); glowQuad(l.x, l.y, gz0, l.r * 0.1, [1, 0.95, 0.8].map(c => c * darkG)); }
     // drops
-    for (const d of V.drops) { const gz = R.groundZ(world, d.x, d.y); const bob = Math.sin(nowT * 3 + d.id) * 0.05; itemMesh(t, M(mT(d.x, gz + 0.25 + bob, d.y), mRY(nowT * 1.5 + d.id), mRZ(0.5)), d.item, true, d); if (d.aff || d.q >= 3) { const c = hex(G.RARITY_COL[d.q || 0]); cyl(t, M(mT(d.x, gz + 0.02, d.y)), 0.3, 0.3, 0.02, 10, c, 1.0); cyl(t, M(mT(d.x, gz, d.y)), 0.025, 0.005, 1.6 + (d.q || 0) * 0.4, 4, c, 0.9); } }
+    for (const d of V.drops) { const gz = R.groundZ(world, d.x, d.y); const bob = Math.sin(nowT * 3 + d.id) * 0.05; shadowDisc(d.x, d.y, gz, 0.18); itemMesh(t, M(mT(d.x, gz + 0.25 + bob, d.y), mRY(nowT * 1.5 + d.id), mRZ(0.5)), d.item, true, d); if (d.aff || d.q >= 3) { const c = hex(G.RARITY_COL[d.q || 0]); cyl(t, M(mT(d.x, gz + 0.02, d.y)), 0.3, 0.3, 0.02, 10, c, 1.0); cyl(t, M(mT(d.x, gz, d.y)), 0.025, 0.005, 1.6 + (d.q || 0) * 0.4, 4, c, 0.9); } }
     // enemies
     for (const e of V.enemies) {
       if (e.hidden) continue; const gz = R.groundZ(world, e.x, e.y); const zoff = e.t === 'leviathan' ? -0.6 : 0;
+      if (e.t !== 'leviathan' && e.t !== 'tentacle') shadowDisc(e.x, e.y, gz, e.r * (e.t === 'bat' ? 0.6 : 1.1));
       creature(t, M(mT(e.x, gz + zoff, e.y), mRY(e.face)), e, V);
       if (e.burn) F.parts.push({ x: e.x + (Math.random() - .5) * 0.6, y: e.y + (Math.random() - .5) * 0.6, z: gz + 0.5, vx: 0, vy: 0, vz: 1.5, c: [1, 0.42, 0.1], t: 0, life: 0.3, g: -3, e: 1 });
       if (/charge|lunge|pounce/.test(e.st)) for (let i = 0; i < 2; i++) F.parts.push({ x: e.x, y: e.y, z: gz + 0.1, vx: (Math.random() - .5) * 2, vy: (Math.random() - .5) * 2, vz: 1, c: [0.8, 0.75, 0.6], t: 0, life: 0.3, g: 0 });
@@ -520,6 +553,7 @@
       const p = V.players[id]; if (p.dead || p === me) continue; const gz = R.groundZ(world, p.x, p.y);
       const it = p.inv[p.held]; const col = hex(p.col); const d = it ? G.ITEMS[it.id] : null;
       const o = { h: 1.2, body: col, skin: hex('#f0c8a0'), hair: hex('#5a3a20'), anim: p.anim * Math.PI, moving: p.moving, held: it && d.type !== 'shield' ? it.id : null, heldInst: it, swing: p.swing ? p.swing.t / p.swing.dur : null, wind: p.charge > 0, block: p.blocking, shield: d && d.type === 'shield', shieldId: d && d.type === 'shield' ? it.id : null, bow: d && (d.type === 'bow' || d.type === 'staff'), chest: p.armor.chest ? hex(G.ITEMS[p.armor.chest].col) : null, uniqueChest: p.armor.chest && G.ITEMS[p.armor.chest].unique, helm: p.armor.head ? hex(G.ITEMS[p.armor.head].col) : null, uniqueHelm: p.armor.head && G.ITEMS[p.armor.head].unique, helmId: p.armor.head, legcol: p.armor.legs ? hex(G.ITEMS[p.armor.legs].col) : hex('#3a3040'), flash: !!p.flash, hit: !!p.flash };
+      shadowDisc(p.x, p.y, gz, 0.38);
       if (p.downed) humanoid(t, M(mT(p.x, gz + 0.15, p.y), mRY(p.face), mRZ(1.5)), o); else { humanoid(t, M(mT(p.x, gz, p.y), mRY(p.face), mRZ(p.dodgeT ? 0.5 : 0)), o); if (p.swing) swingTrail(p.x, p.y, gz, p.swing, it && it.aff ? hex(G.RARITY_COL[it.q || 0]) : [1, 1, 0.9]); }
       if (p.slow) F.parts.push({ x: p.x + (Math.random() - .5) * 0.6, y: p.y + (Math.random() - .5) * 0.6, z: gz + 0.3, vx: 0, vy: 0, vz: 0.5, c: [0.7, 0.9, 1], t: 0, life: 0.5, g: 0, e: 1 });
     }
@@ -563,20 +597,20 @@
     }
     if (me.blocking) hand = M(C, mT(0.12, -0.2 + bob, 0.7), mRX(-0.1), mRY(-0.3));
     if (d && (d.type === 'bow' || d.type === 'staff')) { const pull = me.draw ? Math.min(1, me.draw / d.draw) : 0; hand = d.type === 'bow' ? M(C, mT(0.02, -0.22 + bob, 0.8 + pull * 0.05), mRX(-0.15), mRY(1.3), mRZ(-0.2)) : M(C, mT(0.3 + sway, -0.4 + bob + pull * 0.15, 0.75), mRX(-0.5 - pull * 0.5), mRZ(0.2)); }
-    box(dyn, M(hand, mT(0.03, -0.04, -0.17), mRX(0.1), mRY(-0.12)), 0.09, 0.09, 0.34, sleeve, 0, 0);
-    sph(dyn, M(hand, mT(0, 0, 0)), 0.07, 6, 4, skin);
+    capsule(dyn, M(hand, mT(0.03, -0.04, -0.34), mRX(1.47), mRY(-0.12)), 0.05, 0.3, 7, sleeve);
+    sph(dyn, M(hand, mT(0, 0, 0)), 0.07, 7, 4, skin);
     if (it) {
       if (d.type === 'weapon' || d.type === 'tool') itemMesh(dyn, M(hand, mT(0, 0.03, 0.02), mRX(anim === 'thrust' ? 1.5 : (big ? 0.95 : 0.75)), mRZ(0.2), mS(big ? 0.62 : 0.85)), it.id, false, it);
       else if (d.type === 'bow') itemMesh(dyn, M(hand, mT(0, 0, 0), mRY(0.2)), it.id, false, it);
       else if (d.type === 'staff') itemMesh(dyn, M(hand, mT(0, -0.35, 0.05), mRX(0.2), mS(0.8)), it.id, false, it);
       else if (d.type === 'shield') itemMesh(dyn, M(hand, mT(0, 0.1, 0.08), mRY(0.1)), it.id, false, it);
       else if (it.id === 'torch_hand') itemMesh(dyn, M(hand, mT(0, -0.08, 0.04), mRX(0.25), mS(0.6)), it.id, false);
-      else if (d.type === 'place') itemMesh(dyn, M(hand, mT(0, 0.08, 0.06), mRY(nowT * 0.6), mS(0.6)), it.id, true);
+      else if (d.type === 'place') itemMesh(dyn, M(hand, mT(0, 0.06, 0.08), mRY(nowT * 0.6), mS(0.3)), it.id, true);
       else itemMesh(dyn, M(hand, mT(0, 0.1, 0.05), mRY(nowT * 0.5)), it.id, true, it);
       if (d.type === 'bow' && me.draw > 0) { const lh = M(C, mT(0.28 - Math.min(1, me.draw / d.draw) * 0.28, -0.22 + bob, 0.7)); sph(dyn, lh, 0.07, 6, 4, skin); box(dyn, M(lh, mT(0, -0.04, -0.15), mRX(0.2)), 0.09, 0.09, 0.3, sleeve, 0, 0); itemMesh(dyn, M(lh, mT(0, 0.02, 0.3), mRX(1.57)), 'arrow', false); }
-      if (big && !me.blocking) { const lh = M(hand, mT(-0.06, 0.16, -0.02)); sph(dyn, lh, 0.07, 6, 4, skin); box(dyn, M(lh, mT(-0.2, -0.08, -0.14), mRX(0.15), mRY(0.7)), 0.09, 0.09, 0.34, sleeve, 0, 0); }
+      if (big && !me.blocking) { const lh = M(hand, mT(-0.06, 0.16, -0.02)); sph(dyn, lh, 0.07, 7, 4, skin); capsule(dyn, M(lh, mT(-0.3, -0.1, -0.22), mRX(1.2), mRY(0.9)), 0.05, 0.3, 7, sleeve); }
     }
-    if (!it || me.blocking) { const lh = M(C, mT(-0.36 - sway, -0.38 + bob + idle, 0.8), mRX(-0.15)); box(dyn, M(lh, mT(-0.03, -0.04, -0.17), mRX(0.1), mRY(0.12)), 0.09, 0.09, 0.34, sleeve, 0, 0); sph(dyn, lh, 0.07, 6, 4, skin); if (!it && me.swing) { /* punch: left/right alternate handled by hand pose above */ } }
+    if (!it || me.blocking) { const lh = M(C, mT(-0.36 - sway, -0.38 + bob + idle, 0.8), mRX(-0.15)); capsule(dyn, M(lh, mT(-0.03, -0.04, -0.34), mRX(1.47), mRY(0.12)), 0.05, 0.3, 7, sleeve); sph(dyn, lh, 0.07, 7, 4, skin); if (!it && me.swing) { /* punch: left/right alternate handled by hand pose above */ } }
   }
 
   // ================= 2D overlay =================
@@ -586,6 +620,7 @@
     for (let i = F.floats.length - 1; i >= 0; i--) { const f = F.floats[i]; f.t += dt; f.z += dt * 0.8; if (f.t > 1.1) F.floats.splice(i, 1); }
     for (const e of V.enemies) {
       if (e.hidden) continue; const d = G.ENEMIES[e.t]; const gz = R.groundZ(V.world, e.x, e.y); const top = R.project(e.x, e.y, gz + (d.boss ? e.r * 3.0 : e.r * 3.0) + 0.3); if (!top) continue;
+      if (top.x < -20 || top.x > R.W + 20 || top.y < -20 || top.y > R.H + 20) continue;
       const sc = G.clamp(14 / top.d, 0.5, 2.2);
       if (e.elite) { x.fillStyle = '#c060ff'; x.font = Math.round(9 * sc) + 'px monospace'; x.textAlign = 'center'; x.fillText('ELITE', top.x, top.y - 14 * sc); }
       if (!d.boss && e.hp < e.maxHp) { const w = 26 * sc; x.fillStyle = '#000'; x.fillRect(top.x - w / 2, top.y, w, 3 * sc); x.fillStyle = (e.pet || e.owner) ? '#60ff60' : '#e03030'; x.fillRect(top.x - w / 2, top.y, w * Math.max(0, e.hp / e.maxHp), 3 * sc); }
@@ -608,6 +643,8 @@
     for (let i = F.pings.length - 1; i >= 0; i--) { const p = F.pings[i]; p.t += dt; if (p.t > 5) { F.pings.splice(i, 1); continue; } const pt = R.project(p.x, p.y, R.groundZ(V.world, p.x, p.y) + 8.3); if (pt) { x.fillStyle = p.col; x.font = '12px monospace'; x.textAlign = 'center'; x.fillText(p.name + ' · ' + Math.round(G.dist(p.x, p.y, R.cam.x, R.cam.y)) + 'm', pt.x, pt.y); } }
     for (const k in F.wobble) { F.wobble[k] -= dt; if (F.wobble[k] <= 0) delete F.wobble[k]; }
     for (const k in R.tellFlash) { R.tellFlash[k] -= dt; if (R.tellFlash[k] <= 0) delete R.tellFlash[k]; }
+    // soft vignette
+    { const g = x.createRadialGradient(R.W / 2, R.H / 2, R.H * 0.45, R.W / 2, R.H / 2, R.H * 1.0); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.35)'); x.fillStyle = g; x.fillRect(0, 0, R.W, R.H); }
     // crosshair
     const cx = R.W / 2, cy = R.H / 2; x.strokeStyle = 'rgba(255,255,255,0.9)'; x.lineWidth = 1.5; x.beginPath(); x.moveTo(cx - 8, cy); x.lineTo(cx - 3, cy); x.moveTo(cx + 3, cy); x.lineTo(cx + 8, cy); x.moveTo(cx, cy - 8); x.lineTo(cx, cy - 3); x.moveTo(cx, cy + 3); x.lineTo(cx, cy + 8); x.stroke();
     if (L.lookingAt) { x.fillStyle = '#fff'; x.font = '12px monospace'; x.textAlign = 'center'; x.fillStyle = '#000'; x.fillText(L.lookingAt, cx + 1, cy + 25); x.fillStyle = '#fff'; x.fillText(L.lookingAt, cx, cy + 24); }
