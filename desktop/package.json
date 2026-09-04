@@ -1,0 +1,21 @@
+{
+  "name": "driftwood",
+  "productName": "Driftwood",
+  "version": "1.0.0",
+  "description": "Driftwood — a first-person co-op survival roguelike",
+  "main": "main.js",
+  "author": "Broday6",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "prepare-game": "node ../driftwood/build.js && node -e \"require('fs').copyFileSync('../driftwood/dist/driftwood.html','game.html')\"",
+    "start": "npm run prepare-game && electron .",
+    "pack": "npm run prepare-game && node pack.js",
+    "dist": "npm run prepare-game && electron-builder"
+  },
+  "devDependencies": {
+    "electron": "33.2.0",
+    "@electron/packager": "18.3.6",
+    "electron-builder": "25.1.8"
+  }
+}

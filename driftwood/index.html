@@ -130,10 +130,10 @@
 <div id="confirm" class="panel hidden"></div>
 <div id="end" class="hidden"><div class="panel"><h1></h1><div class="stats"></div><button id="btn-again" class="primary">Back to lobby</button></div></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js" crossorigin="anonymous"></script>
+<script src="vendor/peerjs.min.js"></script>
 <script>
-// room codes need PeerJS; fall back through other CDNs if the first one is unreachable
-(function () { if (typeof window.Peer === 'function') return; const urls = ['https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js', 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js'];
+// room codes need PeerJS; the bundled copy is preferred, CDNs are the fallback
+(function () { if (typeof window.Peer === 'function') return; const urls = ['https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js', 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js', 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js'];
   const next = () => { if (typeof window.Peer === 'function' || !urls.length) return; const s = document.createElement('script'); s.src = urls.shift(); s.onload = next; s.onerror = next; document.head.appendChild(s); }; next(); })();
 </script>
 <script src="js/util.js"></script>

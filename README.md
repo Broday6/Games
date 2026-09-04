@@ -56,6 +56,22 @@ Host-authoritative peer-to-peer over WebRTC — **no game server**.
 Room codes use the free public [PeerJS](https://peerjs.com) signalling server only for the handshake; all
 game traffic is direct between browsers.
 
+### Download (desktop game)
+
+Driftwood also ships as a standalone desktop game, built with Electron from the same single-file bundle:
+
+- **Windows:** `Driftwood-Setup-x.y.z.exe` (one-click installer, adds a Start-menu shortcut) or `Driftwood-Portable-x.y.z.exe` (no install, just run it).
+- **macOS:** `Driftwood-x.y.z-mac-universal.dmg` — drag to Applications. First launch: right-click → Open (the app isn't notarised).
+- **Linux:** `Driftwood-x.y.z-linux.AppImage` — `chmod +x` then run.
+- **Any browser:** `Driftwood-browser.html` — the whole game in one file, double-click to play.
+
+Grab them from the repo's **Releases** page. New releases are built automatically by `.github/workflows/desktop.yml`
+whenever a `v*` tag is pushed (or from the Actions tab → "Desktop release" → Run workflow).
+
+Build locally from `desktop/`: `npm install`, then `npm run pack` for portable zips of every platform (no code signing
+needed), or `npm run dist` for installers of the platform you're on. Multiplayer works the same as in the browser: host,
+share the 5-letter room code, friends join — the networking library is bundled, no CDN required.
+
 ### Hosting
 
 It is a static site — anything that serves files works.
@@ -97,5 +113,7 @@ driftwood/
   js/input.js     pointer-lock mouse look, WASD relative to view, discrete actions
   js/ui.js        lobby, HUD, inventory/crafting, chat, end screen
   js/main.js      game loop, host/client sync, prediction/interpolation
-  build.js        bundles everything (models embedded as base64) into dist/driftwood.html
+  vendor/         bundled PeerJS (MIT)
+  build.js        bundles everything (models, PeerJS embedded) into dist/driftwood.html
+desktop/          Electron shell: main.js, pack.js (portable zips), electron-builder.yml (installers), icon generator
 ```
