@@ -11,6 +11,7 @@
   const chunks = {}; // key -> { vbo, n, wvbo, wn, obo, on }
   let dynBuf = null, dyn = { arr: new Float32Array(VF * 3 * 60000), n: 0 };
   let vp = new Float32Array(16), proj = new Float32Array(16), view = new Float32Array(16);
+  const lightPacked = { lp: new Float32Array(64), lc: new Float32Array(48) };
   let lights = [], fog = [0.7, 0.8, 0.9], nowT = 0, sunDir = [0, 1, 0], sunCol = [1, 1, 1], moonDir = [0, 1, 0], ambient = 1, camBasis = null;
 
   // ================= heights =================
@@ -39,10 +40,10 @@
       gl_Position = uVP * vec4(p, 1.0); vPos = p; vNrm = n; vCol = aCol; vEm = aEm;
       float d = distance(p, uCam); vFog = clamp((d - uFogNear) / (uFogNear < 10.0 ? 12.0 : 40.0), 0.0, 1.0); }`;
   const FS = `precision mediump float;
-    uniform vec3 uFog; uniform float uAlpha; uniform vec3 uSunDir; uniform vec3 uSunCol; uniform float uAmb; uniform vec4 uLights[16]; uniform vec3 uLightCol[16]; uniform int uNL; uniform highp vec3 uCam; uniform highp float uWater;
+    uniform vec3 uFog; uniform float uAlpha; uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uAmb; uniform vec4 uLights[16]; uniform vec3 uLightCol[16]; uniform int uNL; uniform highp vec3 uCam; uniform highp float uWater;
     varying vec3 vCol; varying float vFog; varying vec3 vNrm; varying vec3 vPos; varying float vEm;
     void main(){ vec3 n = normalize(vNrm); if(!gl_FrontFacing) n = -n;
-      vec3 L = vec3(uAmb) * (0.7 + 0.3 * n.y);
+      vec3 L = uAmb * (0.7 + 0.3 * n.y);
       L += uSunCol * max(0.0, dot(n, uSunDir));
       for(int i=0;i<16;i++){ if(i>=uNL) break; vec3 d = uLights[i].xyz - vPos; float dist = length(d); float a = clamp(1.0 - dist/uLights[i].w, 0.0, 1.0); L += uLightCol[i] * a * a * 1.9 * max(0.3, dot(n, d/dist)); }
       L = min(L, vec3(1.55));
@@ -50,6 +51,23 @@
       if(uWater > 0.5){ vec3 v = normalize(uCam - vPos); vec3 h = normalize(v + uSunDir); float sp = pow(max(dot(n, h), 0.0), 90.0); c += uSunCol * sp * 1.2; c += vec3(0.08,0.1,0.14) * pow(1.0 - max(dot(n, v), 0.0), 2.0); }
       c = mix(c, uFog, vFog);
       gl_FragColor = vec4(c, uAlpha); }`;
+  // model program: rigid glTF meshes (uModel) with optional texture; skinned parts are CPU-skinned and drawn with identity
+  const MVS = `attribute vec3 aPos; attribute vec3 aNrm; attribute vec2 aUV;
+    uniform mat4 uVP; uniform mat4 uModel; uniform vec3 uCam; uniform float uFogNear;
+    varying vec3 vNrm; varying vec3 vPos; varying vec2 vUV; varying float vFog;
+    void main(){ vec4 wp = uModel * vec4(aPos, 1.0); vPos = wp.xyz; vNrm = normalize(mat3(uModel) * aNrm); vUV = aUV; gl_Position = uVP * wp;
+      float d = distance(wp.xyz, uCam); vFog = clamp((d - uFogNear) / (uFogNear < 10.0 ? 12.0 : 40.0), 0.0, 1.0); }`;
+  const MFS = `precision mediump float;
+    uniform vec3 uFog; uniform float uAlpha; uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uAmb; uniform vec4 uLights[16]; uniform vec3 uLightCol[16]; uniform int uNL; uniform highp vec3 uCam;
+    uniform vec4 uColor; uniform sampler2D uTex; uniform float uHasTex; uniform float uEm;
+    varying vec3 vNrm; varying vec3 vPos; varying vec2 vUV; varying float vFog;
+    void main(){ vec3 n = normalize(vNrm); if(!gl_FrontFacing) n = -n;
+      vec3 L = uAmb * (0.7 + 0.3 * n.y); L += uSunCol * max(0.0, dot(n, uSunDir));
+      for(int i=0;i<16;i++){ if(i>=uNL) break; vec3 d = uLights[i].xyz - vPos; float dist = length(d); float a = clamp(1.0 - dist/uLights[i].w, 0.0, 1.0); L += uLightCol[i] * a * a * 1.9 * max(0.3, dot(n, d/dist)); }
+      L = min(L, vec3(1.55));
+      vec3 base = uColor.rgb; if(uHasTex > 0.5) base *= texture2D(uTex, vUV).rgb;
+      vec3 c = base * max(L, vec3(uEm)); c = mix(c, uFog, vFog); gl_FragColor = vec4(c, uAlpha); }`;
+  let mprog = null; const modelReqs = []; const animStates = {};
   const SKY_VS = `attribute vec2 aP; varying vec2 vP; void main(){ vP = aP; gl_Position = vec4(aP, 0.999, 1.0); }`;
   const SKY_FS = `precision mediump float; varying vec2 vP;
     uniform vec3 uRight, uUp, uFwd, uSunDir, uMoonDir; uniform float uTanH, uAspect, uDusk, uNight, uTime;
@@ -80,6 +98,7 @@
     if (!gl) { alert('WebGL is required to play DRIFTWOOD.'); return; }
     prog = program(VS, FS, ['aPos', 'aNrm', 'aCol', 'aEm'], ['uVP', 'uTime', 'uWater', 'uCam', 'uFog', 'uAlpha', 'uSunDir', 'uSunCol', 'uAmb', 'uLights', 'uLightCol', 'uNL', 'uFogNear']);
     skyProg = program(SKY_VS, SKY_FS, ['aP'], ['uRight', 'uUp', 'uFwd', 'uSunDir', 'uMoonDir', 'uTanH', 'uAspect', 'uDusk', 'uNight', 'uTime']);
+    try { mprog = program(MVS, MFS, ['aPos', 'aNrm', 'aUV'], ['uVP', 'uModel', 'uCam', 'uFogNear', 'uFog', 'uAlpha', 'uSunDir', 'uSunCol', 'uAmb', 'uLights', 'uLightCol', 'uNL', 'uColor', 'uTex', 'uHasTex', 'uEm']); } catch (e) { console.warn('model shader failed', e); mprog = null; }
     skyBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     dynBuf = gl.createBuffer();
@@ -174,6 +193,22 @@
       }
     }
   }
+  // smooth-shaded sphere / cylinder / capsule: analytic per-vertex normals for a soft, rounded look
+  function sphS(t, m, r, lon, lat, col, em, sy) {
+    sy = sy || 1; grow(t, lon * lat * 6);
+    const P = (a, p) => [Math.cos(p) * Math.cos(a) * r, Math.sin(p) * r * sy, Math.cos(p) * Math.sin(a) * r];
+    const N = (a, p) => xfn(m, Math.cos(p) * Math.cos(a) / r, Math.sin(p) / (r * sy), Math.cos(p) * Math.sin(a) / r);
+    const V = (a, p) => vert(t, xf(m, ...P(a, p)), N(a, p), col, em || 0);
+    for (let j = 0; j < lat; j++) { const p0 = -Math.PI / 2 + j / lat * Math.PI, p1 = -Math.PI / 2 + (j + 1) / lat * Math.PI; for (let i = 0; i < lon; i++) { const a0 = i / lon * Math.PI * 2, a1 = (i + 1) / lon * Math.PI * 2; V(a0, p0); V(a1, p0); V(a1, p1); V(a0, p0); V(a1, p1); V(a0, p1); } }
+  }
+  function cylS(t, m, r0, r1, h, sides, col, em, y0) {
+    y0 = y0 || 0; grow(t, sides * 6);
+    for (let i = 0; i < sides; i++) { const a0 = i / sides * Math.PI * 2, a1 = (i + 1) / sides * Math.PI * 2; const n0 = xfn(m, Math.cos(a0), (r0 - r1) / h, Math.sin(a0)), n1 = xfn(m, Math.cos(a1), (r0 - r1) / h, Math.sin(a1));
+      const b0 = xf(m, Math.cos(a0) * r0, y0, Math.sin(a0) * r0), b1 = xf(m, Math.cos(a1) * r0, y0, Math.sin(a1) * r0), t0 = xf(m, Math.cos(a0) * r1, y0 + h, Math.sin(a0) * r1), t1 = xf(m, Math.cos(a1) * r1, y0 + h, Math.sin(a1) * r1);
+      vert(t, b0, n0, col, em || 0); vert(t, b1, n1, col, em || 0); vert(t, t1, n1, col, em || 0); vert(t, b0, n0, col, em || 0); vert(t, t1, n1, col, em || 0); vert(t, t0, n0, col, em || 0); }
+    cyl(t, M(m, mT(0, y0, 0)), r0, r0, 0.0001, sides, col, em); cyl(t, M(m, mT(0, y0 + h - 0.0001, 0)), r1, r1, 0.0001, sides, col, em);
+  }
+  function capsuleS(t, m, r, h, segs, col, em) { cylS(t, m, r, r, h, segs, col, em); sphS(t, M(m, mT(0, h, 0)), r, segs, 4, col, em); sphS(t, m, r, segs, 4, col, em); }
   function blade(t, m, w, h, col, em, lean) { // vertical quad (double sided via shader), base at origin
     quad(t, m, [-w / 2, 0, 0], [w / 2, 0, 0], [w / 2 + (lean || 0), h, 0], [-w / 2 + (lean || 0), h, 0], col, em);
   }
@@ -268,44 +303,53 @@
 
   // ================= creatures (capsule rigs) =================
   function capsule(t, m, r, h, segs, col, em) { cyl(t, m, r, r, h, segs, col, em); sph(t, M(m, mT(0, h, 0)), r, segs, 3, col, em, 0.7); sph(t, m, r, segs, 3, col, em, 0.7); }
-  // humanoid facing local +X, base at y=0. o: h, body, skin, legcol, helm, chest, hair, anim, moving, swing, block, held, shield, crown, ears, hit
+  // blob character facing local +X, base at y=0: an egg body that is also the head, big cartoon eyes,
+  // stubby arms with mitten hands, little feet, hats instead of helmets. o: h (height), body, skin, ...
   function humanoid(t, m, o) {
-    const h = o.h || 1.2; const s = h / 1.2; const sq = o.hit ? 0.9 : 1; const ms = M(m, mS(s * (2 - sq), s * sq, s * (2 - sq)));
-    const ph = o.anim || 0, mv = o.moving ? 1 : 0; const legSw = Math.sin(ph) * 0.7 * mv, armSw = -legSw * 0.8, bob = Math.abs(Math.sin(ph)) * 0.05 * mv, lean = mv * 0.12;
-    const legC = o.legcol || hex('#3a3040'), body = o.chest || o.body, skin = o.skin || hex('#f0c8a0'), FL = o.flash ? [1, 1, 1] : null; const C = (c) => FL || c;
-    const root = M(ms, mT(0, bob, 0), mRZ(-lean));
-    for (const side of [-1, 1]) { const leg = M(root, mT(0, 0.5, side * 0.11), mRZ(side * legSw)); capsule(t, M(leg, mT(0, -0.5, 0)), 0.085, 0.42, 6, C(legC)); box(t, M(leg, mT(0.03, -0.5, 0)), 0.18, 0.08, 0.14, C(sh(legC, 0.8)), 0, 0); }
-    capsule(t, M(root, mT(0, 0.5, 0), mS(1, 1, 1.25)), 0.17, 0.32, 8, C(body));
-    if (o.chest) box(t, M(root, mT(0, 0.5, 0)), 0.36, 0.34, 0.5, C(sh(o.chest, 0.9)), o.uniqueChest ? 0.25 : 0, 0.2);
-    let swing = o.swing; const wind = o.wind ? 1 : 0;
+    const h = o.h || 1.2; const s = h / 1.2; const sq = o.hit ? 0.92 : 1; const ms = M(m, mS(s * (2 - sq), s * sq, s * (2 - sq)));
+    const ph = o.anim || 0, mv = o.moving ? 1 : 0; const bob = Math.abs(Math.sin(ph)) * 0.06 * mv, lean = mv * 0.1, wob = Math.sin(ph) * 0.06 * mv;
+    const body = o.body, skin = o.skin || o.body, FL = o.flash ? [1, 1, 1] : null; const C = (c) => FL || c;
+    const R0 = 0.34, BY = 0.58; // body radius & centre height (body height ~0.98)
+    const root = M(ms, mT(0, bob, 0), mRZ(-lean), mRX(wob));
+    // feet
+    for (const side of [-1, 1]) sphS(t, M(root, mT(0.04 + Math.sin(ph + (side > 0 ? 0 : Math.PI)) * 0.12 * mv, 0.07, side * 0.16)), 0.11, 8, 4, C(o.legcol || sh(body, 0.6)), 0, 0.6);
+    // body (egg) + belly/vest band for armour
+    sphS(t, M(root, mT(0, BY, 0)), R0, 12, 8, C(body), 0, 1.4);
+    if (o.chest) sphS(t, M(root, mT(0, BY - 0.12, 0)), R0 * 1.04, 12, 6, C(o.chest), o.uniqueChest ? 0.25 : 0, 0.55);
+    // eyes: big white spheres with pupils looking forward
+    for (const side of [-1, 1]) { const ex = M(root, mT(R0 * 0.82, BY + 0.2, side * 0.13)); sphS(t, ex, 0.095, 8, 5, [1, 1, 1]); sphS(t, M(ex, mT(0.06, 0.0, side * -0.005)), 0.05, 6, 4, hex('#14121a')); if (o.wind || o.hit) sphS(t, M(ex, mT(0.02, 0.09, 0)), 0.1, 6, 3, C(body), 0, 0.3); }
+    // brows / angry look for hostile
+    if (o.angry) for (const side of [-1, 1]) box(t, M(root, mT(R0 * 0.8, BY + 0.33, side * 0.13), mRX(side * 0.4)), 0.04, 0.03, 0.14, hex('#14121a'), 0, 0);
+    // arms
+    const swing = o.swing; const wind = o.wind ? 1 : 0;
     for (const side of [-1, 1]) {
-      let rot = side * armSw; let rotX = 0;
-      if (side === 1) { if (swing !== null && swing !== undefined) rot = -2.4 + Math.sin(Math.min(1, swing) * Math.PI) * 2.6; else if (wind) rot = -2.4 + Math.sin(nowT * 20) * 0.08; else if (o.held) rot = -0.5; }
-      if (side === -1 && (o.block || o.shield)) { rot = -1.3; rotX = -0.4; }
-      if (o.bow) { if (side === 1) { rot = -1.5; } else { rot = -1.5; rotX = 0.3; } }
-      const arm = M(root, mT(0.02, 0.86, side * 0.27), mRZ(rot), mRX(rotX * side));
-      capsule(t, M(arm, mT(0, -0.4, 0)), 0.07, 0.36, 6, C(body));
-      sph(t, M(arm, mT(0, -0.44, 0)), 0.08, 6, 3, C(skin));
-      if (side === 1 && o.held) itemMesh(t, M(arm, mT(0.06, -0.5, 0), mRZ(-1.5)), o.held, true, o.heldInst);
-      if (side === -1 && o.shield) itemMesh(t, M(arm, mT(0.12, -0.35, 0), mRY(1.57)), o.shieldId || 'shield_wood', true);
+      let rot = Math.sin(ph) * 0.5 * mv * side; let rx = side * 0.55;
+      if (side === 1) { if (swing !== null && swing !== undefined) rot = -2.2 + Math.sin(Math.min(1, swing) * Math.PI) * 2.4; else if (wind) rot = -2.2 + Math.sin(nowT * 20) * 0.08; else if (o.held) rot = -0.7; }
+      if (side === -1 && (o.block || o.shield)) { rot = -1.2; rx = -0.2; }
+      if (o.bow) { rot = -1.5; rx = side * 0.15; }
+      const arm = M(root, mT(0.05, BY + 0.02, side * (R0 - 0.02)), mRX(rx), mRZ(rot));
+      capsuleS(t, M(arm, mT(0, -0.26, 0)), 0.065, 0.22, 7, C(body));
+      sphS(t, M(arm, mT(0, -0.3, 0)), 0.095, 7, 4, C(skin));
+      if (side === 1 && o.held) itemMesh(t, M(arm, mT(0.06, -0.34, 0), mRZ(-1.5)), o.held, true, o.heldInst);
+      if (side === -1 && o.shield) itemMesh(t, M(arm, mT(0.12, -0.25, 0), mRY(1.57)), o.shieldId || 'shield_wood', true);
     }
-    const head = M(root, mT(0.02, 0.9, 0), mRZ(o.wind ? -0.2 : 0));
-    sph(t, M(head, mT(0, 0.2, 0)), 0.2, 8, 5, C(skin));
-    for (const z of [-0.08, 0.08]) { sph(t, M(head, mT(0.15, 0.24, z)), 0.05, 5, 3, [1, 1, 1]); sph(t, M(head, mT(0.185, 0.24, z)), 0.025, 4, 2, hex('#14121a')); }
-    if (o.helm) { sph(t, M(head, mT(-0.02, 0.26, 0)), 0.23, 8, 4, C(o.helm), o.uniqueHelm ? 0.3 : 0, 0.75); if (o.uniqueHelm && /crown/.test(o.helmId || '')) for (let i = 0; i < 5; i++) box(t, M(head, mT(Math.cos(i * 1.26) * 0.14, 0.5, Math.sin(i * 1.26) * 0.14)), 0.05, 0.14, 0.05, hex('#ffd24a'), 0.6); }
-    else if (o.hair) sph(t, M(head, mT(-0.04, 0.3, 0)), 0.19, 7, 3, C(o.hair), 0, 0.7);
-    if (o.crown) for (let i = 0; i < 5; i++) box(t, M(head, mT(Math.cos(i * 1.26) * 0.14, 0.42, Math.sin(i * 1.26) * 0.14)), 0.05, 0.16, 0.05, hex('#ffd24a'), 0.4);
-    if (o.ears) { box(t, M(head, mT(-0.02, 0.24, -0.24), mRX(-0.5)), 0.05, 0.18, 0.1, C(skin), 0, 0); box(t, M(head, mT(-0.02, 0.24, 0.24), mRX(0.5)), 0.05, 0.18, 0.1, C(skin), 0, 0); }
+    // headwear: helmets become hats, hair a cap, crown, ears
+    const top = M(root, mT(-0.02, BY + R0 * 1.4 - 0.05, 0));
+    if (o.helm) { if (/crown/.test(o.helmId || '')) for (let i = 0; i < 6; i++) box(t, M(top, mT(Math.cos(i * 1.05) * 0.16, 0.1, Math.sin(i * 1.05) * 0.16)), 0.05, 0.16, 0.05, hex('#ffd24a'), 0.5); else { cylS(t, M(top, mT(0, -0.02, 0)), 0.42, 0.42, 0.04, 12, C(sh(o.helm, 0.8)), o.uniqueHelm ? 0.2 : 0); cylS(t, M(top, mT(0, 0.02, 0)), 0.26, 0.23, 0.28, 12, C(o.helm), o.uniqueHelm ? 0.25 : 0); } }
+    else if (o.hair) sphS(t, M(top, mT(-0.05, -0.06, 0)), R0 * 0.72, 10, 4, C(o.hair), 0, 0.5);
+    if (o.crown) for (let i = 0; i < 6; i++) box(t, M(top, mT(Math.cos(i * 1.05) * 0.16, 0.1, Math.sin(i * 1.05) * 0.16)), 0.05, 0.16, 0.05, hex('#ffd24a'), 0.4);
+    if (o.ears) for (const side of [-1, 1]) sphS(t, M(root, mT(-0.02, BY + 0.25, side * (R0 + 0.06)), mRX(side * 0.6)), 0.1, 6, 4, C(skin), 0, 1.8);
+    if (o.fez) cylS(t, M(top, mT(0, -0.02, 0)), 0.22, 0.18, 0.26, 10, hex('#c02030'));
   }
   function quadruped(t, m, o) {
     const s = o.s || 1; const ms = M(m, mS(s)); const c = o.col, d = sh(o.col, 0.75), FL = o.flash ? [1, 1, 1] : null; const C = (x) => FL || x;
     const ph = o.anim || 0, mv = o.moving ? 1 : 0; const bob = Math.abs(Math.sin(ph)) * 0.06 * mv;
     const root = M(ms, mT(0, bob, 0));
-    capsule(t, M(root, mT(-0.4, 0.5, 0), mRZ(-1.57)), 0.19, 0.8, 8, C(c)); // body along +X
-    sph(t, M(root, mT(0.5, 0.62, 0)), 0.2, 8, 4, C(c)); box(t, M(root, mT(0.68, 0.55, 0)), 0.2, 0.14, 0.18, C(d), 0, 0);
-    for (const z of [-0.09, 0.09]) { box(t, M(root, mT(0.45, 0.8, z * 1.3), mRX(z * 4)), 0.06, 0.14, 0.07, C(d), 0, 0); sph(t, M(root, mT(0.62, 0.66, z)), 0.035, 4, 2, [1, 0.25, 0.25], 0.8); }
-    for (const [x, z, p2] of [[0.3, -0.12, 0], [0.3, 0.12, Math.PI], [-0.3, -0.12, Math.PI], [-0.3, 0.12, 0]]) capsule(t, M(root, mT(x, 0.45, z), mRZ(Math.sin(ph + p2) * 0.7 * mv), mT(0, -0.42, 0)), 0.06, 0.4, 5, C(d));
-    capsule(t, M(root, mT(-0.8, 0.6, 0), mRZ(1.0 + Math.sin(ph * 0.5) * 0.3)), 0.04, 0.35, 4, C(d));
+    capsuleS(t, M(root, mT(-0.4, 0.5, 0), mRZ(-1.57)), 0.21, 0.75, 10, C(c)); // body along +X
+    sphS(t, M(root, mT(0.5, 0.62, 0)), 0.23, 10, 6, C(c)); sphS(t, M(root, mT(0.7, 0.56, 0)), 0.11, 8, 4, C(d), 0, 0.8);
+    for (const z of [-0.1, 0.1]) { sphS(t, M(root, mT(0.45, 0.82, z * 1.4), mRX(z * 4)), 0.07, 6, 4, C(d), 0, 1.6); const ey = M(root, mT(0.66, 0.68, z)); sphS(t, ey, 0.06, 7, 4, [1, 1, 1]); sphS(t, M(ey, mT(0.04, 0, 0)), 0.03, 5, 3, hex('#14121a')); }
+    for (const [x, z, p2] of [[0.3, -0.12, 0], [0.3, 0.12, Math.PI], [-0.3, -0.12, Math.PI], [-0.3, 0.12, 0]]) capsuleS(t, M(root, mT(x, 0.45, z), mRZ(Math.sin(ph + p2) * 0.7 * mv), mT(0, -0.42, 0)), 0.065, 0.36, 6, C(d));
+    capsuleS(t, M(root, mT(-0.8, 0.6, 0), mRZ(1.0 + Math.sin(ph * 0.5) * 0.3)), 0.045, 0.32, 5, C(d));
   }
   function spider(t, m, o) {
     const s = o.s || 1; const ms = M(m, mS(s)); const c = o.col, FL = o.flash ? [1, 1, 1] : null; const C = (x) => FL || x; const ph = o.anim || 0;
@@ -314,16 +358,17 @@
     for (let i = 0; i < 4; i++) for (const side of [-1, 1]) { const a = (i - 1.5) * 0.5; const lift = Math.sin(ph * 2 + i * 1.6 + (side > 0 ? 0 : Math.PI)) * 0.2 * (o.moving ? 1 : 0.1); const hip = M(ms, mT(-0.3 + Math.cos(a) * 0.3, 0.6, side * 0.35), mRY(side * (0.9 - i * 0.6)), mRX(side * (-0.8 + lift))); capsule(t, hip, 0.045, 0.6, 4, C(sh(c, 0.7))); capsule(t, M(hip, mT(0, 0.6, 0), mRX(side * 1.9)), 0.035, 0.7, 4, C(sh(c, 0.6))); }
     cyl(t, M(ms, mT(0.6, 0.42, -0.08), mRX(Math.PI)), 0.04, 0, 0.18, 4, hex('#eae6d6')); cyl(t, M(ms, mT(0.6, 0.42, 0.08), mRX(Math.PI)), 0.04, 0, 0.18, 4, hex('#eae6d6'));
   }
-  function creature(t, m, e, V) {
+  function creature(t, m, e, V, corpse) {
+    if (enemyModel(e, m, V, R.dt || 0.016, corpse)) return;
     const d = G.ENEMIES[e.t]; const col = hex(d.col); const anim = nowT * 8 + e.id; const moving = /chase|charge|lunge|circle|pounce/.test(e.st);
     const isWind = /wind$/.test(e.st); const wob = isWind ? 1 + Math.sin(nowT * 25) * 0.05 : 1;
     const fm = M(m, mS(wob)); const FL = !!e.flash; const C = (c) => FL ? [1, 1, 1] : c;
     const striking = e.st === 'cool' && (e.tm || 0) > 0.6; const sw = isWind ? null : (striking ? 0.5 : null);
     switch (e.t) {
-      case 'slime': case 'slime_small': { const r = e.t === 'slime' ? 0.45 : 0.25; const b = Math.abs(Math.sin(nowT * 5 + e.id)); sph(t, M(fm, mT(0, r * 0.7 + b * 0.15, 0), mS(1 + b * 0.1, 0.7 + b * 0.25, 1 + b * 0.1)), r, 8, 5, C(col), FL ? 1 : 0.15); for (const z of [-0.3, 0.3]) { sph(t, M(fm, mT(r * 0.75, r * 0.85, z * r)), r * 0.18, 5, 3, [1, 1, 1]); sph(t, M(fm, mT(r * 0.9, r * 0.85, z * r)), r * 0.09, 4, 2, hex('#14121a')); } break; }
-      case 'goblin': humanoid(t, fm, { h: 0.95, body: col, skin: hex('#7aa040'), legcol: hex('#4a5a20'), anim, moving, ears: true, held: 'sword_wood', swing: sw, wind: isWind, flash: FL }); break;
-      case 'goblin_archer': humanoid(t, fm, { h: 0.95, body: col, skin: hex('#7aa040'), legcol: hex('#4a5a20'), anim, moving, ears: true, hair: hex('#4a3020'), held: 'bow_wood', bow: true, flash: FL }); break;
-      case 'skeleton': humanoid(t, fm, { h: 1.15, body: hex('#e8e8e0'), skin: hex('#f0f0e8'), legcol: hex('#d0d0c8'), anim, moving, held: 'sword_stone', shield: true, swing: sw, wind: isWind, flash: FL }); break;
+      case 'slime': case 'slime_small': { const r = e.t === 'slime' ? 0.45 : 0.25; const b = Math.abs(Math.sin(nowT * 5 + e.id)); sphS(t, M(fm, mT(0, r * 0.7 + b * 0.15, 0), mS(1 + b * 0.1, 0.7 + b * 0.25, 1 + b * 0.1)), r, 12, 7, C(col), FL ? 1 : 0.15); for (const z of [-0.3, 0.3]) { sphS(t, M(fm, mT(r * 0.75, r * 0.85, z * r)), r * 0.2, 7, 4, [1, 1, 1]); sphS(t, M(fm, mT(r * 0.9, r * 0.85, z * r)), r * 0.1, 5, 3, hex('#14121a')); } break; }
+      case 'goblin': humanoid(t, fm, { h: 0.9, body: hex('#7aa040'), skin: hex('#8ab850'), legcol: hex('#4a5a20'), anim, moving, ears: true, angry: true, held: 'sword_wood', swing: sw, wind: isWind, flash: FL }); break;
+      case 'goblin_archer': humanoid(t, fm, { h: 0.9, body: hex('#8aa848'), skin: hex('#8ab850'), legcol: hex('#4a5a20'), anim, moving, ears: true, angry: true, hair: hex('#4a3020'), held: 'bow_wood', bow: true, flash: FL }); break;
+      case 'skeleton': humanoid(t, fm, { h: 1.1, body: hex('#e8e8e0'), skin: hex('#f0f0e8'), legcol: hex('#d0d0c8'), anim, moving, angry: true, held: 'sword_stone', shield: true, swing: sw, wind: isWind, flash: FL }); break;
       case 'spiderling': spider(t, fm, { s: 0.35, col, anim, moving, flash: FL }); break;
       case 'wolf': quadruped(t, fm, { col, anim, moving, flash: FL }); break;
       case 'wolf_pet': quadruped(t, fm, { col, anim, moving, flash: FL }); box(t, M(fm, mT(0.5, 0.62, 0)), 0.3, 0.06, 0.44, hex('#ff4040'), 0, 0); break;
@@ -332,14 +377,14 @@
       case 'bat': { const fl = Math.sin(nowT * 18 + e.id); const bm = M(fm, mT(0, 1.3 + Math.sin(nowT * 6 + e.id) * 0.15, 0)); sph(t, bm, 0.13, 6, 4, C(col)); for (const s2 of [-1, 1]) quad(t, M(bm, mT(0, 0.05, s2 * 0.09), mRX(s2 * fl * 0.9)), [-0.12, 0, 0], [0.12, 0, 0], [0.05, 0.05, s2 * 0.5], [-0.15, 0.05, s2 * 0.5], C(sh(col, 0.9)), 0); for (const z of [-0.05, 0.05]) sph(t, M(bm, mT(0.11, 0.03, z)), 0.02, 4, 2, [1, 0.25, 0.25], 1); break; }
       case 'tentacle': { const sway = Math.sin(nowT * 2 + e.id) * 0.25; let mm = M(fm, mT(0, -0.3, 0)); for (let i = 0; i < 5; i++) { cyl(t, mm, 0.32 - i * 0.05, 0.28 - i * 0.05, 0.5, 7, C(i % 2 ? col : sh(col, 1.2))); mm = M(mm, mT(0, 0.5, 0), mRZ(sway * (isWind ? 2.5 : 1)), mRX(sway * 0.5)); for (const k of [0.3, -0.3]) sph(t, M(mm, mT(k, 0.1, 0.2)), 0.05, 5, 3, hex('#80c0ff'), 0.6); } break; }
       // ---- bosses ----
-      case 'gronk': humanoid(t, fm, { h: 2.7, body: hex('#6a8a40'), skin: hex('#8aa050'), legcol: hex('#4a4a30'), anim, moving, held: 'gronk_hammer', swing: sw, wind: isWind, ears: true, flash: FL }); break;
-      case 'hollow': humanoid(t, fm, { h: 2.3, body: hex('#202048'), skin: hex('#e8e8e0'), legcol: hex('#101030'), anim, moving, crown: true, held: 'hollow_blade', swing: sw, wind: isWind, flash: FL }); quad(t, M(fm, mT(-0.3, 2.0, 0)), [0, 0, -0.45], [0, 0, 0.45], [-0.45 + Math.sin(nowT * 3) * 0.1, -1.9, 0.55], [-0.45 + Math.sin(nowT * 3) * 0.1, -1.9, -0.55], C(hex('#2a2a60')), 0); break;
-      case 'bonecrusher': humanoid(t, fm, { h: 2.6, body: hex('#e0e0d0'), skin: hex('#eae6d6'), legcol: hex('#c8c8c0'), anim, moving, held: 'bonecleaver', swing: sw, wind: isWind, flash: FL }); for (let i = 0; i < 3; i++) box(t, M(fm, mT(0.36, 1.2 + i * 0.25, 0)), 0.04, 0.06, 0.7, C(hex('#c0c0b8')), 0, 0); break;
-      case 'warden': humanoid(t, fm, { h: 2.2, body: hex('#8090b0'), skin: hex('#606880'), legcol: hex('#505870'), anim, moving, helm: hex('#8090b0'), chest: hex('#9aa8c8'), held: 'greatsword_iron', shield: true, shieldId: 'warden_shield', swing: sw, wind: isWind, block: true, flash: FL }); break;
+      case 'gronk': humanoid(t, fm, { h: 2.7, body: hex('#6a8a40'), skin: hex('#8aa050'), legcol: hex('#4a4a30'), anim, moving, held: 'gronk_hammer', swing: sw, wind: isWind, ears: true, angry: true, flash: FL }); break;
+      case 'hollow': humanoid(t, fm, { h: 2.3, body: hex('#202048'), skin: hex('#e8e8e0'), legcol: hex('#101030'), anim, moving, crown: true, angry: true, held: 'hollow_blade', swing: sw, wind: isWind, flash: FL }); quad(t, M(fm, mT(-0.3, 2.0, 0)), [0, 0, -0.45], [0, 0, 0.45], [-0.45 + Math.sin(nowT * 3) * 0.1, -1.9, 0.55], [-0.45 + Math.sin(nowT * 3) * 0.1, -1.9, -0.55], C(hex('#2a2a60')), 0); break;
+      case 'bonecrusher': humanoid(t, fm, { h: 2.6, body: hex('#e0e0d0'), skin: hex('#eae6d6'), legcol: hex('#c8c8c0'), anim, moving, angry: true, held: 'bonecleaver', swing: sw, wind: isWind, flash: FL }); for (let i = 0; i < 3; i++) box(t, M(fm, mT(0.36, 1.2 + i * 0.25, 0)), 0.04, 0.06, 0.7, C(hex('#c0c0b8')), 0, 0); break;
+      case 'warden': humanoid(t, fm, { h: 2.2, body: hex('#8090b0'), skin: hex('#606880'), legcol: hex('#505870'), anim, moving, angry: true, helm: hex('#8090b0'), chest: hex('#9aa8c8'), held: 'greatsword_iron', shield: true, shieldId: 'warden_shield', swing: sw, wind: isWind, block: true, flash: FL }); break;
       case 'matriarch': spider(t, fm, { s: 1.9, col, anim, moving, flash: FL }); break;
       case 'frostmaw': quadruped(t, fm, { s: 2.2, col, anim, moving, flash: FL }); for (let k = 0; k < 4; k++) cyl(t, M(fm, mT(-0.3 + k * 0.3, 1.55, 0)), 0.08, 0, 0.35, 4, hex('#e0f8ff'), 0.7); break;
-      case 'lich': humanoid(t, fm, { h: 2.1, body: hex('#6040c0'), skin: hex('#c0c0e0'), legcol: hex('#30206a'), anim, moving, held: 'lich_staff', crown: true, wind: isWind, flash: FL }); sph(t, M(fm, mT(0, 2.3, 0)), 0.55, 8, 4, C(hex('#40308a')), 0.15, 0.4); break;
-      case 'titan': humanoid(t, fm, { h: 3.6, body: hex('#7080a0'), skin: hex('#8898b8'), legcol: hex('#505868'), anim: anim * 0.6, moving, held: null, swing: sw, wind: isWind, flash: FL }); for (let i = 0; i < 4; i++) box(t, M(fm, mT(-0.2, 2.3 + (i % 2) * 0.5, (i - 1.5) * 0.4), mRY(i)), 0.4, 0.4, 0.4, C(hex('#606878')), 0, 0); sph(t, M(fm, mT(0.35, 2.55, 0)), 0.16, 6, 4, [1, 0.6, 0.2], 1.0); break;
+      case 'lich': humanoid(t, fm, { h: 2.1, body: hex('#6040c0'), skin: hex('#c0c0e0'), legcol: hex('#30206a'), anim, moving, angry: true, held: 'lich_staff', crown: true, wind: isWind, flash: FL }); sph(t, M(fm, mT(0, 2.3, 0)), 0.55, 8, 4, C(hex('#40308a')), 0.15, 0.4); break;
+      case 'titan': humanoid(t, fm, { h: 3.6, body: hex('#7080a0'), skin: hex('#8898b8'), legcol: hex('#505868'), anim: anim * 0.6, moving, angry: true, held: null, swing: sw, wind: isWind, flash: FL }); for (let i = 0; i < 4; i++) box(t, M(fm, mT(-0.2, 2.3 + (i % 2) * 0.5, (i - 1.5) * 0.4), mRY(i)), 0.4, 0.4, 0.4, C(hex('#606878')), 0, 0); sph(t, M(fm, mT(0.35, 2.55, 0)), 0.16, 6, 4, [1, 0.6, 0.2], 1.0); break;
       case 'cinder': { for (let i = 0; i < 6; i++) { const ph = anim * 0.6 + i * 0.8; sph(t, M(fm, mT(-i * 0.75 + 1.5, 0.6 + Math.abs(Math.sin(ph)) * 0.25, Math.sin(ph) * 0.15)), 0.7 - i * 0.06, 8, 5, i % 2 ? C(col) : C(sh(col, 0.55)), FL ? 1 : (i % 2 ? 0.7 : 0.15)); } sph(t, M(fm, mT(1.9, 0.9, 0)), 0.75, 8, 5, C(sh(col, 1.1)), FL ? 1 : 0.5); for (const z of [-0.25, 0.25]) sph(t, M(fm, mT(2.5, 1.1, z)), 0.12, 6, 4, [1, 0.9, 0.25], 1); for (let k = 0; k < 4; k++) cyl(t, M(fm, mT(2.5, 0.55, (k - 1.5) * 0.25), mRX(Math.PI)), 0.07, 0, 0.3, 4, hex('#fff')); break; }
       case 'leviathan': { const bob = Math.sin(nowT * 1.5) * 0.15; const bm = M(fm, mT(0, -1.0 + bob, 0)); sph(t, bm, 2.2, 10, 6, C(col), 0, 0.75); sph(t, M(bm, mT(0.6, 1.0, 0)), 1.5, 9, 5, C(sh(col, 1.3)), 0, 0.7); for (const z of [-0.7, 0.7]) { sph(t, M(bm, mT(1.8, 1.4, z)), 0.3, 7, 4, [1, 0.9, 0.25], 1); sph(t, M(bm, mT(2.05, 1.4, z)), 0.12, 5, 3, hex('#14121a')); } for (let k = 0; k < 7; k++) cyl(t, M(bm, mT(2.0, 0.6, (k - 3) * 0.35), mRX(Math.PI)), 0.1, 0, 0.5, 4, hex('#e0f0ff')); for (let k = 0; k < 6; k++) { const a = k * 1.05 + nowT * 0.3; let mm = M(bm, mT(Math.cos(a) * 2.0, 0.2, Math.sin(a) * 2.0)); for (let i = 0; i < 4; i++) { cyl(t, mm, 0.3 - i * 0.06, 0.25 - i * 0.06, 0.8, 6, C(sh(col, 0.9))); mm = M(mm, mT(0, 0.8, 0), mRX(Math.sin(nowT * 2 + k + i) * 0.35), mRZ(Math.cos(nowT * 1.7 + k) * 0.3)); } } break; }
       default: humanoid(t, fm, { h: 1, body: col, anim, moving, flash: FL });
@@ -429,6 +474,7 @@
 
   // ================= frame =================
   R.frame = function (V, dt, L) {
+    R.dt = dt;
     if (!gl) return; L.dt = dt;
     const me = V.players[V.me]; const world = V.world; nowT = V.now;
     if (R.hitstop > 0) R.hitstop -= dt;
@@ -452,7 +498,7 @@
     const ma = Math.PI * (0.1 + G.clamp((V.time - G.NIGHT_AT) / (G.DAY_LEN - G.NIGHT_AT), 0, 1) * 0.8); moonDir = [-Math.cos(ma) * 0.7, Math.sin(ma), -0.6]; { const l = Math.hypot(...moonDir); moonDir = moonDir.map(v => v / l); }
     const sunStr = (1 - night) * G.clamp(sunDir[1] * 2.2, 0.15, 1) * 0.85;
     sunCol = [sunStr * (1 - dusk * 0.1), sunStr * (0.95 - dusk * 0.3), sunStr * (0.85 - dusk * 0.5)];
-    ambient = G.lerp(0.55, 0.16, night) - dusk * 0.08;
+    { const amb = G.lerp(0.58, 0.17, night) - dusk * 0.06; const dayA = [1.0, 1.0, 1.08], duskA = [1.15, 0.85, 1.05], nightA = [0.75, 0.8, 1.45]; ambient = dayA.map((c, i) => amb * G.lerp(G.lerp(c, duskA[i], dusk), nightA[i], night)); }
     const dayFog = [0.74, 0.83, 0.93], duskFog = [0.9, 0.6, 0.45], nightFog = V.nev === 'fog' ? [0.12, 0.13, 0.17] : (V.nev === 'bloodmoon' ? [0.12, 0.04, 0.06] : [0.05, 0.06, 0.13]);
     fog = dayFog.map((c, i) => G.lerp(G.lerp(c, duskFog[i], dusk), nightFog[i], night));
     R.fogNear = V.nev === 'fog' && night > 0.5 ? 6 : 26;
@@ -469,7 +515,7 @@
     for (const p of V.puddles) lights.push({ x: p.x, y: p.y, z: R.groundZ(world, p.x, p.y) + 0.2, r: 2.2, c: [1, 0.4, 0.1] });
     for (const e of V.enemies) if (e.t === 'crawler' || e.t === 'cinder') lights.push({ x: e.x, y: e.y, z: R.groundZ(world, e.x, e.y) + 0.5, r: e.t === 'cinder' ? 6 : 3, c: [1, 0.45, 0.15] });
     lights.sort((a, b) => G.dist(a.x, a.y, R.cam.x, R.cam.y) - G.dist(b.x, b.y, R.cam.x, R.cam.y)); lights = lights.slice(0, 16);
-    const lp = new Float32Array(64), lc = new Float32Array(48);
+    const lp = new Float32Array(64), lc = new Float32Array(48); lightPacked.lp = lp; lightPacked.lc = lc;
     lights.forEach((l, i) => { const flick = 1 + Math.sin(nowT * 9 + l.x * 7 + l.y * 3) * 0.07; lp[i * 4] = l.x; lp[i * 4 + 1] = l.z; lp[i * 4 + 2] = l.y; lp[i * 4 + 3] = l.r * flick; lc[i * 3] = l.c[0]; lc[i * 3 + 1] = l.c[1]; lc[i * 3 + 2] = l.c[2]; });
 
     // ---- sky ----
@@ -483,7 +529,7 @@
     gl.depthMask(true);
     // ---- world ----
     gl.useProgram(prog);
-    gl.uniformMatrix4fv(prog.u.uVP, false, vp); gl.uniform3f(prog.u.uCam, R.cam.x, R.cam.z, R.cam.y); gl.uniform1f(prog.u.uAmb, ambient); gl.uniform1f(prog.u.uTime, nowT); gl.uniform1f(prog.u.uWater, 0); gl.uniform1f(prog.u.uFogNear, R.fogNear || 26);
+    gl.uniformMatrix4fv(prog.u.uVP, false, vp); gl.uniform3f(prog.u.uCam, R.cam.x, R.cam.z, R.cam.y); gl.uniform3fv(prog.u.uAmb, ambient); gl.uniform1f(prog.u.uTime, nowT); gl.uniform1f(prog.u.uWater, 0); gl.uniform1f(prog.u.uFogNear, R.fogNear || 26);
     gl.uniform3f(prog.u.uSunDir, sunDir[0], sunDir[1], sunDir[2]); gl.uniform3fv(prog.u.uSunCol, sunCol);
     gl.uniform4fv(prog.u.uLights, lp); gl.uniform3fv(prog.u.uLightCol, lc); gl.uniform1i(prog.u.uNL, lights.length);
     gl.uniform3fv(prog.u.uFog, fog); gl.uniform1f(prog.u.uAlpha, 1);
@@ -501,6 +547,8 @@
     // ---- dynamic ----
     dyn.n = 0; buildDynamic(V, me, L);
     gl.bindBuffer(gl.ARRAY_BUFFER, dynBuf); gl.bufferData(gl.ARRAY_BUFFER, dyn.arr.subarray(0, dyn.n * VF), gl.DYNAMIC_DRAW); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, dyn.n);
+    // ---- glTF character models ----
+    drawModels(); gl.useProgram(prog);
     // ---- water ----
     gl.enable(gl.BLEND); gl.depthMask(false); gl.uniform1f(prog.u.uWater, 1); gl.uniform1f(prog.u.uAlpha, 0.75);
     for (const c of vis) { if (!c.wn) continue; gl.bindBuffer(gl.ARRAY_BUFFER, c.wvbo); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, c.wn); }
@@ -548,14 +596,15 @@
       if (/charge|lunge|pounce/.test(e.st)) for (let i = 0; i < 2; i++) F.parts.push({ x: e.x, y: e.y, z: gz + 0.1, vx: (Math.random() - .5) * 2, vy: (Math.random() - .5) * 2, vz: 1, c: [0.8, 0.75, 0.6], t: 0, life: 0.3, g: 0 });
     }
     // corpses (death tumble)
-    for (let i = F.corpses.length - 1; i >= 0; i--) { const c = F.corpses[i]; c.age += L.dt; if (c.age > 1.6) { F.corpses.splice(i, 1); continue; } const gz = R.groundZ(world, c.x, c.y); const k = Math.min(1, c.age * 2.2); const sink = c.age > 0.9 ? (c.age - 0.9) * 1.4 : 0; creature(t, M(mT(c.x, gz - sink, c.y), mRY(c.face), mRX(k * 1.5), mS(1, 1 - k * 0.15, 1)), { t: c.k, id: c.id, st: 'idle', face: c.face, flash: c.age < 0.1, r: c.r, elite: c.el, tm: 0 }, V); }
+    for (let i = F.corpses.length - 1; i >= 0; i--) { const c = F.corpses[i]; c.age += L.dt; if (c.age > 1.6) { F.corpses.splice(i, 1); continue; } const gz = R.groundZ(world, c.x, c.y); const k = Math.min(1, c.age * 2.2); const sink = c.age > 0.9 ? (c.age - 0.9) * 1.4 : 0; creature(t, M(mT(c.x, gz - sink, c.y), mRY(c.face), mRX(k * 1.5), mS(1, 1 - k * 0.15, 1)), { t: c.k, id: c.id, x: c.x, y: c.y, st: 'idle', face: c.face, flash: c.age < 0.1, r: c.r, elite: c.el, tm: 0 }, V, { gz, sink, k }); }
     // other players
     for (const id in V.players) {
       const p = V.players[id]; if (p.dead || p === me) continue; const gz = R.groundZ(world, p.x, p.y);
       const it = p.inv[p.held]; const col = hex(p.col); const d = it ? G.ITEMS[it.id] : null;
       const o = { h: 1.2, body: col, skin: hex('#f0c8a0'), hair: hex('#5a3a20'), anim: p.anim * Math.PI, moving: p.moving, held: it && d.type !== 'shield' ? it.id : null, heldInst: it, swing: p.swing ? p.swing.t / p.swing.dur : null, wind: p.charge > 0, block: p.blocking, shield: d && d.type === 'shield', shieldId: d && d.type === 'shield' ? it.id : null, bow: d && (d.type === 'bow' || d.type === 'staff'), chest: p.armor.chest ? hex(G.ITEMS[p.armor.chest].col) : null, uniqueChest: p.armor.chest && G.ITEMS[p.armor.chest].unique, helm: p.armor.head ? hex(G.ITEMS[p.armor.head].col) : null, uniqueHelm: p.armor.head && G.ITEMS[p.armor.head].unique, helmId: p.armor.head, legcol: p.armor.legs ? hex(G.ITEMS[p.armor.legs].col) : hex('#3a3040'), flash: !!p.flash, hit: !!p.flash };
       shadowDisc(p.x, p.y, gz, 0.38);
-      if (p.downed) humanoid(t, M(mT(p.x, gz + 0.15, p.y), mRY(p.face), mRZ(1.5)), o); else { humanoid(t, M(mT(p.x, gz, p.y), mRY(p.face), mRZ(p.dodgeT ? 0.5 : 0)), o); if (p.swing) swingTrail(p.x, p.y, gz, p.swing, it && it.aff ? hex(G.RARITY_COL[it.q || 0]) : [1, 1, 0.9]); }
+      if (R.hasPlayerModel()) { playerModel(p, gz, L.dt, false); if (p.swing) swingTrail(p.x, p.y, gz, p.swing, it && it.aff ? hex(G.RARITY_COL[it.q || 0]) : [1, 1, 0.9]); }
+      else if (p.downed) humanoid(t, M(mT(p.x, gz + 0.15, p.y), mRY(p.face), mRZ(1.5)), o); else { humanoid(t, M(mT(p.x, gz, p.y), mRY(p.face), mRZ(p.dodgeT ? 0.5 : 0)), o); if (p.swing) swingTrail(p.x, p.y, gz, p.swing, it && it.aff ? hex(G.RARITY_COL[it.q || 0]) : [1, 1, 0.9]); }
       if (p.slow) F.parts.push({ x: p.x + (Math.random() - .5) * 0.6, y: p.y + (Math.random() - .5) * 0.6, z: gz + 0.3, vx: 0, vy: 0, vz: 0.5, c: [0.7, 0.9, 1], t: 0, life: 0.5, g: 0, e: 1 });
     }
     // my own swing trail
@@ -587,7 +636,7 @@
     const bob = (L.bob || 0) * 0.6, sway = Math.sin((L.walkT || 0) * 0.5) * 0.012, idle = Math.sin(nowT * 1.5) * 0.006;
     const it = me.inv[me.held]; const d = it ? G.ITEMS[it.id] : null;
     const prog = me.swing ? Math.min(1, me.swing.t / me.swing.dur) : 0; const sw = Math.sin(prog * Math.PI); const anim = me.swing ? (me.swing.anim || 'slash') : null; const combo = me.swing ? (me.swing.combo || 0) : 0;
-    const big = d && d.big; const skin = hex('#f0c8a0'), sleeve = hex(me.col);
+    const big = d && d.big; const robot = R.hasPlayerModel(); const skin = robot ? hex(me.col) : hex('#f0c8a0'), sleeve = robot ? hex('#7a8088') : hex(me.col), wrist = hex('#1a1a1e');
     // rest pose
     let hand = M(C, mT(0.36 + sway, -0.36 + bob + idle, 0.82), mRX(-0.15));
     if (me.charge > 0) { const c = me.charge; hand = M(C, mT(0.34 + sway, -0.22 + bob + c * 0.15 + Math.sin(nowT * 40) * 0.006 * c, 0.72), mRX(-0.15 - c * 1.2), mRZ(-0.25 * c)); }
@@ -598,8 +647,9 @@
     }
     if (me.blocking) hand = M(C, mT(0.12, -0.2 + bob, 0.7), mRX(-0.1), mRY(-0.3));
     if (d && (d.type === 'bow' || d.type === 'staff')) { const pull = me.draw ? Math.min(1, me.draw / d.draw) : 0; hand = d.type === 'bow' ? M(C, mT(0.02, -0.22 + bob, 0.8 + pull * 0.05), mRX(-0.15), mRY(1.3), mRZ(-0.2)) : M(C, mT(0.3 + sway, -0.4 + bob + pull * 0.15, 0.75), mRX(-0.5 - pull * 0.5), mRZ(0.2)); }
-    capsule(dyn, M(hand, mT(0.03, -0.04, -0.34), mRX(1.47), mRY(-0.12)), 0.05, 0.3, 7, sleeve);
-    sph(dyn, M(hand, mT(0, 0, 0)), 0.07, 7, 4, skin);
+    capsuleS(dyn, M(hand, mT(0.03, -0.04, -0.34), mRX(1.47), mRY(-0.12)), 0.055, 0.3, 9, sleeve);
+    if (robot) { cyl(dyn, M(hand, mT(0.01, -0.02, -0.12), mRX(1.47)), 0.075, 0.075, 0.06, 9, wrist); sphS(dyn, M(hand, mS(1.15, 0.9, 1.05)), 0.085, 9, 6, skin); box(dyn, M(hand, mT(0, 0.055, 0.02)), 0.1, 0.035, 0.09, hex('#2a2a30'), 0, 0); }
+    else sphS(dyn, M(hand, mT(0, 0, 0)), 0.085, 9, 6, skin);
     if (it) {
       if (d.type === 'weapon' || d.type === 'tool') itemMesh(dyn, M(hand, mT(0, 0.03, 0.02), mRX(anim === 'thrust' ? 1.5 : (big ? 0.95 : 0.75)), mRZ(0.2), mS(big ? 0.62 : 0.85)), it.id, false, it);
       else if (d.type === 'bow') itemMesh(dyn, M(hand, mT(0, 0, 0), mRY(0.2)), it.id, false, it);
@@ -611,9 +661,119 @@
       if (d.type === 'bow' && me.draw > 0) { const lh = M(C, mT(0.28 - Math.min(1, me.draw / d.draw) * 0.28, -0.22 + bob, 0.7)); sph(dyn, lh, 0.07, 6, 4, skin); box(dyn, M(lh, mT(0, -0.04, -0.15), mRX(0.2)), 0.09, 0.09, 0.3, sleeve, 0, 0); itemMesh(dyn, M(lh, mT(0, 0.02, 0.3), mRX(1.57)), 'arrow', false); }
       if (big && !me.blocking) { const lh = M(hand, mT(-0.06, 0.16, -0.02)); sph(dyn, lh, 0.07, 7, 4, skin); capsule(dyn, M(lh, mT(-0.3, -0.1, -0.22), mRX(1.2), mRY(0.9)), 0.05, 0.3, 7, sleeve); }
     }
-    if (!it || me.blocking) { const lh = M(C, mT(-0.36 - sway, -0.38 + bob + idle, 0.8), mRX(-0.15)); capsule(dyn, M(lh, mT(-0.03, -0.04, -0.34), mRX(1.47), mRY(0.12)), 0.05, 0.3, 7, sleeve); sph(dyn, lh, 0.07, 7, 4, skin); if (!it && me.swing) { /* punch: left/right alternate handled by hand pose above */ } }
+    if (!it || me.blocking) { const lh = M(C, mT(-0.36 - sway, -0.38 + bob + idle, 0.8), mRX(-0.15)); capsuleS(dyn, M(lh, mT(-0.03, -0.04, -0.34), mRX(1.47), mRY(0.12)), 0.055, 0.3, 9, sleeve); if (robot) { cyl(dyn, M(lh, mT(-0.01, -0.02, -0.12), mRX(1.47)), 0.075, 0.075, 0.06, 9, wrist); sphS(dyn, M(lh, mS(1.15, 0.9, 1.05)), 0.085, 9, 6, skin); box(dyn, M(lh, mT(0, 0.055, 0.02)), 0.1, 0.035, 0.09, hex('#2a2a30'), 0, 0); } else sphS(dyn, lh, 0.085, 9, 6, skin); if (!it && me.swing) { /* punch: left/right alternate handled by hand pose above */ } }
   }
 
+  // ================= glTF character models =================
+  function primBuffers(pr) {
+    if (pr.gl) return pr.gl; const b = { pos: gl.createBuffer(), nrm: gl.createBuffer(), uv: null, idx: null, n: pr.idx ? pr.idx.length : pr.count, idxType: 0 };
+    gl.bindBuffer(gl.ARRAY_BUFFER, b.pos); gl.bufferData(gl.ARRAY_BUFFER, pr.pos, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, b.nrm); gl.bufferData(gl.ARRAY_BUFFER, pr.nrm || new Float32Array(pr.count * 3).fill(0.577), gl.STATIC_DRAW);
+    if (pr.uv) { b.uv = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b.uv); gl.bufferData(gl.ARRAY_BUFFER, pr.uv, gl.STATIC_DRAW); }
+    if (pr.idx) { b.idx = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, b.idx); const i32 = pr.idx instanceof Uint32Array; gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, i32 ? new Uint16Array(pr.idx) : pr.idx, gl.STATIC_DRAW); b.idxType = gl.UNSIGNED_SHORT; if (pr.idx instanceof Uint8Array) b.idxType = gl.UNSIGNED_BYTE; }
+    if (pr.joints) { b.skinPos = gl.createBuffer(); b.skinNrm = gl.createBuffer(); b.sp = new Float32Array(pr.count * 3); b.sn = new Float32Array(pr.count * 3); }
+    pr.gl = b; return b;
+  }
+  function modelTexture(model, ti) {
+    const t = model.textures[ti]; if (!t) return null; if (t.gl) return t.gl; if (t.loading) return null; t.loading = true;
+    const img = new Image(); img.onload = () => { const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); t.gl = tex; }; img.src = t.image; return null;
+  }
+  // animation state per entity: crossfade between clips
+  function animPose(model, key, want, dt, timeOverride) {
+    const spec = model.spec; const st = animStates[key] || (animStates[key] = { clip: want, t: 0, prev: null, pt: 0, fade: 1 });
+    if (st.clip !== want) { st.prev = st.clip; st.pt = st.t; st.clip = want; st.t = 0; st.fade = 0; }
+    st.t += dt; st.pt += dt; st.fade = Math.min(1, st.fade + dt / 0.15); st.age = 0;
+    const pose = G.GLTF.restPose(model); const nm = (k) => spec.clips[k] || k;
+    if (st.prev && st.fade < 1) { const prevClamp = st.prev === 'death' || st.prev === 'down'; (prevClamp ? G.GLTF.applyClipClamped : G.GLTF.applyClip)(model, pose, nm(st.prev), st.pt, 1); }
+    const clamp = want === 'death' || want === 'down'; const t = timeOverride !== undefined ? timeOverride : st.t;
+    (clamp ? G.GLTF.applyClipClamped : G.GLTF.applyClip)(model, pose, nm(want), t, st.fade);
+    return pose;
+  }
+  R.hasPlayerModel = () => !!(mprog && G.Assets && G.Assets.models && G.Assets.models.player);
+  // queue a model draw; returns node world matrices so items can be attached
+  function queueModel(model, x, y, z, face, tint, pose) {
+    const spec = model.spec; const sc = model.scale; const root = M(mT(x, z - model.base * sc, y), mRY((spec.yaw || 0) - face), mS(sc));
+    G.GLTF.computeWorld(model, pose, root);
+    const req = { model, tint, worlds: model.nodes.map(n => new Float32Array(n.world)) };
+    modelReqs.push(req); return req;
+  }
+  function drawModels() {
+    if (!mprog || !modelReqs.length) return;
+    gl.useProgram(mprog);
+    gl.uniformMatrix4fv(mprog.u.uVP, false, vp); gl.uniform3f(mprog.u.uCam, R.cam.x, R.cam.z, R.cam.y); gl.uniform1f(mprog.u.uFogNear, R.fogNear || 26);
+    gl.uniform3fv(mprog.u.uFog, fog); gl.uniform1f(mprog.u.uAlpha, 1); gl.uniform3f(mprog.u.uSunDir, sunDir[0], sunDir[1], sunDir[2]); gl.uniform3fv(mprog.u.uSunCol, sunCol); gl.uniform3fv(mprog.u.uAmb, ambient);
+    gl.uniform4fv(mprog.u.uLights, lightPacked.lp); gl.uniform3fv(mprog.u.uLightCol, lightPacked.lc); gl.uniform1i(mprog.u.uNL, lights.length); gl.uniform1i(mprog.u.uTex, 0); gl.uniform1f(mprog.u.uEm, 0);
+    const I = m4();
+    for (const rq of modelReqs) {
+      const model = rq.model;
+      for (const nd of model.nodes) {
+        if (nd.mesh < 0) continue; const mesh = model.meshes[nd.mesh];
+        for (const pr of mesh.prims) {
+          const b = primBuffers(pr); const mat = model.materials[pr.mat] || { color: [0.8, 0.8, 0.8, 1], tex: -1, name: '' };
+          const tinted = rq.tint && model.spec.tint && mat.name === model.spec.tint; const col = tinted ? [rq.tint[0], rq.tint[1], rq.tint[2], 1] : mat.color;
+          gl.uniform4fv(mprog.u.uColor, rq.flash ? [1, 1, 1, 1] : col);
+          const tex = mat.tex >= 0 && !model.spec.flat ? modelTexture(model, mat.tex) : null; if (tex) { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1f(mprog.u.uHasTex, 1); } else gl.uniform1f(mprog.u.uHasTex, 0);
+          if (nd.skin >= 0 && pr.joints) { // CPU skin with this request's world matrices
+            const skin = model.skins[nd.skin]; model.nodes.forEach((n2, i) => n2.world.set(rq.worlds[i])); G.GLTF.skinPrim(model, skin, pr, b.sp, b.sn);
+            gl.bindBuffer(gl.ARRAY_BUFFER, b.skinPos); gl.bufferData(gl.ARRAY_BUFFER, b.sp, gl.DYNAMIC_DRAW); gl.enableVertexAttribArray(mprog.a.aPos); gl.vertexAttribPointer(mprog.a.aPos, 3, gl.FLOAT, false, 0, 0);
+            gl.bindBuffer(gl.ARRAY_BUFFER, b.skinNrm); gl.bufferData(gl.ARRAY_BUFFER, b.sn, gl.DYNAMIC_DRAW); gl.enableVertexAttribArray(mprog.a.aNrm); gl.vertexAttribPointer(mprog.a.aNrm, 3, gl.FLOAT, false, 0, 0);
+            gl.uniformMatrix4fv(mprog.u.uModel, false, I);
+          } else {
+            gl.bindBuffer(gl.ARRAY_BUFFER, b.pos); gl.enableVertexAttribArray(mprog.a.aPos); gl.vertexAttribPointer(mprog.a.aPos, 3, gl.FLOAT, false, 0, 0);
+            gl.bindBuffer(gl.ARRAY_BUFFER, b.nrm); gl.enableVertexAttribArray(mprog.a.aNrm); gl.vertexAttribPointer(mprog.a.aNrm, 3, gl.FLOAT, false, 0, 0);
+            gl.uniformMatrix4fv(mprog.u.uModel, false, rq.worlds[nd.i]);
+          }
+          if (b.uv && mprog.a.aUV >= 0) { gl.bindBuffer(gl.ARRAY_BUFFER, b.uv); gl.enableVertexAttribArray(mprog.a.aUV); gl.vertexAttribPointer(mprog.a.aUV, 2, gl.FLOAT, false, 0, 0); } else if (mprog.a.aUV >= 0) { gl.disableVertexAttribArray(mprog.a.aUV); gl.vertexAttrib2f(mprog.a.aUV, 0, 0); }
+          if (b.idx) { gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, b.idx); gl.drawElements(gl.TRIANGLES, b.n, b.idxType, 0); } else gl.drawArrays(gl.TRIANGLES, 0, b.n);
+        }
+      }
+    }
+    if (mprog.a.aUV >= 0) gl.disableVertexAttribArray(mprog.a.aUV);
+    modelReqs.length = 0;
+  }
+  // ---- generic animated character from a glTF model (players, humanoid enemies, bosses, beasts) ----
+  // st: { downed, swing:{t,dur}, moving, sprinting, wind, windF (0..1), strikeF (0..1), flash, held (item inst), rootM (override root transform), key }
+  function charModel(model, key, x, y, gz, face, tint, st, dt) {
+    const spec = model.spec; let want = 'idle', tOverride;
+    const atk = model.anims[spec.clips.attack];
+    if (st.downed) want = 'death';
+    else if (st.swing) { want = 'attack'; if (atk) tOverride = Math.min(atk.dur - 0.001, (st.swing.t / st.swing.dur) * atk.dur); }
+    else if (st.wind) { want = 'attack'; if (atk) tOverride = Math.min(atk.dur - 0.001, (st.windF || 0) * 0.4 * atk.dur); }
+    else if (st.strikeF !== undefined) { want = 'attack'; if (atk) tOverride = Math.min(atk.dur - 0.001, (0.4 + 0.6 * st.strikeF) * atk.dur); }
+    else if (st.moving) want = st.sprinting && spec.clips.run ? 'run' : 'walk';
+    if (!spec.clips[want]) want = spec.clips.walk && st.moving ? 'walk' : 'idle';
+    const pose = animPose(model, key, want, dt, tOverride);
+    const sc = model.scale * (st.scale || 1); const hover = spec.hover ? spec.hover + Math.sin(nowT * 3 + (st.seed || 0)) * 0.12 : 0;
+    const root = st.rootM ? M(st.rootM, mT(0, -model.base * sc + hover, 0), mS(sc)) : M(mT(x, gz - model.base * sc + hover, y), mRY((spec.yaw || 0) - face), mS(sc));
+    G.GLTF.computeWorld(model, pose, root);
+    const rq = { model, tint, worlds: model.nodes.map(n => new Float32Array(n.world)), flash: !!st.flash }; modelReqs.push(rq);
+    const it = st.held; const hn = spec.hand !== undefined ? model.byName[spec.hand] : undefined;
+    if (it && hn !== undefined && G.ITEMS[it.id]) { const hw = rq.worlds[hn]; const ho = spec.handOffset || [0, 0, 0]; const hr = spec.handRot || [0, 0, 0];
+      // bone matrix without its scale (armatures often carry a large internal scale)
+      const n = m4(); for (let c = 0; c < 3; c++) { const l = Math.hypot(hw[c * 4], hw[c * 4 + 1], hw[c * 4 + 2]) || 1; n[c * 4] = hw[c * 4] / l; n[c * 4 + 1] = hw[c * 4 + 1] / l; n[c * 4 + 2] = hw[c * 4 + 2] / l; } n[12] = hw[12]; n[13] = hw[13]; n[14] = hw[14];
+      const d = G.ITEMS[it.id]; const isc = (spec.itemScale || 1) * (st.scale || 1) * (d.big ? 1.15 : 1);
+      const im = M(n, mT(ho[0] * sc, ho[1] * sc, ho[2] * sc), mRX(hr[0]), mRY(hr[1]), mRZ(hr[2]), mS(isc)); itemMesh(dyn, im, it.id, false, it); }
+    return rq;
+  }
+  // draws a player with the glTF model; returns true if handled
+  function playerModel(p, gz, dt, isMe) {
+    const model = G.Assets.models.player; if (!model || !mprog) return false; if (p.dead) return true;
+    const it = p.inv[p.held];
+    charModel(model, 'pl:' + p.id, p.x, p.y, gz, p.face, hex(p.col), { downed: p.downed, swing: p.swing, moving: p.moving, sprinting: p.sprinting, wind: p.charge > 0, windF: p.charge, flash: p.flash, held: it }, dt);
+    return true;
+  }
+  R.playerTop = () => { const m = G.Assets && G.Assets.models && G.Assets.models.player; return m ? (m.spec.height || 1.2) + 0.28 : 1.5; };
+  // enemy drawn with a glTF model when assets/models.json has an entry for its type; returns true if handled
+  function enemyModel(e, m, V, dt, corpse) {
+    const model = mprog && G.Assets.models[e.t]; if (!model) return false; const d = G.ENEMIES[e.t]; const spec = model.spec;
+    const isWind = /wind$/.test(e.st); const moving = /chase|charge|lunge|circle|pounce|flee|retreat/.test(e.st); const striking = e.st === 'cool' && (e.tm || 0) > 0.6;
+    const st = { moving, sprinting: /charge|lunge|pounce/.test(e.st), wind: isWind, windF: isWind ? 1 - G.clamp((e.tm || 0) / (d.windup || 0.6), 0, 1) : 0, flash: !!e.flash, seed: e.id, held: spec.held ? { id: spec.held, n: 1 } : null };
+    if (striking) st.strikeF = G.clamp((1.5 - e.tm) / 0.4, 0, 1);
+    let gz = m[13]; if (corpse) { if (spec.clips.death) { st.downed = true; gz = corpse.gz - corpse.sink * 0.6; } else st.rootM = M(mT(e.x, corpse.gz - corpse.sink, e.y), mRY((spec.yaw || 0) - e.face), mRX(corpse.k * 1.5), mS(1, 1 - corpse.k * 0.15, 1)); }
+    charModel(model, 'en:' + e.id, e.x, e.y, gz, e.face, spec.noTint ? null : hex(d.col), st, dt);
+    if (e.elite) { cyl(dyn, M(m, mT(0, 0.02, 0)), e.r * 1.5, e.r * 1.5, 0.03, 12, hex('#c060ff'), 1.0); for (let k = 0; k < 3; k++) { const a = nowT * 2 + k * 2.09; sph(dyn, M(m, mT(Math.cos(a) * e.r * 1.4, 0.6 + Math.sin(nowT * 4 + k) * 0.2, Math.sin(a) * e.r * 1.4)), 0.07, 5, 3, hex('#c060ff'), 1.0); } }
+    return true;
+  }
   // ================= 2D overlay =================
   function drawOverlay(V, me, dt, L, darkness) {
     const F = R.fx; const x = ox; x.clearRect(0, 0, R.W, R.H);
@@ -629,11 +789,11 @@
       if (e.stun) { x.fillStyle = '#ffe040'; x.font = Math.round(10 * sc) + 'px monospace'; x.textAlign = 'center'; x.fillText('* *', top.x, top.y - 4); }
     }
     for (const id in V.players) {
-      const p = V.players[id]; if (p.dead || p === me) continue; const gz = R.groundZ(V.world, p.x, p.y); const pt = R.project(p.x, p.y, gz + 1.5); if (!pt) continue;
+      const p = V.players[id]; if (p.dead || p === me) continue; const gz = R.groundZ(V.world, p.x, p.y); const pt = R.project(p.x, p.y, gz + R.playerTop()); if (!pt) continue;
       const sc = G.clamp(14 / pt.d, 0.5, 2);
       x.font = Math.round(10 * sc) + 'px monospace'; x.textAlign = 'center'; x.fillStyle = '#000'; x.fillText(p.name, pt.x + 1, pt.y + 1); x.fillStyle = p.col; x.fillText(p.name, pt.x, pt.y);
       x.fillStyle = '#000'; x.fillRect(pt.x - 14 * sc, pt.y + 3, 28 * sc, 3 * sc); x.fillStyle = '#e03030'; x.fillRect(pt.x - 14 * sc, pt.y + 3, 28 * sc * Math.max(0, p.hp / p.maxHp), 3 * sc);
-      if (p.downed) { x.fillStyle = Math.floor(nowT * 4) % 2 ? '#ff3030' : '#ff9090'; x.fillText('DOWN ' + p.bleed + 's', pt.x, pt.y - 10 * sc); if (p.revive > 0) { x.fillStyle = '#000'; x.fillRect(pt.x - 14 * sc, pt.y + 8, 28 * sc, 3 * sc); x.fillStyle = '#60ff60'; x.fillRect(pt.x - 14 * sc, pt.y + 8, 28 * sc * p.revive / 3, 3 * sc); } }
+      if (p.downed) { x.fillStyle = Math.floor(nowT * 4) % 2 ? '#ff3030' : '#ff9090'; x.fillText('DOWN ' + Math.ceil(p.bleed) + 's', pt.x, pt.y - 10 * sc); if (p.revive > 0) { x.fillStyle = '#000'; x.fillRect(pt.x - 14 * sc, pt.y + 8, 28 * sc, 3 * sc); x.fillStyle = '#60ff60'; x.fillRect(pt.x - 14 * sc, pt.y + 8, 28 * sc * p.revive / 3, 3 * sc); } }
     }
     for (const f of F.floats) { const pt = R.project(f.x, f.y, f.z); if (!pt) continue; const sc = G.clamp(12 / pt.d, 0.6, 2); x.font = (f.big ? 'bold ' : '') + Math.round((f.big ? 17 : f.small ? 10 : 13) * sc) + 'px monospace'; x.textAlign = 'center'; x.globalAlpha = Math.min(1, 2.2 - f.t * 2); x.fillStyle = '#000'; x.fillText(f.s, pt.x + 1, pt.y + 1); x.fillStyle = f.c; x.fillText(f.s, pt.x, pt.y); }
     x.globalAlpha = 1;

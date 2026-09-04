@@ -1,0 +1,269 @@
+{
+ "player": {
+  "file": "robot.glb",
+  "height": 1.3,
+  "yaw": 1.5708,
+  "tint": "Main",
+  "hand": "Palm2.R",
+  "handOffset": [
+   0,
+   0.3,
+   0
+  ],
+  "handRot": [
+   1.5708,
+   0,
+   0
+  ],
+  "itemScale": 0.75,
+  "clips": {
+   "idle": "Idle",
+   "walk": "Walking",
+   "run": "Running",
+   "attack": "Punch",
+   "death": "Death",
+   "jump": "Jump",
+   "wave": "Wave",
+   "dance": "Dance"
+  }
+ },
+ "goblin": {
+  "file": "kenney_character.glb",
+  "height": 1.0,
+  "yaw": -1.5708,
+  "tint": "colormap",
+  "clips": {
+   "idle": "idle",
+   "walk": "walk",
+   "attack": "jump"
+  }
+ },
+ "goblin_archer": {
+  "file": "kenney_character.glb",
+  "height": 1.0,
+  "yaw": -1.5708,
+  "tint": "colormap",
+  "clips": {
+   "idle": "idle",
+   "walk": "walk",
+   "attack": "jump"
+  }
+ },
+ "skeleton": {
+  "file": "robot.glb",
+  "height": 1.2,
+  "yaw": 1.5708,
+  "tint": "Main",
+  "hand": "Palm2.R",
+  "handRot": [
+   1.5708,
+   0,
+   0
+  ],
+  "itemScale": 0.75,
+  "held": "sword_stone",
+  "clips": {
+   "idle": "Idle",
+   "walk": "Walking",
+   "attack": "Punch",
+   "death": "Death"
+  },
+  "handOffset": [
+   0,
+   0.3,
+   0
+  ]
+ },
+ "wolf": {
+  "file": "fox.glb",
+  "height": 0.95,
+  "yaw": 1.5708,
+  "tint": "fox_material",
+  "clips": {
+   "idle": "Survey",
+   "walk": "Walk",
+   "run": "Run"
+  },
+  "flat": true
+ },
+ "wolf_pet": {
+  "file": "fox.glb",
+  "height": 0.95,
+  "yaw": 1.5708,
+  "tint": "fox_material",
+  "clips": {
+   "idle": "Survey",
+   "walk": "Walk",
+   "run": "Run"
+  },
+  "flat": true
+ },
+ "frostmaw": {
+  "file": "fox.glb",
+  "height": 2.1,
+  "yaw": 1.5708,
+  "tint": "fox_material",
+  "clips": {
+   "idle": "Survey",
+   "walk": "Walk",
+   "run": "Run"
+  },
+  "flat": true
+ },
+ "bat": {
+  "file": "kenney_drone.glb",
+  "height": 0.55,
+  "yaw": 1.5708,
+  "tint": "colormap",
+  "hover": 0.85,
+  "clips": {}
+ },
+ "gronk": {
+  "file": "robot.glb",
+  "height": 2.7,
+  "yaw": 1.5708,
+  "tint": "Main",
+  "hand": "Palm2.R",
+  "handRot": [
+   1.5708,
+   0,
+   0
+  ],
+  "itemScale": 2.0,
+  "held": "gronk_hammer",
+  "clips": {
+   "idle": "Idle",
+   "walk": "Walking",
+   "attack": "Punch",
+   "death": "Death"
+  },
+  "handOffset": [
+   0,
+   0.3,
+   0
+  ]
+ },
+ "hollow": {
+  "file": "robot.glb",
+  "height": 2.3,
+  "yaw": 1.5708,
+  "tint": "Main",
+  "hand": "Palm2.R",
+  "handRot": [
+   1.5708,
+   0,
+   0
+  ],
+  "itemScale": 1.7,
+  "held": "hollow_blade",
+  "clips": {
+   "idle": "Idle",
+   "walk": "Walking",
+   "attack": "Punch",
+   "death": "Death"
+  },
+  "handOffset": [
+   0,
+   0.3,
+   0
+  ]
+ },
+ "bonecrusher": {
+  "file": "robot.glb",
+  "height": 2.6,
+  "yaw": 1.5708,
+  "tint": "Main",
+  "hand": "Palm2.R",
+  "handRot": [
+   1.5708,
+   0,
+   0
+  ],
+  "itemScale": 1.9,
+  "held": "bonecleaver",
+  "clips": {
+   "idle": "Idle",
+   "walk": "Walking",
+   "attack": "Punch",
+   "death": "Death"
+  },
+  "handOffset": [
+   0,
+   0.3,
+   0
+  ]
+ },
+ "warden": {
+  "file": "robot.glb",
+  "height": 2.2,
+  "yaw": 1.5708,
+  "tint": "Main",
+  "hand": "Palm2.R",
+  "handRot": [
+   1.5708,
+   0,
+   0
+  ],
+  "itemScale": 1.6,
+  "held": "greatsword_iron",
+  "clips": {
+   "idle": "Idle",
+   "walk": "Walking",
+   "attack": "Punch",
+   "death": "Death"
+  },
+  "handOffset": [
+   0,
+   0.3,
+   0
+  ]
+ },
+ "lich": {
+  "file": "robot.glb",
+  "height": 2.1,
+  "yaw": 1.5708,
+  "tint": "Main",
+  "hand": "Palm2.R",
+  "handRot": [
+   1.5708,
+   0,
+   0
+  ],
+  "itemScale": 1.6,
+  "held": "lich_staff",
+  "clips": {
+   "idle": "Idle",
+   "walk": "Walking",
+   "attack": "Wave",
+   "death": "Death"
+  },
+  "handOffset": [
+   0,
+   0.3,
+   0
+  ]
+ },
+ "titan": {
+  "file": "robot.glb",
+  "height": 3.6,
+  "yaw": 1.5708,
+  "tint": "Main",
+  "hand": "Palm2.R",
+  "clips": {
+   "idle": "Idle",
+   "walk": "Walking",
+   "attack": "Punch",
+   "death": "Death"
+  },
+  "handRot": [
+   1.5708,
+   0,
+   0
+  ],
+  "handOffset": [
+   0,
+   0.3,
+   0
+  ]
+ }
+}

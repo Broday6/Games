@@ -292,7 +292,7 @@
   en('treant', { name: 'Treant', hp: 160, dmg: 22, spd: 1.8, r: 0.7, ai: 'treant', coins: 12, col: '#4a6a30', drops: [['wood', 6, 10], ['stick', 2, 4]], minNight: 3, windup: 1.0, reach: 2.2, biome: 1 });
   en('skeleton', { name: 'Skeleton', hp: 60, dmg: 14, spd: 3.2, r: 0.38, ai: 'skeleton', coins: 6, col: '#e0e0d0', drops: [['bone', 1, 3]], minNight: 2, windup: 0.6, reach: 1.1 });
   en('crawler', { name: 'Magma Crawler', hp: 50, dmg: 10, spd: 3.0, r: 0.4, ai: 'crawler', coins: 6, col: '#ff6a1a', drops: [['ember', 0, 1], ['coal', 1, 2]], minNight: 0, windup: 0.7, reach: 6, biome: 2, always: true });
-  en('bat', { name: 'Bat', hp: 6, dmg: 3, spd: 5.5, r: 0.2, ai: 'bat', coins: 1, col: '#503060', drops: [], minNight: 1, windup: 0.2, reach: 0.6 });
+  en('bat', { name: 'Scout Drone', hp: 6, dmg: 3, spd: 5.5, r: 0.2, ai: 'bat', coins: 1, col: '#503060', drops: [], minNight: 1, windup: 0.2, reach: 0.6 });
   en('wolf_pet', { name: 'Wolf Companion', hp: 80, dmg: 12, spd: 5.5, r: 0.4, ai: 'pet', coins: 0, col: '#d0c0a0', drops: [], minNight: 99, windup: 0.3, reach: 1.0 });
   en('tentacle', { name: 'Tentacle', hp: 120, dmg: 18, spd: 0, r: 0.6, ai: 'tentacle', coins: 5, col: '#3a5a7a', drops: [], minNight: 99, windup: 0.9, reach: 2.6 });
   en('spiderling', { name: 'Spiderling', hp: 14, dmg: 5, spd: 4.8, r: 0.25, ai: 'chase', coins: 1, col: '#503060', drops: [], minNight: 99, windup: 0.35, reach: 0.7 });

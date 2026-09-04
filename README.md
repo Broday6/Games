@@ -70,6 +70,13 @@ you can drop on any host (Netlify drop, itch.io, a USB stick…).
 **Local:** `cd driftwood && python3 -m http.server 8000` then open http://localhost:8000/ — friends on
 your LAN can join with your machine's IP, or over the internet via the room code.
 
+### Characters & art
+
+Players, skeletons and the six humanoid bosses are the CC0 **RobotExpressive** rig (tinted per player / boss), wolves and Frostmaw
+use the flat-shaded **Fox** rig, goblins and scout drones use Kenney's kit characters. Every model is loaded by the in-house
+glTF loader (`js/gltf.js`) with idle / walk / run / attack / death clips crossfaded from the simulation state, and weapons are
+attached to the palm bone. Swap or add models by dropping a `.glb` into `driftwood/assets/` and editing `assets/models.json`.
+
 ### Code map
 
 ```
@@ -83,10 +90,12 @@ driftwood/
   js/enemies.js   enemy AI, spawning/waves/claims, 3 guardians + Leviathan
   js/net.js       PeerJS rooms + manual WebRTC fallback, chunked JSON transport
   js/sprites.js   procedural pixel-art sprite generation
-  js/render3d.js  first-person WebGL renderer: heightmap terrain chunks, billboards/boxes, 16 point lights, fog, overlay HUD, minimap
+  js/gltf.js      minimal glTF/GLB loader: node animation with crossfades, CPU skinning, embedded textures
+  js/render3d.js  first-person WebGL renderer: heightmap terrain chunks, glTF characters, 16 point lights, fog, overlay HUD, minimap
+  assets/         character models (CC0 / CC-BY, see assets/LICENSES.md) + models.json mapping roles → files, scale, facing, weapon hand, clips
   js/audio.js     WebAudio synthesised SFX and ambient
   js/input.js     pointer-lock mouse look, WASD relative to view, discrete actions
   js/ui.js        lobby, HUD, inventory/crafting, chat, end screen
   js/main.js      game loop, host/client sync, prediction/interpolation
-  build.js        bundles everything into dist/driftwood.html
+  build.js        bundles everything (models embedded as base64) into dist/driftwood.html
 ```

@@ -2,7 +2,7 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--txt); font-family: 'Courier New', monospace; overflow: hidden; user-select: none; }
 #game, #overlay { position: absolute; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; background: transparent; }
-#game { background: #000; cursor: crosshair; }
+#game { background: #000; cursor: crosshair; filter: saturate(1.35) contrast(1.06) brightness(1.02); }
 #overlay { pointer-events: none; z-index: 5; }
 #resume { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 15; pointer-events: none; }
 #resume .panel { text-align: center; padding: 18px 28px; font-size: 18px; }

@@ -8,6 +8,7 @@
 
   window.addEventListener('DOMContentLoaded', () => {
     UI.init(); R.init(document.getElementById('game'), document.getElementById('overlay'), document.getElementById('minimap')); In.init(document.getElementById('game'));
+    if (G.Assets) G.Assets.load();
     In.onAction = onLocalAction; In.onLockChange = onLockChange;
     Net.onMessage = onMessage; Net.onJoin = onJoin; Net.onLeave = onLeave;
     const p = new URLSearchParams(location.search); if (p.get('room')) { document.getElementById('tab-join').click(); document.getElementById('joincode').value = p.get('room').toUpperCase(); }
