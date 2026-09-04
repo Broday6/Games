@@ -8,7 +8,9 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<canvas id="game" width="480" height="270"></canvas>
+<canvas id="game" width="640" height="360"></canvas>
+<canvas id="overlay" width="640" height="360"></canvas>
+<div id="resume" class="hidden"><div class="panel"><b>Click to play</b><div class="small">mouse look · Esc to release the mouse</div></div></div>
 
 <div id="lobby">
   <div class="panel">
@@ -54,11 +56,11 @@
       </details>
     </div>
     <div class="controls">
-      <div><b>WASD</b> move · <b>Shift</b> sprint · <b>Space</b> dodge roll</div>
-      <div><b>LMB</b> attack / gather / place · <b>RMB</b> draw bow / block</div>
-      <div><b>E</b> interact / revive · <b>Q</b> eat · <b>T</b> ping</div>
-      <div><b>1-9</b> hotbar · <b>Tab</b> inventory & crafting · <b>Enter</b> chat</div>
-      <div><b>M</b> mute · Nights get harder. Light keeps monsters out.</div>
+      <div><b>Mouse</b> look · <b>WASD</b> move · <b>Shift</b> sprint · <b>Space</b> jump</div>
+      <div><b>Q</b> dodge roll (i-frames) · <b>LMB</b> attack / gather / place · <b>RMB</b> draw bow / block</div>
+      <div><b>E</b> interact / hold to revive · <b>F</b> eat · <b>T</b> ping</div>
+      <div><b>1-9</b> hotbar · <b>Tab</b> inventory & crafting · <b>Enter</b> chat · <b>M</b> mute</div>
+      <div>Nights get harder. Light keeps monsters out.</div>
       <div>Find the 3 altars, craft their totems, take the gems to the ship.</div>
     </div>
   </div>
@@ -86,7 +88,7 @@
 
 <div id="inv" class="panel hidden">
   <div>
-    <h3>Inventory <span class="small">(click to move · right-click to use/equip · Shift-click to drop)</span></h3>
+    <h3>Inventory <span class="small">(click to move · right-click to use/equip · Shift-click to drop · Tab to close)</span></h3>
     <div class="grid" id="invgrid"></div>
     <h3 style="margin-top:8px">Armour</h3>
     <div id="armor"></div>
@@ -109,7 +111,7 @@
 <script src="js/enemies.js"></script>
 <script src="js/net.js"></script>
 <script src="js/sprites.js"></script>
-<script src="js/render.js"></script>
+<script src="js/render3d.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/input.js"></script>
 <script src="js/ui.js"></script>

@@ -1,7 +1,11 @@
 :root { --bg: #0d0c14; --panel: rgba(16, 14, 26, 0.92); --line: #3a3550; --txt: #e8e4f0; --dim: #9a94b0; --acc: #ffd24a; --hp: #e03030; --stam: #40c060; --food: #e0a040; }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--txt); font-family: 'Courier New', monospace; overflow: hidden; user-select: none; }
-#game { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); image-rendering: pixelated; image-rendering: crisp-edges; cursor: none; background: #000; }
+#game, #overlay { position: absolute; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; background: transparent; }
+#game { background: #000; cursor: crosshair; }
+#overlay { pointer-events: none; z-index: 5; }
+#resume { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 15; pointer-events: none; }
+#resume .panel { text-align: center; padding: 18px 28px; font-size: 18px; }
 canvas { image-rendering: pixelated; }
 button { font-family: inherit; background: #2a2540; color: var(--txt); border: 2px solid var(--line); padding: 8px 14px; cursor: pointer; font-size: 14px; border-radius: 3px; }
 button:hover { background: #3a3455; border-color: var(--acc); }

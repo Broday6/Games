@@ -146,7 +146,7 @@
     // starter supplies near spawn
     for (let k = 0; k < 4; k++) { const j = (by - 2 - rng.int(2)) * W + Math.floor(spawn.x) - 3 + k * 2; if (tiles[j] > T.SAND && !objs.has(j)) setObj(j, k < 2 ? 'tree' : 'rock'); }
 
-    return { seed: String(seedStr), tiles, biome, objs, spawn, boat: { x: bx + 0.5, y: by + 0.5, idx: bi }, altars, changes: new Map() };
+    return { seed: String(seedStr), tiles, biome, height, objs, spawn, boat: { x: bx + 0.5, y: by + 0.5, idx: bi }, altars, changes: new Map() };
   }
   G.generateWorld = generate;
 

@@ -50,8 +50,8 @@
   UI.enterGame = (seed) => { $('lobby').classList.add('hidden'); $('hud').classList.remove('hidden'); $('seedlbl').textContent = 'seed ' + seed; };
   const esc = (s) => String(s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
 
-  function openChat() { UI.chatOpen = true; $('chatin').classList.remove('hidden'); $('chatin').focus(); G.Input.locked = true; }
-  function closeChat() { UI.chatOpen = false; $('chatin').value = ''; $('chatin').classList.add('hidden'); $('chatin').blur(); G.Input.locked = false; }
+  function openChat() { UI.chatOpen = true; $('chatin').classList.remove('hidden'); G.Input.unlock(); UI.setResume(false); $('chatin').focus(); setTimeout(() => $('chatin').focus(), 30); G.Input.locked = true; }
+  function closeChat() { UI.chatOpen = false; $('chatin').value = ''; $('chatin').classList.add('hidden'); $('chatin').blur(); G.Input.locked = false; if (G.Main.started) G.Input.lock(); }
   UI.chat = function (ev) {
     const log = $('chatlog'); const d = document.createElement('div');
     if (ev.sys) { d.className = 'sys'; d.textContent = '» ' + ev.msg; } else { d.innerHTML = '<b style="color:' + ev.col + '">' + esc(ev.from) + ':</b> ' + esc(ev.msg); }
@@ -111,8 +111,10 @@
   UI.toggleInv = function (force) {
     UI.open = force === undefined ? !UI.open : force;
     $('inv').classList.toggle('hidden', !UI.open); clearDrag(); hideTip();
-    if (UI.open) { UI.lastInv = ''; UI.refreshCraft(true); }
+    if (UI.open) { UI.lastInv = ''; UI.refreshCraft(true); G.Input.unlock(); UI.setResume(false); }
+    else if (G.Main.started) { G.Input.lock(); }
   };
+  UI.setResume = function (show) { $('resume').classList.toggle('hidden', !show); };
 
   // ---------- HUD refresh ----------
   UI.update = function (V, hint) {

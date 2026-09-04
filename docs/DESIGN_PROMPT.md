@@ -1,6 +1,6 @@
 # DRIFTWOOD — Design Prompt
 
-> A build prompt for a browser-based, 2-4 player online co-op survival roguelike that takes
+> A build prompt for a browser-based, **first-person**, 2-4 player online co-op survival roguelike that takes
 > the core loop of **Muck** and fixes what players consistently say is wrong with it, borrowing
 > the best ideas from **Risk of Rain 2**, **Valheim**, **Core Keeper**, **Don't Starve Together**,
 > **Hades** and **Deep Rock Galactic**.
@@ -31,7 +31,7 @@ Collected from Steam / Metacritic / community reviews:
 | Bosses one-shot you even in max gear; difficulty feels unfair rather than hard. | Every enemy attack has a **readable wind-up tell** (Hades style), damage is capped at 60% of max HP per hit, and there's an **i-frame dodge roll**. Hard but fair. |
 | Death is instant and the run ends for you while friends keep playing. | **Downed state** (Deep Rock / Valheim style): you bleed out over 30s and a teammate can revive you. Full death only if nobody reaches you. Party wipes end the run. |
 | Gets repetitive after an hour; not enough content. | 3 distinct **biomes** on every island (meadow, dark forest, volcanic rock), 3 unique bosses with different fight patterns, 20+ stackable powerups with real synergies, and a **final escape sequence**. |
-| Texture pop-in / performance jank. | 2D pixel-art rendered on a canvas at a fixed internal resolution — zero pop-in, runs on anything with a browser. |
+| Texture pop-in / performance jank. | Low-poly first-person world rendered with raw WebGL at a reduced internal resolution, with a fixed 3-chunk view radius and fog instead of pop-in — runs on anything with a browser. |
 | No visible seed / no replayability control. | **Seed is always shown** and can be typed in the lobby. Same seed = same island. |
 | Solo pacing forces you to ignore building entirely. | Slightly longer days, plus **nights escalate in two phases** (light wave → heavy wave), so there is a beat to fortify. |
 
@@ -57,7 +57,7 @@ Collected from Steam / Metacritic / community reviews:
 you are two absurdly overpowered gods desperately holding a wall together against a screaming
 horde while the boat you're repairing is 80% done.*
 
-- Platform: **browser**, desktop keyboard + mouse. No install. Open a link, share a room code.
+- Platform: **browser**, desktop keyboard + mouse, **first-person** like Muck. No install. Open a link, share a room code.
 - Netcode: **host-authoritative**. One player is the host (server logic runs in their tab);
   clients send input, receive state snapshots. Peer-to-peer over WebRTC so there's no backend
   to pay for. Manual copy-paste signalling as a fallback when the signalling server is blocked.
@@ -66,8 +66,9 @@ horde while the boat you're repairing is 80% done.*
 
 ## 5. World
 
-- Island **160×160 tiles**, 16px tiles rendered at 3× (48px on screen), internal resolution
-  480×270 scaled to the window with nearest-neighbour.
+- Island **160×160 tiles**; one tile is one world unit (roughly 1.5 m). The heightmap that shapes the
+  island also gives the 3D terrain its hills, beaches and seabed; the camera rides at eye height
+  above it. Rendered at ~60% internal resolution and upscaled with nearest-neighbour for a chunky look.
 - Generated from a **seed** with layered value noise + radial falloff (island shape) and a
   second noise for biome.
 - Tiles: deep water, shallow water, sand, grass, dark grass (forest floor), dirt, stone, obsidian
@@ -88,10 +89,10 @@ horde while the boat you're repairing is 80% done.*
 
 - Stats: HP 100, Stamina 100, Hunger 100 (drains ~1 per 4s; at 0 you lose HP instead of
   regen), Speed, Attack, Defense, Crit chance, Luck.
-- Controls: WASD move, Shift sprint (stamina), **Space dodge roll** (i-frames 0.25s, costs
-  stamina), LMB use/attack toward mouse, RMB secondary (bow aim/charge, shield block),
-  E interact, Q eat/quick-consume, 1-9 hotbar, Tab/I inventory, B build menu, C craft,
-  M minimap, T ping location, Enter chat.
+- Controls: mouse look (pointer lock), WASD move relative to view, Shift sprint (stamina),
+  Space jump, **Q dodge roll** (i-frames 0.25s, costs stamina), LMB use/attack where you look,
+  RMB secondary (bow aim/charge, shield block), E interact, F eat/quick-consume, 1-9 hotbar,
+  Tab/I inventory + crafting, T ping where you look, Enter chat, M mute.
 - Inventory: 24 slots + 9 hotbar + armor (head/chest/legs/feet) + 1 accessory. Stacks of 99.
 - Hands: tools (axe, pickaxe) and weapons are the same "held item" slot. Tool tier gates
   which resources you can break.
@@ -198,8 +199,12 @@ triggers the **final wave**: a 90-second siege at the dock followed by the final
 
 ## 12. Presentation
 
-- Pixel art drawn procedurally at runtime (no external assets) — palette of ~32 colours,
-  1px dark outlines, simple 2-frame walk animation, squash/stretch on jump/hit.
+- First-person, low-poly: heightmapped terrain with baked sun shading, water plane, procedurally
+  drawn pixel-art sprites (no external assets) used as billboards for creatures, items and
+  props, crossed quads for trees, real blocks for walls and doors. Up to 16 dynamic point lights
+  (torches, campfires, lava, held torches) plus distance fog whose colour follows the sky through
+  day, dusk and night; sun and moon arc overhead, stars come out at night.
+- First-person hands: the held item bobs when walking, swings on attack, draws back on a bow.
 - HUD: HP / stamina / hunger bars top-left, powerup icon stack below, hotbar bottom-center,
   day counter + clock top-center, minimap top-right, chat bottom-left.
 - Procedural WebAudio SFX (hit, swing, chop, pickup, chest, hurt, boss roar) and a light
@@ -207,7 +212,7 @@ triggers the **final wave**: a 90-second siege at the dock followed by the final
 
 ## 13. Technical constraints for the build
 
-- Vanilla JS + Canvas 2D, no framework, no build step required to run (plain `<script>` tags
+- Vanilla JS + raw WebGL 1 (no three.js), no framework, no build step required to run (plain `<script>` tags
   sharing a `G` namespace). A tiny Node script may bundle everything into one HTML for
   single-file hosting.
 - Deterministic seeded RNG for world gen; host-side RNG for gameplay.
