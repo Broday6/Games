@@ -22,6 +22,9 @@
       <div class="setrow"><label><input type="checkbox" id="set-inv"> Invert mouse Y</label></div>
       <div class="setrow"><label><input type="checkbox" id="set-shake"> Screen shake</label></div>
       <div class="setrow"><label><input type="checkbox" id="set-bob"> Head bob</label></div>
+      <div class="setrow"><label><input type="checkbox" id="set-toon"> Toon outlines</label></div>
+      <div class="setrow"><label><input type="checkbox" id="set-autoq"> Auto quality (lowers resolution when the frame rate drops)</label></div>
+      <div class="setrow"><label><input type="checkbox" id="set-tut"> Show tutorial</label></div>
     </div>
   </div>
   <div class="row" style="justify-content:flex-end"><button id="settings-done" class="primary">Done</button></div>
@@ -34,7 +37,9 @@
     <div class="row"><label>Name</label><input id="name" maxlength="14" placeholder="Your name" style="flex:1"></div>
     <div class="row"><label>Colour</label><div class="swatches" id="swatches"></div></div>
     <div class="row" style="align-items:flex-start"><label>Class</label><div id="classes" class="classes"></div></div>
-    <div class="row"><label>Camp</label><span class="small" id="metaline"></span><button id="btn-camp">Open the Camp</button><button id="btn-settings">Controls & settings</button></div>
+    <div class="row" style="align-items:flex-start"><label>Character</label><div id="skins" class="hats"></div></div>
+    <div class="row" style="align-items:flex-start"><label>Hat</label><div id="hats" class="hats"></div></div>
+    <div class="row"><label>Camp</label><span class="small" id="metaline"></span><button id="btn-camp">Open the Camp</button><button id="btn-settings">Controls & settings</button><button id="btn-howto">How to play</button></div>
     <div class="tabs">
       <button id="tab-host" class="sel">Host a game</button>
       <button id="tab-join">Join a friend</button>
@@ -79,6 +84,7 @@
       <div><b>1-9</b> hotbar · <b>Tab</b> inventory & crafting · <b>Enter</b> chat · <b>M</b> mute</div>
       <div>Nights get harder. Light keeps monsters out.</div>
       <div>10 bosses: a night boss every night from night 2, three altar guardians, and what waits at sea.</div>
+      <div>Feeling lucky? Sit at a <b>Dealer's Table</b> (by the wreck and each altar) and gamble coins for boons and hats.</div>
     </div>
   </div>
 </div>
@@ -102,7 +108,9 @@
   <div id="toast"></div>
   <div id="chat"><div id="chatlog"></div><input id="chatin" class="hidden" maxlength="120" placeholder="say something… (Enter)"></div>
   <div id="netlbl"></div>
+  <div id="tutorial" class="hidden"><div class="th">Tutorial <button id="tut-close" title="hide (re-enable in settings)">✕</button></div><div id="tut-body"></div></div>
 </div>
+<div id="howto" class="hidden"><div class="panel"><h3>How to play Driftwood</h3><div id="howto-body"></div><div class="row" style="justify-content:flex-end"><button id="howto-done" class="primary">Got it</button></div></div></div>
 
 <div id="inv" class="panel hidden">
   <div>
@@ -126,6 +134,13 @@
   <div class="row"><span class="code" id="shards">0</span><span class="small">shards</span><span class="small" id="camplog" style="margin-left:auto"></span></div>
   <div id="camp-list"></div>
   <div class="row" style="justify-content:flex-end;margin-top:8px"><button id="camp-done" class="primary">Back to the lobby</button></div>
+</div></div>
+<div id="casino" class="hidden"><div class="panel">
+  <div class="row" style="justify-content:space-between"><h3>Dealer's Table <span class="small">— bet coins, win coins, boons and hats · Esc to leave</span></h3><span class="chips" id="cas-coins">⬤ 0</span></div>
+  <div class="tabs" id="cas-tabs"><button data-g="slots" class="sel">Slots</button><button data-g="dice">Dice Duel</button><button data-g="wheel">Wheel of Fates</button><button data-g="bj">Blackjack</button></div>
+  <div id="cas-body"></div>
+  <div id="cas-log" class="small"></div>
+  <div class="row" style="justify-content:flex-end"><button id="cas-leave">Leave the table</button></div>
 </div></div>
 <div id="confirm" class="panel hidden"></div>
 <div id="end" class="hidden"><div class="panel"><h1></h1><div class="stats"></div><button id="btn-again" class="primary">Back to lobby</button></div></div>

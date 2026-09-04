@@ -22,7 +22,7 @@
   Sim.ev = (S, e) => S.events.push(e);
 
   // ---------------- players ----------------
-  Sim.addPlayer = function (S, id, name, col, cls, meta) {
+  Sim.addPlayer = function (S, id, name, col, cls, meta, hat, skin) {
     const sp = S.world.spawn;
     const p = {
       id, name: String(name || 'Player').slice(0, 14), col: col || G.PLAYER_COLORS[Object.keys(S.players).length % 8],
@@ -32,7 +32,7 @@
       swing: null, atkCd: 0, dodgeT: 0, dodgeCh: 1, dodgeCd: 0, dodgeDx: 0, dodgeDy: 0, draw: 0, blocking: false, blockT: 0,
       downed: false, bleed: 0, dead: false, revive: 0, flash: 0, swCd: 0, phoenixUsed: false, kills: 0, dark: 0, burn: 0,
       in: { ax: 0, ay: 0, aimx: sp.x, aimy: sp.y - 1, sprint: false, attack: false, sec: false, interact: false },
-      moving: false, anim: 0, pet: null, order: S.order++, combo: 0, comboT: 0, charge: 0, cls: cls || 'castaway', meta: meta || {},
+      moving: false, anim: 0, pet: null, order: S.order++, combo: 0, comboT: 0, charge: 0, cls: cls || 'castaway', meta: meta || {}, hat: G.HAT[hat] ? hat : 'none', skin: G.SKINS && G.SKINS.some(k => k.id === skin) ? skin : 'knight', sitting: false, bj: null, gambles: 0, rig: {},
     };
     S.players[id] = p;
     const C = G.CLASSES.find(c => c.id === p.cls); if (C) { for (const [it, n] of C.items) Sim.give(p, it, n); for (const k in C.pw) p.pw[k] = (p.pw[k] || 0) + C.pw[k]; }
@@ -56,8 +56,9 @@
     s.atk = (1 + 0.10 * c('whetstone') + A.atk + 0.06 * m('might')) * (1 + 0.5 * c('warlord')) * (c('glass') ? 2 : 1);
     if (p.hp < 0.4 * p.maxHp) s.atk *= 1 + 0.3 * c('berserk');
     s.def = 6 * c('ironskin') + A.def;
-    let hpB = 0, stB = 0;
-    for (const b of p.buffs) { hpB += b.hp || 0; stB += b.stam || 0; }
+    let hpB = 0, stB = 0, atkB = 0;
+    for (const b of p.buffs) { hpB += b.hp || 0; stB += b.stam || 0; atkB += b.atk || 0; }
+    s.atk *= Math.max(0.3, 1 + atkB);
     s.maxHp = Math.max(30, Math.round((100 + 15 * c('broth') + hpB + (wp.hpMod || 0) + A.maxHp + 10 * m('vitality')) * (c('glass') ? 0.5 : 1)));
     s.crit = 0.05 + 0.10 * c('critlens') + (wp.crit || 0) + A.crit;
     s.lifesteal = 0.08 * c('vampire') + A.ls;
@@ -328,8 +329,90 @@
       case 'dodge': Sim.dodge(S, p); break;
       case 'pick': Sim.pick(S, p, a.i | 0); break;
       case 'sail': if (S.boat.done && S.phase === 'run') Sim.startSiege(S); break;
+      case 'gamble': Sim.gamble(S, p, a); break;
+      case 'sit': p.sitting = !!a.v; break;
+      case 'bj': Sim.blackjack(S, p, a); break;
     }
   };
+
+  // ---------------- the Dealer's Table (gambling for coins, boons and hats) ----------------
+  Sim.nearCasino = function (S, p) { for (let y = Math.floor(p.y - 3); y <= p.y + 3; y++) for (let x = Math.floor(p.x - 3); x <= p.x + 3; x++) { const o = S.world.objs.get(G.idx(x, y)); if (o && O[o.t].casino && G.dist(p.x, p.y, x + .5, y + .5) < 3.5) return true; } return false; };
+  const CAS = G.CASINO;
+  function hexPlayer(S, p, dur) { p.buffs = p.buffs.filter(b => b.id !== 'hex'); p.buffs.push({ id: 'hex', atk: CAS.hex.atk, t: dur || CAS.hex.dur }); Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 1, s: 'HEXED', c: '#c060ff', to: p.id }); }
+  function gres(S, p, r) { r.t = 'gres'; r.to = p.id; r.coins = p.coins; Sim.ev(S, r); }
+  function weightedSymbol() { const tot = G.SLOT_SYMBOLS.reduce((a, s) => a + s.w, 0); let r = Math.random() * tot; for (const s of G.SLOT_SYMBOLS) { r -= s.w; if (r <= 0) return s.id; } return 'cherry'; }
+  function unlockHat(S, p) { const pool = G.HATS.filter(h => h.cost > 0); const h = pool[Math.floor(Math.random() * pool.length)]; Sim.ev(S, { t: 'hat', to: p.id, id: h.id }); Sim.ev(S, { t: 'chat', sys: true, msg: p.name + ' won a ' + h.name + ' at the Dealer\'s Table!' }); }
+  function bigWin(S, p, txt) { Sim.ev(S, { t: 'chat', sys: true, msg: p.name + ' ' + txt }); Sim.ev(S, { t: 'boom', x: p.x, y: p.y, r: 1.2, c: '#ffd24a' }); Sim.ev(S, { t: 'sfx', n: 'win', x: p.x, y: p.y }); }
+  Sim.gamble = function (S, p, a) {
+    if (!Sim.nearCasino(S, p)) return;
+    const g = a.g;
+    if (g === 'buy') { const r = CAS.rigs.find(x => x.id === a.item); if (!r) return; if (p.rig[r.id]) return gres(S, p, { g: 'buy', err: 'You already hold a ' + r.name + '.' }); if (p.coins < r.cost) return gres(S, p, { g: 'buy', err: 'You need ' + r.cost + ' coins for the ' + r.name + '.' }); p.coins -= r.cost; p.rig[r.id] = 1; return gres(S, p, { g: 'buy', item: r.id, msg: r.name + ' bought — it triggers on its own.' }); }
+    const bets = g === 'slots' ? CAS.slotsBets : g === 'dice' ? CAS.diceBets : g === 'wheel' ? CAS.wheelBets : null; if (!bets) return;
+    const bet = bets.includes(a.bet | 0) ? a.bet | 0 : bets[0];
+    if (p.coins < bet) return gres(S, p, { g, err: 'You need ' + bet + ' coins for that bet.' });
+    p.coins -= bet; p.gambles++; S.stats.gambles = (S.stats.gambles || 0) + 1;
+    if (g === 'slots') {
+      let reels = [weightedSymbol(), weightedSymbol(), weightedSymbol()]; let used = null;
+      const isLoss = (r) => !(r[0] === r[1] || r[1] === r[2] || r[0] === r[2]) || r.includes('skull');
+      if (p.rig.chip && isLoss(reels)) { delete p.rig.chip; used = 'chip'; reels = [weightedSymbol(), weightedSymbol(), weightedSymbol()]; }
+      const [a1, b1, c1] = reels; let win = 0, msg = '', boon = -1, hex = 0, hat = false;
+      if (a1 === b1 && b1 === c1) {
+        if (a1 === 'seven') { win = bet * 20; boon = 2; hat = true; msg = 'JACKPOT! Triple seven'; bigWin(S, p, 'hit the JACKPOT on the slots!'); }
+        else if (a1 === 'skull') { win = 0; hex = 120; msg = 'Three skulls… the table takes its due'; }
+        else { win = bet * 6; boon = a1 === 'star' ? 1 : 0; msg = 'Three of a kind!'; }
+      } else if (a1 === b1 || b1 === c1 || a1 === c1) {
+        const pair = a1 === b1 ? a1 : b1 === c1 ? b1 : a1;
+        if (pair === 'skull') { win = 0; hex = 45; msg = 'A pair of skulls — hexed'; } else if (pair === 'seven') { win = bet * 4; msg = 'Two sevens!'; } else { win = bet * 2; msg = 'A pair — double your bet'; }
+      } else msg = 'No luck. The reels mock you.';
+      p.coins += win; if (hex) hexPlayer(S, p, hex); if (boon >= 0) Sim.offerPerks(S, p, boon, 'Slots'); if (hat) unlockHat(S, p);
+      return gres(S, p, { g, bet, reels, win, msg: (used ? 'Lucky Chip re-spin! ' : '') + msg, boon, hex, used });
+    }
+    if (g === 'dice') {
+      const d6 = () => 1 + Math.floor(Math.random() * 6); const mine = [d6(), d6()], dealer = [d6(), d6()]; let used = null; let bonus = 0; if (p.rig.dice) { delete p.rig.dice; used = 'dice'; bonus = 2; } const ms = mine[0] + mine[1] + bonus, ds = dealer[0] + dealer[1]; let win = 0, msg = used ? 'Loaded dice (+2)! ' : '', boon = -1, hex = 0;
+      if (ms > ds) { win = bet * 2; msg += 'You out-roll the dealer'; } else if (ms === ds) { win = bet; msg += 'Push — bet returned'; } else msg += 'The dealer wins';
+      if (mine[0] === 6 && mine[1] === 6) { boon = 0; msg += ' — BOXCARS! A boon is yours'; } if (mine[0] === 1 && mine[1] === 1) { hex = 60; msg += ' — snake eyes, hexed'; }
+      p.coins += win; if (hex) hexPlayer(S, p, hex); if (boon >= 0) Sim.offerPerks(S, p, boon, 'Dice Duel');
+      return gres(S, p, { g, bet, mine, dealer, win, msg, boon, hex, used, bonus });
+    }
+    if (g === 'wheel') {
+      const tier = CAS.wheelBets.indexOf(bet); const odds = CAS.wheel[tier]; let r = Math.random(), seg = odds.length - 1; for (let i = 0; i < odds.length; i++) { r -= odds[i]; if (r <= 0) { seg = i; break; } }
+      let win = 0, msg = CAS.wheelNames[seg], boon = -1, hex = 0, used = null;
+      if (seg === 5 && p.rig.statue) { delete p.rig.statue; used = 'statue'; seg = 0; msg = 'Holy Statue saves you — common boon instead of a bust'; }
+      if (seg <= 3) { boon = seg; Sim.offerPerks(S, p, seg, 'Wheel of Fates'); if (seg === 3) bigWin(S, p, 'spun a LEGENDARY boon on the Wheel of Fates!'); }
+      else if (seg === 4) { win = bet * 3; } else { hex = CAS.hex.dur; hexPlayer(S, p, hex); }
+      p.coins += win;
+      return gres(S, p, { g, bet, seg, win, msg, boon, hex, used });
+    }
+  };
+  // blackjack: dealer stands on 17, blackjack pays 5:2 and offers a rare boon
+  const cardVal = (c) => { const r = c.slice(0, -1); return r === 'A' ? 11 : 'JQK'.includes(r) ? 10 : +r; };
+  const handVal = (h) => { let v = 0, aces = 0; for (const c of h) { v += cardVal(c); if (c[0] === 'A') aces++; } while (v > 21 && aces > 0) { v -= 10; aces--; } return v; };
+  function newDeck() { const d = []; for (const s of ['♠', '♥', '♦', '♣']) for (const r of ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']) d.push(r + s); for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; } return d; }
+  Sim.blackjack = function (S, p, a) {
+    if (!Sim.nearCasino(S, p)) return;
+    const bj = p.bj;
+    if (a.op === 'deal') {
+      if (bj && !bj.done) return;
+      const bet = CAS.bjBets.includes(a.bet | 0) ? a.bet | 0 : CAS.bjBets[0]; if (p.coins < bet) return gres(S, p, { g: 'bj', err: 'You need ' + bet + ' coins for that bet.' });
+      p.coins -= bet; p.gambles++; S.stats.gambles = (S.stats.gambles || 0) + 1;
+      const deck = newDeck(); p.bj = { deck, bet, hand: [deck.pop(), deck.pop()], dealer: [deck.pop(), deck.pop()], done: false };
+      if (p.rig.peek) { delete p.rig.peek; p.bj.peek = true; }
+      if (handVal(p.bj.hand) === 21) return finishBj(S, p, true);
+      return gres(S, p, { g: 'bj', bet, hand: p.bj.hand, dealer: p.bj.peek ? p.bj.dealer.slice() : [p.bj.dealer[0], '??'], val: handVal(p.bj.hand), msg: (p.bj.peek ? "Dealer's Peek: you see the hole card. " : '') + 'Hit or stand?' });
+    }
+    if (!bj || bj.done) return;
+    if (a.op === 'hit') { bj.hand.push(bj.deck.pop()); if (handVal(bj.hand) > 21) return finishBj(S, p, false); if (handVal(bj.hand) === 21) return finishBj(S, p, false); return gres(S, p, { g: 'bj', bet: bj.bet, hand: bj.hand, dealer: bj.peek ? bj.dealer.slice() : [bj.dealer[0], '??'], val: handVal(bj.hand), msg: handVal(bj.hand) + ' — hit or stand?' }); }
+    if (a.op === 'stand') return finishBj(S, p, false);
+  };
+  function finishBj(S, p, natural) {
+    const bj = p.bj; bj.done = true; const pv = handVal(bj.hand); let win = 0, msg = '', boon = -1;
+    if (pv > 21) msg = 'Bust! ' + pv;
+    else { while (handVal(bj.dealer) < 17) bj.dealer.push(bj.deck.pop()); const dv = handVal(bj.dealer);
+      if (natural) { win = Math.round(bj.bet * 2.5); boon = 1; msg = 'BLACKJACK! Pays 5:2 and a rare boon'; bigWin(S, p, 'got a natural blackjack!'); }
+      else if (dv > 21) { win = bj.bet * 2; msg = 'Dealer busts with ' + dv; } else if (pv > dv) { win = bj.bet * 2; msg = pv + ' beats ' + dv; } else if (pv === dv) { win = bj.bet; msg = 'Push at ' + pv; } else msg = 'Dealer\'s ' + dv + ' beats your ' + pv; }
+    p.coins += win; if (boon >= 0) Sim.offerPerks(S, p, boon, 'Blackjack');
+    return gres(S, p, { g: 'bj', bet: bj.bet, hand: bj.hand, dealer: bj.dealer, val: pv, dval: handVal(bj.dealer), win, msg, boon, done: true });
+  }
   Sim.eat = function (S, p, slot) {
     const s = p.inv[slot]; if (!s || I[s.id].type !== 'food') return;
     const f = I[s.id], st = Sim.stats(p);
@@ -376,11 +459,12 @@
     let best = null, bd = 2.2;
     for (let y = Math.floor(p.y - 2); y <= p.y + 2; y++) for (let x = Math.floor(p.x - 2); x <= p.x + 2; x++) {
       const o = w.objs.get(G.idx(x, y)); if (!o) continue; const d = O[o.t];
-      if (!(d.isChest || d.altar || d.boat || d.door)) continue;
+      if (!(d.isChest || d.altar || d.boat || d.door || d.casino)) continue;
       const dd = G.dist(p.x, p.y, x + .5, y + .5); if (dd < bd) { bd = dd; best = { o, d, x, y, i: G.idx(x, y) }; }
     }
     if (!best) return;
     const { o, d, x, y, i } = best;
+    if (d.casino) { Sim.ev(S, { t: 'casino', to: p.id, x: x + .5, y: y + .5 }); Sim.ev(S, { t: 'sfx', n: 'chest', x: x + .5, y: y + .5 }); return; }
     if (d.door) { o.closed = !o.closed; G.setObj(w, i, o); Sim.ev(S, { t: 'sfx', n: 'door', x: x + .5, y: y + .5 }); return; }
     if (d.isChest) {
       const cost = o.free ? 0 : Math.round(d.cost * (1 + (S.day - 1) * 0.25) * Sim.stats(p).chestDisc * (S.nev === 'bounty' ? 0.5 : 1));
@@ -471,7 +555,7 @@
     else p.stam = Math.min(100, p.stam + st.stamRegen * dt * (p.swing ? 0.3 : 1));
     if (p.blocking) spd *= 0.5; if (p.draw > 0) spd *= 0.6; if (p.swing) spd *= 0.75; if (p.charge > 0) spd *= 0.55;
     if (p.dodgeT > 0) { p.dodgeT -= dt; G.moveCircle(w, p, p.dodgeDx * 11 * dt, p.dodgeDy * 11 * dt, 0.3, false); }
-    else if (p.moving) G.moveCircle(w, p, ax * spd * dt, ay * spd * dt, 0.3, false);
+    else if (p.moving) { G.moveCircle(w, p, ax * spd * dt, ay * spd * dt, 0.3, false); p.sitting = false; }
     if (p.dodgeCh < st.dodges) { p.dodgeCd += dt; if (p.dodgeCd >= 1.6) { p.dodgeCd = 0; p.dodgeCh++; } } else p.dodgeCd = 0;
     if (p.moving) p.anim += dt * (sprinting ? 12 : 8);
     p.face = G.angleTo(p.x, p.y, p.in.aimx, p.in.aimy);
@@ -650,7 +734,7 @@
     const players = {};
     for (const id in S.players) {
       const p = S.players[id];
-      players[id] = { id: p.id, name: p.name, col: p.col, x: +p.x.toFixed(2), y: +p.y.toFixed(2), face: +p.face.toFixed(2), hp: Math.round(p.hp * 10) / 10, maxHp: p.maxHp, stam: Math.round(p.stam), hunger: Math.round(p.hunger), inv: p.inv, held: p.held, armor: p.armor, coins: p.coins, pw: p.pw, buffs: p.buffs.map(b => ({ id: b.id, t: Math.round(b.t) })), swing: p.swing ? { t: +p.swing.t.toFixed(2), dur: p.swing.dur, ang: +p.swing.ang.toFixed(2), arc: p.swing.arc, reach: p.swing.reach, combo: p.swing.combo || 0, anim: p.swing.anim || 'slash', heavy: p.swing.heavy ? 1 : 0 } : null, charge: +p.charge.toFixed(2), dodgeT: p.dodgeT > 0 ? 1 : 0, dodgeCh: p.dodgeCh, blocking: p.blocking ? 1 : 0, draw: +p.draw.toFixed(2), downed: p.downed ? 1 : 0, bleed: Math.round(p.bleed), revive: +p.revive.toFixed(1), dead: p.dead ? 1 : 0, flash: p.flash > 0 ? 1 : 0, moving: p.moving ? 1 : 0, anim: +p.anim.toFixed(2), kills: p.kills, dark: p.dark > 2.5 ? 1 : 0, xp: p.xp, lvl: p.lvl, xpNext: G.XP_FOR(p.lvl), offer: p.offers.length ? p.offers[0] : null, offerT: Math.round(p.offerT), slow: p.slow > 0 ? 1 : 0, burn: p.burn > 0 ? 1 : 0, swCd: Math.round(p.swCd) };
+      players[id] = { id: p.id, name: p.name, col: p.col, hat: p.hat, skin: p.skin, sitting: p.sitting ? 1 : 0, rig: p.rig, x: +p.x.toFixed(2), y: +p.y.toFixed(2), face: +p.face.toFixed(2), hp: Math.round(p.hp * 10) / 10, maxHp: p.maxHp, stam: Math.round(p.stam), hunger: Math.round(p.hunger), inv: p.inv, held: p.held, armor: p.armor, coins: p.coins, pw: p.pw, buffs: p.buffs.map(b => ({ id: b.id, t: Math.round(b.t) })), swing: p.swing ? { t: +p.swing.t.toFixed(2), dur: p.swing.dur, ang: +p.swing.ang.toFixed(2), arc: p.swing.arc, reach: p.swing.reach, combo: p.swing.combo || 0, anim: p.swing.anim || 'slash', heavy: p.swing.heavy ? 1 : 0 } : null, charge: +p.charge.toFixed(2), dodgeT: p.dodgeT > 0 ? 1 : 0, dodgeCh: p.dodgeCh, blocking: p.blocking ? 1 : 0, draw: +p.draw.toFixed(2), downed: p.downed ? 1 : 0, bleed: Math.round(p.bleed), revive: +p.revive.toFixed(1), dead: p.dead ? 1 : 0, flash: p.flash > 0 ? 1 : 0, moving: p.moving ? 1 : 0, anim: +p.anim.toFixed(2), kills: p.kills, dark: p.dark > 2.5 ? 1 : 0, xp: p.xp, lvl: p.lvl, xpNext: G.XP_FOR(p.lvl), offer: p.offers.length ? p.offers[0] : null, offerT: Math.round(p.offerT), slow: p.slow > 0 ? 1 : 0, burn: p.burn > 0 ? 1 : 0, swCd: Math.round(p.swCd) };
     }
     const enemies = S.enemies.filter(e => !e.dead).map(e => [e.id, G.EN_IDX[e.t], +e.x.toFixed(2), +e.y.toFixed(2), Math.round(e.hp), e.maxHp, e.st, +e.face.toFixed(2), e.flash > 0 ? 1 : 0, e.r, e.stun > 0 ? 1 : 0, e.hidden ? 1 : 0, e.owner ? 1 : 0, e.burn > 0 ? 1 : 0, +(e.tm || 0).toFixed(2), e.elite ? 1 : 0]);
     const projs = S.projs.map(p => [p.id, p.type, +p.x.toFixed(2), +p.y.toFixed(2), +Math.atan2(p.vy, p.vx).toFixed(2)]);

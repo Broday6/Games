@@ -44,30 +44,71 @@
     varying vec3 vCol; varying float vFog; varying vec3 vNrm; varying vec3 vPos; varying float vEm;
     void main(){ vec3 n = normalize(vNrm); if(!gl_FrontFacing) n = -n;
       vec3 L = uAmb * (0.7 + 0.3 * n.y);
-      L += uSunCol * max(0.0, dot(n, uSunDir));
-      for(int i=0;i<16;i++){ if(i>=uNL) break; vec3 d = uLights[i].xyz - vPos; float dist = length(d); float a = clamp(1.0 - dist/uLights[i].w, 0.0, 1.0); L += uLightCol[i] * a * a * 1.9 * max(0.3, dot(n, d/dist)); }
+      float nd = max(0.0, dot(n, uSunDir)); float band = smoothstep(0.10, 0.18, nd) * 0.45 + smoothstep(0.48, 0.56, nd) * 0.55; L += uSunCol * band;
+      for(int i=0;i<10;i++){ if(i>=uNL) break; vec3 d = uLights[i].xyz - vPos; float dist = length(d); float a = clamp(1.0 - dist/uLights[i].w, 0.0, 1.0); float att = floor(a * a * 4.0 + 0.5) / 4.0; L += uLightCol[i] * att * 1.9 * max(0.3, dot(n, d/dist)); }
       L = min(L, vec3(1.55));
-      vec3 c = vCol * max(L, vec3(vEm));
+      vec3 vd = normalize(uCam - vPos); float rim = pow(1.0 - max(dot(n, vd), 0.0), 3.0) * 0.16;
+      vec3 c = vCol * max(L, vec3(vEm)) + vCol * rim * (uSunCol * 0.5 + uAmb * 0.5);
       if(uWater > 0.5){ vec3 v = normalize(uCam - vPos); vec3 h = normalize(v + uSunDir); float sp = pow(max(dot(n, h), 0.0), 90.0); c += uSunCol * sp * 1.2; c += vec3(0.08,0.1,0.14) * pow(1.0 - max(dot(n, v), 0.0), 2.0); }
       c = mix(c, uFog, vFog);
       gl_FragColor = vec4(c, uAlpha); }`;
   // model program: rigid glTF meshes (uModel) with optional texture; skinned parts are CPU-skinned and drawn with identity
-  const MVS = `attribute vec3 aPos; attribute vec3 aNrm; attribute vec2 aUV;
-    uniform mat4 uVP; uniform mat4 uModel; uniform vec3 uCam; uniform float uFogNear;
+  let MAXJ = 24; // joint palette size per skinned primitive (set from MAX_VERTEX_UNIFORM_VECTORS at init)
+  const MVS_SRC = (maxj) => `attribute vec3 aPos; attribute vec3 aNrm; attribute vec2 aUV; attribute vec4 aJ; attribute vec4 aW;
+    uniform mat4 uVP; uniform mat4 uModel; uniform vec3 uCam; uniform float uFogNear; uniform float uSkin; uniform mat4 uJoints[${maxj}];
     varying vec3 vNrm; varying vec3 vPos; varying vec2 vUV; varying float vFog;
-    void main(){ vec4 wp = uModel * vec4(aPos, 1.0); vPos = wp.xyz; vNrm = normalize(mat3(uModel) * aNrm); vUV = aUV; gl_Position = uVP * wp;
+    void main(){ vec4 lp = vec4(aPos, 1.0); vec3 ln = aNrm;
+      if(uSkin > 0.5){ mat4 sk = aW.x * uJoints[int(aJ.x)] + aW.y * uJoints[int(aJ.y)] + aW.z * uJoints[int(aJ.z)] + aW.w * uJoints[int(aJ.w)]; lp = sk * lp; ln = mat3(sk) * ln; }
+      vec4 wp = uModel * lp; vPos = wp.xyz; vNrm = normalize(mat3(uModel) * ln); vUV = aUV; gl_Position = uVP * wp;
       float d = distance(wp.xyz, uCam); vFog = clamp((d - uFogNear) / (uFogNear < 10.0 ? 12.0 : 40.0), 0.0, 1.0); }`;
   const MFS = `precision mediump float;
     uniform vec3 uFog; uniform float uAlpha; uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uAmb; uniform vec4 uLights[16]; uniform vec3 uLightCol[16]; uniform int uNL; uniform highp vec3 uCam;
     uniform vec4 uColor; uniform sampler2D uTex; uniform float uHasTex; uniform float uEm;
     varying vec3 vNrm; varying vec3 vPos; varying vec2 vUV; varying float vFog;
     void main(){ vec3 n = normalize(vNrm); if(!gl_FrontFacing) n = -n;
-      vec3 L = uAmb * (0.7 + 0.3 * n.y); L += uSunCol * max(0.0, dot(n, uSunDir));
-      for(int i=0;i<16;i++){ if(i>=uNL) break; vec3 d = uLights[i].xyz - vPos; float dist = length(d); float a = clamp(1.0 - dist/uLights[i].w, 0.0, 1.0); L += uLightCol[i] * a * a * 1.9 * max(0.3, dot(n, d/dist)); }
+      vec3 L = uAmb * (0.7 + 0.3 * n.y); float nd = max(0.0, dot(n, uSunDir)); float band = smoothstep(0.10, 0.18, nd) * 0.45 + smoothstep(0.48, 0.56, nd) * 0.55; L += uSunCol * band;
+      for(int i=0;i<10;i++){ if(i>=uNL) break; vec3 d = uLights[i].xyz - vPos; float dist = length(d); float a = clamp(1.0 - dist/uLights[i].w, 0.0, 1.0); float att = floor(a * a * 4.0 + 0.5) / 4.0; L += uLightCol[i] * att * 1.9 * max(0.3, dot(n, d/dist)); }
       L = min(L, vec3(1.55));
       vec3 base = uColor.rgb; if(uHasTex > 0.5) base *= texture2D(uTex, vUV).rgb;
-      vec3 c = base * max(L, vec3(uEm)); c = mix(c, uFog, vFog); gl_FragColor = vec4(c, uAlpha); }`;
+      vec3 vd = normalize(uCam - vPos); float rim = pow(1.0 - max(dot(n, vd), 0.0), 3.0) * 0.16;
+      vec3 c = base * max(L, vec3(uEm)) + base * rim * (uSunCol * 0.5 + uAmb * 0.5); c = mix(c, uFog, vFog); gl_FragColor = vec4(c, uAlpha); }`;
   let mprog = null; const modelReqs = []; const animStates = {};
+  // post pass: the scene is drawn to an offscreen colour+depth target, then outlined (depth discontinuities) and graded — the toon look
+  let post = null, postProg = null;
+  const POST_FS = `precision mediump float; varying vec2 vP; uniform sampler2D uCol; uniform sampler2D uDepth; uniform vec2 uInvRes; uniform float uNear; uniform float uFar; uniform float uOutline; uniform float uSat; uniform float uDebug;
+    float lin(float d){ float z = d * 2.0 - 1.0; return (2.0 * uNear * uFar) / (uFar + uNear - z * (uFar - uNear)); }
+    void main(){ vec2 uv = vP * 0.5 + 0.5; vec3 c = texture2D(uCol, uv).rgb;
+      if(uOutline > 0.5){ float d0 = lin(texture2D(uDepth, uv).r); vec2 o = uInvRes * uOutline;
+        float e = max(max(lin(texture2D(uDepth, uv + vec2(o.x, 0.0)).r) - d0, lin(texture2D(uDepth, uv - vec2(o.x, 0.0)).r) - d0), max(lin(texture2D(uDepth, uv + vec2(0.0, o.y)).r) - d0, lin(texture2D(uDepth, uv - vec2(0.0, o.y)).r) - d0));
+        float thr = 0.06 + d0 * 0.05; float edge = smoothstep(thr, thr * 2.0, e) * (1.0 - smoothstep(24.0, 48.0, d0));
+        c = mix(c, c * 0.14, edge * 0.92); if(uDebug > 0.5) c = vec3(edge, d0 / 40.0, 0.0); }
+      // FXAA-lite: blend towards the 4 diagonal neighbours where local luma contrast is high (softens polygon edges the FBO lost MSAA on)
+      { vec2 o = uInvRes * 0.6; vec3 c1 = texture2D(uCol, uv + vec2(-o.x, -o.y)).rgb, c2 = texture2D(uCol, uv + vec2(o.x, -o.y)).rgb, c3 = texture2D(uCol, uv + vec2(-o.x, o.y)).rgb, c4 = texture2D(uCol, uv + vec2(o.x, o.y)).rgb;
+        vec3 lw = vec3(0.299, 0.587, 0.114); float l0 = dot(c, lw), l1 = dot(c1, lw), l2 = dot(c2, lw), l3 = dot(c3, lw), l4 = dot(c4, lw); float lmin = min(l0, min(min(l1, l2), min(l3, l4))), lmax = max(l0, max(max(l1, l2), max(l3, l4)));
+        float k = smoothstep(0.06, 0.25, lmax - lmin); c = mix(c, (c + c1 + c2 + c3 + c4) * 0.2, k * 0.75); }
+      float l = dot(c, vec3(0.299, 0.587, 0.114)); c = mix(vec3(l), c, uSat); c = (c - 0.5) * 1.06 + 0.5;
+      float vig = smoothstep(0.55, 1.15, length((uv - 0.5) * vec2(1.25, 1.0)) * 1.6); c *= 1.0 - 0.38 * vig;
+      gl_FragColor = vec4(c, 1.0); }`;
+  function setupPost() {
+    post = null; const ext = gl.getExtension('WEBGL_depth_texture') || gl.getExtension('WEBKIT_WEBGL_depth_texture'); if (!ext) { document.body.classList.add('nopost'); return; }
+    try { postProg = postProg || program(SKY_VS, POST_FS, ['aP'], ['uCol', 'uDepth', 'uInvRes', 'uNear', 'uFar', 'uOutline', 'uSat', 'uDebug']); } catch (e) { console.warn('post shader failed', e); document.body.classList.add('nopost'); return; }
+    const mk = () => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); return t; };
+    const col = mk(); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, R.W, R.H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    const dep = mk(); gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT, R.W, R.H, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_SHORT, null);
+    const fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fbo); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, col, 0); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, dep, 0);
+    const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE; gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    if (!ok) { console.warn('post framebuffer incomplete'); document.body.classList.add('nopost'); return; }
+    document.body.classList.remove('nopost'); post = { fbo, col, dep };
+  }
+  function drawPost() {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND); gl.useProgram(postProg);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, post.col); gl.uniform1i(postProg.u.uCol, 0); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, post.dep); gl.uniform1i(postProg.u.uDepth, 1); gl.activeTexture(gl.TEXTURE0);
+    const S = G.Input && G.Input.settings ? G.Input.settings : {}; gl.uniform2f(postProg.u.uInvRes, 1 / R.W, 1 / R.H); gl.uniform1f(postProg.u.uNear, 0.05); gl.uniform1f(postProg.u.uFar, 80); gl.uniform1f(postProg.u.uOutline, S.toon === false ? 0 : (R.W > 1400 ? 1.8 : 1.3)); gl.uniform1f(postProg.u.uSat, 1.18); gl.uniform1f(postProg.u.uDebug, R.debugEdges ? 1 : 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf); gl.enableVertexAttribArray(postProg.a.aP); gl.vertexAttribPointer(postProg.a.aP, 2, gl.FLOAT, false, 0, 0); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    // unbind the target textures or next frame's draws into the FBO would form a feedback loop and be dropped
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, null); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.enable(gl.DEPTH_TEST);
+  }
   const SKY_VS = `attribute vec2 aP; varying vec2 vP; void main(){ vP = aP; gl_Position = vec4(aP, 0.999, 1.0); }`;
   const SKY_FS = `precision mediump float; varying vec2 vP;
     uniform vec3 uRight, uUp, uFwd, uSunDir, uMoonDir; uniform float uTanH, uAspect, uDusk, uNight, uTime;
@@ -98,19 +139,28 @@
     if (!gl) { alert('WebGL is required to play DRIFTWOOD.'); return; }
     prog = program(VS, FS, ['aPos', 'aNrm', 'aCol', 'aEm'], ['uVP', 'uTime', 'uWater', 'uCam', 'uFog', 'uAlpha', 'uSunDir', 'uSunCol', 'uAmb', 'uLights', 'uLightCol', 'uNL', 'uFogNear']);
     skyProg = program(SKY_VS, SKY_FS, ['aP'], ['uRight', 'uUp', 'uFwd', 'uSunDir', 'uMoonDir', 'uTanH', 'uAspect', 'uDusk', 'uNight', 'uTime']);
-    try { mprog = program(MVS, MFS, ['aPos', 'aNrm', 'aUV'], ['uVP', 'uModel', 'uCam', 'uFogNear', 'uFog', 'uAlpha', 'uSunDir', 'uSunCol', 'uAmb', 'uLights', 'uLightCol', 'uNL', 'uColor', 'uTex', 'uHasTex', 'uEm']); } catch (e) { console.warn('model shader failed', e); mprog = null; }
+    try { const mv = gl.getParameter(gl.MAX_VERTEX_UNIFORM_VECTORS) || 128; MAXJ = mv >= 512 ? 48 : mv >= 256 ? 32 : 16; mprog = program(MVS_SRC(MAXJ), MFS, ['aPos', 'aNrm', 'aUV', 'aJ', 'aW'], ['uVP', 'uModel', 'uCam', 'uFogNear', 'uFog', 'uAlpha', 'uSunDir', 'uSunCol', 'uAmb', 'uLights', 'uLightCol', 'uNL', 'uColor', 'uTex', 'uHasTex', 'uEm', 'uSkin', 'uJoints']); } catch (e) { console.warn('model shader failed', e); mprog = null; }
     skyBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     dynBuf = gl.createBuffer();
     buildPrefabs();
     R.resize(); window.addEventListener('resize', R.resize);
   };
+  R.reinitPost = () => { if (gl) setupPost(); };
+  // adaptive quality: qScale drifts down when frames are slow and back up when there is headroom (settings.quality is the base)
+  R.qScale = 1; let ftAvg = 16, ftT = 0;
+  R.autoQuality = function (dtMs) {
+    const S = G.Input && G.Input.settings; if (!S || S.autoq === false) return; ftAvg += (Math.min(100, dtMs) - ftAvg) * 0.05; ftT += dtMs;
+    if (ftT < 2000) return; ftT = 0;
+    if (ftAvg > 24 && R.qScale > 0.5) { R.qScale = Math.max(0.5, R.qScale - 0.1); R.resize(); }
+    else if (ftAvg < 11.5 && R.qScale < 1.34) { R.qScale = Math.min(1.34, R.qScale + 0.05); R.resize(); }
+  };
   R.resize = function () {
-    const ww = window.innerWidth, wh = window.innerHeight; const scale = (G.Input && G.Input.settings ? G.Input.settings.quality : 0.75) * (ww > 1600 ? 0.85 : 1);
+    const ww = window.innerWidth, wh = window.innerHeight; const scale = G.clamp((G.Input && G.Input.settings ? G.Input.settings.quality : 0.75) * R.qScale, 0.4, 1) * (ww > 2000 ? 0.85 : 1);
     R.W = Math.round(ww * scale); R.H = Math.round(wh * scale);
     cv.width = R.W; cv.height = R.H; ov.width = R.W; ov.height = R.H;
     for (const c of [cv, ov]) { c.style.width = ww + 'px'; c.style.height = wh + 'px'; }
-    if (gl) gl.viewport(0, 0, R.W, R.H);
+    if (gl) { gl.viewport(0, 0, R.W, R.H); setupPost(); }
   };
 
   // ================= matrices =================
@@ -246,6 +296,13 @@
     altar('altar_meadow', '#30e070'); altar('altar_forest', '#3070ff'); altar('altar_volcano', '#ff3050');
     pf('boat', (t, m) => { const hull = hex('#7a4a20'); box(t, M(m, mT(0, 0.2, 0)), 3.2, 0.5, 1.3, hull); box(t, M(m, mT(1.8, 0.35, 0), mRY(0.8)), 0.9, 0.5, 0.9, hull); box(t, M(m, mT(0, 0.55, 0)), 2.9, 0.1, 1.0, hex('#9a6a30')); cyl(t, M(m, mT(-0.2, 0.6, 0)), 0.07, 0.06, 2.6, 5, hex('#5a3a20')); quad(t, M(m, mT(-0.12, 1.4, 0)), [0, 0, 0], [0, 1.6, 0], [1.3, 1.5, 0], [1.4, 0.3, 0], hex('#e8e0d0')); box(t, M(m, mT(0.9, 0.7, -0.5), mRZ(0.4)), 0.8, 0.12, 0.12, hex('#4a2a10')); });
     pf('workbench', (t, m) => { box(t, M(m, mT(0, 0.55, 0)), 1.0, 0.1, 0.6, hex('#b08040')); for (const [x, z] of [[-0.4, -0.2], [0.4, -0.2], [-0.4, 0.2], [0.4, 0.2]]) box(t, M(m, mT(x, 0, z)), 0.08, 0.55, 0.08, hex('#8a6030')); box(t, M(m, mT(-0.2, 0.6, 0)), 0.25, 0.12, 0.2, hex('#9a9ca1')); box(t, M(m, mT(0.25, 0.6, 0.1), mRY(0.5)), 0.3, 0.06, 0.06, hex('#c8c8d0')); });
+    pf('casino', (t, m) => { const body = hex('#2a1040'), pink = hex('#ff4fd8'), cyan = hex('#40f0ff'), gold = hex('#ffd24a');
+      box(t, M(m, mT(0, 0, 0)), 0.8, 1.5, 0.55, body); box(t, M(m, mT(0, 1.5, 0)), 0.9, 0.12, 0.62, hex('#1a0a2a')); box(t, M(m, mT(0, 1.62, 0)), 0.92, 0.24, 0.24, pink, 1.0); box(t, M(m, mT(0, 1.66, 0.13)), 0.7, 0.1, 0.02, hex('#ffffff'), 1.0);
+      box(t, M(m, mT(0, 1.0, 0.27)), 0.64, 0.4, 0.04, hex('#0a0614')); for (let i = 0; i < 3; i++) box(t, M(m, mT((i - 1) * 0.2, 1.0, 0.3)), 0.16, 0.28, 0.02, [hex('#ff4060'), hex('#ffd24a'), hex('#40c0ff')][i], 0.9);
+      box(t, M(m, mT(0, 0.55, 0.3)), 0.6, 0.12, 0.06, gold, 0.35); for (let i = 0; i < 4; i++) cyl(t, M(m, mT(-0.18 + i * 0.12, 0.61, 0.3)), 0.05, 0.05, 0.03 + (i % 2) * 0.03, 8, [hex('#ff4060'), hex('#40c0ff'), hex('#5aff8a'), hex('#ffffff')][i], 0.3);
+      cyl(t, M(m, mT(0.46, 0.9, 0), mRZ(-0.3)), 0.03, 0.03, 0.4, 6, hex('#c0c0d0')); sph(t, M(m, mT(0.58, 1.28, 0)), 0.08, 7, 4, hex('#ff3040'), 0.4);
+      for (const x of [-0.41, 0.41]) box(t, M(m, mT(x, 0.1, 0.28)), 0.03, 1.3, 0.03, cyan, 1.0); box(t, M(m, mT(0, 0.02, 0)), 0.9, 0.06, 0.65, hex('#101018'));
+      for (let i = 0; i < 6; i++) box(t, M(m, mT(-0.3 + i * 0.12, 0.22, 0.29)), 0.06, 0.06, 0.02, i % 2 ? pink : cyan, 0.8); });
     pf('furnace', (t, m) => { box(t, M(m, mT(0, 0, 0)), 0.9, 1.0, 0.9, hex('#6a6a70')); box(t, M(m, mT(0, 1.0, 0)), 0.5, 0.3, 0.5, hex('#5a5a60')); box(t, M(m, mT(0, 0.3, 0.42)), 0.45, 0.35, 0.1, hex('#ff6a1a'), 1.0); box(t, M(m, mT(0, 0.3, 0.44)), 0.25, 0.2, 0.1, hex('#ffd040'), 1.0); });
     pf('anvil', (t, m) => { box(t, M(m, mT(0, 0, 0)), 0.6, 0.15, 0.5, hex('#404048')); box(t, M(m, mT(0, 0.15, 0)), 0.3, 0.25, 0.3, hex('#505058')); box(t, M(m, mT(0, 0.4, 0)), 0.9, 0.18, 0.4, hex('#707078')); cyl(t, M(m, mT(0.55, 0.49, 0), mRZ(-1.57)), 0.12, 0.02, 0.4, 5, hex('#707078')); });
     pf('cauldron', (t, m) => { cyl(t, m, 0.3, 0.42, 0.55, 8, hex('#303840')); cyl(t, M(m, mT(0, 0.55, 0)), 0.45, 0.45, 0.08, 8, hex('#505860')); cyl(t, M(m, mT(0, 0.52, 0)), 0.36, 0.36, 0.06, 8, hex('#60c060'), 0.6); for (let i = 0; i < 3; i++) box(t, M(m, mT(Math.cos(i * 2.09) * 0.3, -0.02, Math.sin(i * 2.09) * 0.3)), 0.1, 0.12, 0.1, hex('#202020')); });
@@ -498,7 +555,7 @@
     const ma = Math.PI * (0.1 + G.clamp((V.time - G.NIGHT_AT) / (G.DAY_LEN - G.NIGHT_AT), 0, 1) * 0.8); moonDir = [-Math.cos(ma) * 0.7, Math.sin(ma), -0.6]; { const l = Math.hypot(...moonDir); moonDir = moonDir.map(v => v / l); }
     const sunStr = (1 - night) * G.clamp(sunDir[1] * 2.2, 0.15, 1) * 0.85;
     sunCol = [sunStr * (1 - dusk * 0.1), sunStr * (0.95 - dusk * 0.3), sunStr * (0.85 - dusk * 0.5)];
-    { const amb = G.lerp(0.58, 0.17, night) - dusk * 0.06; const dayA = [1.0, 1.0, 1.08], duskA = [1.15, 0.85, 1.05], nightA = [0.75, 0.8, 1.45]; ambient = dayA.map((c, i) => amb * G.lerp(G.lerp(c, duskA[i], dusk), nightA[i], night)); }
+    { const amb = G.lerp(0.58, 0.17, night) - dusk * 0.06; const dayA = [1.02, 1.0, 1.0], duskA = [1.15, 0.85, 1.05], nightA = [0.75, 0.8, 1.45]; ambient = dayA.map((c, i) => amb * G.lerp(G.lerp(c, duskA[i], dusk), nightA[i], night)); }
     const dayFog = [0.74, 0.83, 0.93], duskFog = [0.9, 0.6, 0.45], nightFog = V.nev === 'fog' ? [0.12, 0.13, 0.17] : (V.nev === 'bloodmoon' ? [0.12, 0.04, 0.06] : [0.05, 0.06, 0.13]);
     fog = dayFog.map((c, i) => G.lerp(G.lerp(c, duskFog[i], dusk), nightFog[i], night));
     R.fogNear = V.nev === 'fog' && night > 0.5 ? 6 : 26;
@@ -507,18 +564,19 @@
     const cx0 = Math.floor(R.cam.x), cy0 = Math.floor(R.cam.y);
     for (let ty = cy0 - 24; ty <= cy0 + 24; ty++) for (let tx = cx0 - 24; tx <= cx0 + 24; tx++) {
       if (tx < 0 || ty < 0 || tx >= W || ty >= W) continue; const i = ty * W + tx; const o = world.objs.get(i);
-      if (o && O[o.t].light && !o.stub) lights.push({ x: tx + .5, y: ty + .5, z: R.groundZ(world, tx + .5, ty + .5) + (o.t === 'torch' ? 0.9 : 0.5), r: O[o.t].light * 1.5, c: o.t === 'furnace' || o.t === 'cauldron' ? [0.9, 0.5, 0.3] : [1, 0.68, 0.32] });
+      if (o && O[o.t].light && !o.stub) lights.push({ x: tx + .5, y: ty + .5, z: R.groundZ(world, tx + .5, ty + .5) + (o.t === 'torch' ? 0.9 : 0.5), r: O[o.t].light * 1.5, c: o.t === 'casino' ? [1, 0.35 + Math.sin(nowT * 3) * 0.15, 0.9] : o.t === 'furnace' || o.t === 'cauldron' ? [0.9, 0.5, 0.3] : [1, 0.68, 0.32] });
       if (world.tiles[i] === T.LAVA && (tx + ty) % 3 === 0) lights.push({ x: tx + .5, y: ty + .5, z: R.groundZ(world, tx + .5, ty + .5) + 0.3, r: 3, c: [1, 0.4, 0.1] });
     }
     for (const id in V.players) { const p = V.players[id]; if (p.dead) continue; const it = p.inv[p.held]; const gz = R.groundZ(world, p.x, p.y); if (it && it.id === 'torch_hand') lights.push({ x: p.x, y: p.y, z: gz + 1.1, r: 6, c: [1, 0.7, 0.35] }); else if (night > 0.3) lights.push({ x: p.x, y: p.y, z: gz + 0.9, r: 2.5, c: [0.3, 0.33, 0.45] }); }
     for (const pr of V.projs) if (pr.type === 'glob') lights.push({ x: pr.x, y: pr.y, z: 0.9, r: 2, c: [1, 0.45, 0.1] });
     for (const p of V.puddles) lights.push({ x: p.x, y: p.y, z: R.groundZ(world, p.x, p.y) + 0.2, r: 2.2, c: [1, 0.4, 0.1] });
     for (const e of V.enemies) if (e.t === 'crawler' || e.t === 'cinder') lights.push({ x: e.x, y: e.y, z: R.groundZ(world, e.x, e.y) + 0.5, r: e.t === 'cinder' ? 6 : 3, c: [1, 0.45, 0.15] });
-    lights.sort((a, b) => G.dist(a.x, a.y, R.cam.x, R.cam.y) - G.dist(b.x, b.y, R.cam.x, R.cam.y)); lights = lights.slice(0, 16);
+    lights.sort((a, b) => G.dist(a.x, a.y, R.cam.x, R.cam.y) - G.dist(b.x, b.y, R.cam.x, R.cam.y)); lights = lights.slice(0, 10);
     const lp = new Float32Array(64), lc = new Float32Array(48); lightPacked.lp = lp; lightPacked.lc = lc;
     lights.forEach((l, i) => { const flick = 1 + Math.sin(nowT * 9 + l.x * 7 + l.y * 3) * 0.07; lp[i * 4] = l.x; lp[i * 4 + 1] = l.z; lp[i * 4 + 2] = l.y; lp[i * 4 + 3] = l.r * flick; lc[i * 3] = l.c[0]; lc[i * 3 + 1] = l.c[1]; lc[i * 3 + 2] = l.c[2]; });
 
     // ---- sky ----
+    if (post) gl.bindFramebuffer(gl.FRAMEBUFFER, post.fbo);
     gl.clearColor(fog[0], fog[1], fog[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.depthMask(false); gl.useProgram(skyProg);
     gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf); gl.enableVertexAttribArray(skyProg.a.aP); gl.vertexAttribPointer(skyProg.a.aP, 2, gl.FLOAT, false, 0, 0);
@@ -562,7 +620,9 @@
     if (glow.n) { gl.blendFunc(gl.SRC_ALPHA, gl.ONE); gl.uniform1f(prog.u.uAlpha, 0.22); if (!glowBuf) glowBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, glowBuf); gl.bufferData(gl.ARRAY_BUFFER, glow.arr.subarray(0, glow.n * VF), gl.DYNAMIC_DRAW); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, glow.n); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); }
     gl.uniform1f(prog.u.uWater, 0); gl.uniform1f(prog.u.uAlpha, 1); gl.depthMask(true); gl.disable(gl.BLEND);
     // ---- first-person arms (drawn last, depth cleared so they never clip into walls) ----
-    if (me && !me.dead && !me.downed) { gl.clear(gl.DEPTH_BUFFER_BIT); dyn.n = 0; buildHands(me, L); gl.bindBuffer(gl.ARRAY_BUFFER, dynBuf); gl.bufferData(gl.ARRAY_BUFFER, dyn.arr.subarray(0, dyn.n * VF), gl.DYNAMIC_DRAW); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, dyn.n); }
+    // first-person hands: squeezed into the nearest depth slice so they draw over the world without clearing the scene depth the outline pass needs
+    if (me && !me.dead && !me.downed) { gl.depthRange(0, 0.04); dyn.n = 0; buildHands(me, L); gl.bindBuffer(gl.ARRAY_BUFFER, dynBuf); gl.bufferData(gl.ARRAY_BUFFER, dyn.arr.subarray(0, dyn.n * VF), gl.DYNAMIC_DRAW); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, dyn.n); gl.depthRange(0, 1); }
+    if (post) drawPost();
     drawOverlay(V, me, dt, L, darkness);
     drawMinimap(V);
   };
@@ -636,7 +696,10 @@
     const bob = (L.bob || 0) * 0.6, sway = Math.sin((L.walkT || 0) * 0.5) * 0.012, idle = Math.sin(nowT * 1.5) * 0.006;
     const it = me.inv[me.held]; const d = it ? G.ITEMS[it.id] : null;
     const prog = me.swing ? Math.min(1, me.swing.t / me.swing.dur) : 0; const sw = Math.sin(prog * Math.PI); const anim = me.swing ? (me.swing.anim || 'slash') : null; const combo = me.swing ? (me.swing.combo || 0) : 0;
-    const big = d && d.big; const robot = R.hasPlayerModel(); const skin = robot ? hex(me.col) : hex('#f0c8a0'), sleeve = robot ? hex('#7a8088') : hex(me.col), wrist = hex('#1a1a1e');
+    // first-person hands match the chosen character: gauntlets for the knight, bare arms for the barbarian, sleeves for the rest; a robot look if the robot rig is in use
+    const big = d && d.big; const mdl = playerModelFor(me); const robot = !!(mdl && /robot/.test(mdl.spec.file || ''));
+    const LOOK = { knight: ['#b8bfcf', '#7c8496'], barbarian: ['#e8b48a', '#8a5a30'], mage: ['#f0c8a0', '#3a3a9a'], rogue: ['#e0b890', '#5a4030'], hooded: ['#e0b890', '#3a2a5a'] }; const lk = LOOK[me.skin] || LOOK.knight;
+    const skin = robot ? hex(me.col) : hex(lk[0]), sleeve = robot ? hex('#7a8088') : hex(lk[1]), wrist = hex(me.skin === 'knight' ? '#4a5060' : '#1a1a1e');
     // rest pose
     let hand = M(C, mT(0.36 + sway, -0.36 + bob + idle, 0.82), mRX(-0.15));
     if (me.charge > 0) { const c = me.charge; hand = M(C, mT(0.34 + sway, -0.22 + bob + c * 0.15 + Math.sin(nowT * 40) * 0.006 * c, 0.72), mRX(-0.15 - c * 1.2), mRZ(-0.25 * c)); }
@@ -671,7 +734,13 @@
     gl.bindBuffer(gl.ARRAY_BUFFER, b.nrm); gl.bufferData(gl.ARRAY_BUFFER, pr.nrm || new Float32Array(pr.count * 3).fill(0.577), gl.STATIC_DRAW);
     if (pr.uv) { b.uv = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b.uv); gl.bufferData(gl.ARRAY_BUFFER, pr.uv, gl.STATIC_DRAW); }
     if (pr.idx) { b.idx = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, b.idx); const i32 = pr.idx instanceof Uint32Array; gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, i32 ? new Uint16Array(pr.idx) : pr.idx, gl.STATIC_DRAW); b.idxType = gl.UNSIGNED_SHORT; if (pr.idx instanceof Uint8Array) b.idxType = gl.UNSIGNED_BYTE; }
-    if (pr.joints) { b.skinPos = gl.createBuffer(); b.skinNrm = gl.createBuffer(); b.sp = new Float32Array(pr.count * 3); b.sn = new Float32Array(pr.count * 3); }
+    if (pr.joints) {
+      // compact joint palette: most low-poly parts touch only a handful of joints, so they fit the uniform budget and skin on the GPU
+      const map = new Map(); const jr = new Float32Array(pr.count * 4);
+      for (let v = 0; v < pr.count * 4; v++) { const w = pr.weights[v]; const j = pr.joints[v]; if (w > 0) { if (!map.has(j)) map.set(j, map.size); jr[v] = map.get(j); } else jr[v] = 0; }
+      if (map.size <= MAXJ) { b.jmap = [...map.keys()]; b.jbuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b.jbuf); gl.bufferData(gl.ARRAY_BUFFER, jr, gl.STATIC_DRAW); b.wbuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b.wbuf); gl.bufferData(gl.ARRAY_BUFFER, pr.weights instanceof Float32Array ? pr.weights : Float32Array.from(pr.weights), gl.STATIC_DRAW); b.pal = new Float32Array(MAXJ * 16); }
+      else { b.skinPos = gl.createBuffer(); b.skinNrm = gl.createBuffer(); b.sp = new Float32Array(pr.count * 3); b.sn = new Float32Array(pr.count * 3); }
+    }
     pr.gl = b; return b;
   }
   function modelTexture(model, ti) {
@@ -679,17 +748,18 @@
     const img = new Image(); img.onload = () => { const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); t.gl = tex; }; img.src = t.image; return null;
   }
   // animation state per entity: crossfade between clips
-  function animPose(model, key, want, dt, timeOverride) {
-    const spec = model.spec; const st = animStates[key] || (animStates[key] = { clip: want, t: 0, prev: null, pt: 0, fade: 1 });
+  function animPose(model, key, want, dt, timeOverride, clips) {
+    const spec = model.spec; clips = clips || spec.clips; const st = animStates[key] || (animStates[key] = { clip: want, t: 0, prev: null, pt: 0, fade: 1 });
     if (st.clip !== want) { st.prev = st.clip; st.pt = st.t; st.clip = want; st.t = 0; st.fade = 0; }
     st.t += dt; st.pt += dt; st.fade = Math.min(1, st.fade + dt / 0.15); st.age = 0;
-    const pose = G.GLTF.restPose(model); const nm = (k) => spec.clips[k] || k;
+    const pose = G.GLTF.restPose(model); const nm = (k) => clips[k] || k;
     if (st.prev && st.fade < 1) { const prevClamp = st.prev === 'death' || st.prev === 'down'; (prevClamp ? G.GLTF.applyClipClamped : G.GLTF.applyClip)(model, pose, nm(st.prev), st.pt, 1); }
     const clamp = want === 'death' || want === 'down'; const t = timeOverride !== undefined ? timeOverride : st.t;
     (clamp ? G.GLTF.applyClipClamped : G.GLTF.applyClip)(model, pose, nm(want), t, st.fade);
     return pose;
   }
-  R.hasPlayerModel = () => !!(mprog && G.Assets && G.Assets.models && G.Assets.models.player);
+  const playerModelFor = (p) => { const M0 = G.Assets && G.Assets.models; if (!M0) return null; return M0['player_' + (p && p.skin)] || M0.player || M0[Object.keys(M0).find(k => k.startsWith('player_'))] || null; };
+  R.hasPlayerModel = () => !!(mprog && playerModelFor(null));
   // queue a model draw; returns node world matrices so items can be attached
   function queueModel(model, x, y, z, face, tint, pose) {
     const spec = model.spec; const sc = model.scale; const root = M(mT(x, z - model.base * sc, y), mRY((spec.yaw || 0) - face), mS(sc));
@@ -703,22 +773,36 @@
     gl.uniformMatrix4fv(mprog.u.uVP, false, vp); gl.uniform3f(mprog.u.uCam, R.cam.x, R.cam.z, R.cam.y); gl.uniform1f(mprog.u.uFogNear, R.fogNear || 26);
     gl.uniform3fv(mprog.u.uFog, fog); gl.uniform1f(mprog.u.uAlpha, 1); gl.uniform3f(mprog.u.uSunDir, sunDir[0], sunDir[1], sunDir[2]); gl.uniform3fv(mprog.u.uSunCol, sunCol); gl.uniform3fv(mprog.u.uAmb, ambient);
     gl.uniform4fv(mprog.u.uLights, lightPacked.lp); gl.uniform3fv(mprog.u.uLightCol, lightPacked.lc); gl.uniform1i(mprog.u.uNL, lights.length); gl.uniform1i(mprog.u.uTex, 0); gl.uniform1f(mprog.u.uEm, 0);
-    const I = m4();
+    const I = m4(); const jmTmp = new Float32Array(16); const skinJM = new Map(); // per (request, skin): joint matrices world*ibm
+    const disableSkin = () => { gl.uniform1f(mprog.u.uSkin, 0); if (mprog.a.aJ >= 0) { gl.disableVertexAttribArray(mprog.a.aJ); gl.vertexAttrib4f(mprog.a.aJ, 0, 0, 0, 0); } if (mprog.a.aW >= 0) { gl.disableVertexAttribArray(mprog.a.aW); gl.vertexAttrib4f(mprog.a.aW, 1, 0, 0, 0); } };
+    disableSkin();
     for (const rq of modelReqs) {
-      const model = rq.model;
+      const model = rq.model; const spec = model.spec; skinJM.clear();
       for (const nd of model.nodes) {
-        if (nd.mesh < 0) continue; const mesh = model.meshes[nd.mesh];
+        if (nd.mesh < 0 || nd.hidden || (rq.hide && rq.hide.has(nd.name))) continue; const mesh = model.meshes[nd.mesh];
+        const flatNode = rq.tint && spec.tintNodes && spec.tintNodes.includes(nd.name);
         for (const pr of mesh.prims) {
           const b = primBuffers(pr); const mat = model.materials[pr.mat] || { color: [0.8, 0.8, 0.8, 1], tex: -1, name: '' };
-          const tinted = rq.tint && model.spec.tint && mat.name === model.spec.tint; const col = tinted ? [rq.tint[0], rq.tint[1], rq.tint[2], 1] : mat.color;
+          const tinted = rq.tint && ((spec.tint && mat.name === spec.tint) || spec.tint === '*' || flatNode); const tk = spec.tintMode === 'mul' && !flatNode ? 1.6 : 1;
+          const col = tinted ? [rq.tint[0] * tk, rq.tint[1] * tk, rq.tint[2] * tk, 1] : mat.color;
           gl.uniform4fv(mprog.u.uColor, rq.flash ? [1, 1, 1, 1] : col);
-          const tex = mat.tex >= 0 && !model.spec.flat ? modelTexture(model, mat.tex) : null; if (tex) { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1f(mprog.u.uHasTex, 1); } else gl.uniform1f(mprog.u.uHasTex, 0);
-          if (nd.skin >= 0 && pr.joints) { // CPU skin with this request's world matrices
-            const skin = model.skins[nd.skin]; model.nodes.forEach((n2, i) => n2.world.set(rq.worlds[i])); G.GLTF.skinPrim(model, skin, pr, b.sp, b.sn);
+          const tex = mat.tex >= 0 && !spec.flat && !flatNode ? modelTexture(model, mat.tex) : null; gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1f(mprog.u.uHasTex, tex ? 1 : 0);
+          if (nd.skin >= 0 && pr.joints && b.jmap) { // GPU skin: palette of world*ibm for the joints this part uses
+            const skin = model.skins[nd.skin]; let jm = skinJM.get(nd.skin); if (!jm) { jm = new Float32Array(skin.joints.length * 16); for (let j = 0; j < skin.joints.length; j++) { G.GLTF.mul(jmTmp, rq.worlds[skin.joints[j]], skin.ibm.subarray(j * 16, j * 16 + 16)); jm.set(jmTmp, j * 16); } skinJM.set(nd.skin, jm); }
+            for (let k = 0; k < b.jmap.length; k++) b.pal.set(jm.subarray(b.jmap[k] * 16, b.jmap[k] * 16 + 16), k * 16);
+            gl.uniformMatrix4fv(mprog.u.uJoints, false, b.pal.subarray(0, b.jmap.length * 16)); gl.uniform1f(mprog.u.uSkin, 1);
+            gl.bindBuffer(gl.ARRAY_BUFFER, b.pos); gl.enableVertexAttribArray(mprog.a.aPos); gl.vertexAttribPointer(mprog.a.aPos, 3, gl.FLOAT, false, 0, 0);
+            gl.bindBuffer(gl.ARRAY_BUFFER, b.nrm); gl.enableVertexAttribArray(mprog.a.aNrm); gl.vertexAttribPointer(mprog.a.aNrm, 3, gl.FLOAT, false, 0, 0);
+            gl.bindBuffer(gl.ARRAY_BUFFER, b.jbuf); gl.enableVertexAttribArray(mprog.a.aJ); gl.vertexAttribPointer(mprog.a.aJ, 4, gl.FLOAT, false, 0, 0);
+            gl.bindBuffer(gl.ARRAY_BUFFER, b.wbuf); gl.enableVertexAttribArray(mprog.a.aW); gl.vertexAttribPointer(mprog.a.aW, 4, gl.FLOAT, false, 0, 0);
+            gl.uniformMatrix4fv(mprog.u.uModel, false, I);
+          } else if (nd.skin >= 0 && pr.joints) { // CPU skin fallback for parts that touch more joints than the palette holds
+            disableSkin(); const skin = model.skins[nd.skin]; model.nodes.forEach((n2, i) => n2.world.set(rq.worlds[i])); G.GLTF.skinPrim(model, skin, pr, b.sp, b.sn);
             gl.bindBuffer(gl.ARRAY_BUFFER, b.skinPos); gl.bufferData(gl.ARRAY_BUFFER, b.sp, gl.DYNAMIC_DRAW); gl.enableVertexAttribArray(mprog.a.aPos); gl.vertexAttribPointer(mprog.a.aPos, 3, gl.FLOAT, false, 0, 0);
             gl.bindBuffer(gl.ARRAY_BUFFER, b.skinNrm); gl.bufferData(gl.ARRAY_BUFFER, b.sn, gl.DYNAMIC_DRAW); gl.enableVertexAttribArray(mprog.a.aNrm); gl.vertexAttribPointer(mprog.a.aNrm, 3, gl.FLOAT, false, 0, 0);
             gl.uniformMatrix4fv(mprog.u.uModel, false, I);
           } else {
+            disableSkin();
             gl.bindBuffer(gl.ARRAY_BUFFER, b.pos); gl.enableVertexAttribArray(mprog.a.aPos); gl.vertexAttribPointer(mprog.a.aPos, 3, gl.FLOAT, false, 0, 0);
             gl.bindBuffer(gl.ARRAY_BUFFER, b.nrm); gl.enableVertexAttribArray(mprog.a.aNrm); gl.vertexAttribPointer(mprog.a.aNrm, 3, gl.FLOAT, false, 0, 0);
             gl.uniformMatrix4fv(mprog.u.uModel, false, rq.worlds[nd.i]);
@@ -728,46 +812,71 @@
         }
       }
     }
-    if (mprog.a.aUV >= 0) gl.disableVertexAttribArray(mprog.a.aUV);
+    if (mprog.a.aUV >= 0) gl.disableVertexAttribArray(mprog.a.aUV); disableSkin();
     modelReqs.length = 0;
+  }
+  // ---- hats (cosmetics) — drawn in world units for a head of radius r, base at y=0, forward is +Z ----
+  function hatMesh(t, m, id, r, col) {
+    const black = hex('#1a1a22'), gold = hex('#ffd24a'), brown = hex('#8a5a30'), white = hex('#f4f0e8');
+    switch (id) {
+      case 'cap': sphS(t, M(m, mT(0, -r * 0.15, 0)), r * 0.95, 10, 5, col, 0, 0.62); box(t, M(m, mT(0, 0.02, r * 0.75)), r * 0.9, 0.05, r * 0.8, col); sph(t, M(m, mT(0, r * 0.42, 0)), 0.05, 5, 3, black); break;
+      case 'beanie': sphS(t, M(m, mT(0, -r * 0.2, 0)), r * 1.0, 10, 5, col, 0, 0.72); cylS(t, M(m, mT(0, -r * 0.2, 0)), r * 1.03, r * 1.03, r * 0.28, 12, sh(col, 0.7)); sph(t, M(m, mT(0, r * 0.55, 0)), r * 0.22, 6, 4, white); break;
+      case 'tophat': cyl(t, m, r * 1.35, r * 1.35, 0.05, 14, black); cyl(t, M(m, mT(0, 0.05, 0)), r * 0.85, r * 0.8, r * 1.5, 14, black); cyl(t, M(m, mT(0, 0.08, 0)), r * 0.87, r * 0.87, r * 0.22, 14, col, 0.2); break;
+      case 'cowboy': cyl(t, M(m, mT(0, 0, 0)), r * 1.55, r * 1.45, 0.06, 14, brown); for (const x of [-1, 1]) box(t, M(m, mT(x * r * 1.3, 0.12, 0), mRZ(x * 0.5)), r * 0.5, 0.05, r * 1.2, brown); sphS(t, M(m, mT(0, -r * 0.1, 0)), r * 0.85, 10, 5, sh(brown, 1.1), 0, 0.85); box(t, M(m, mT(0, r * 0.62, 0)), r * 0.5, 0.08, r * 1.0, brown); cyl(t, M(m, mT(0, 0.06, 0)), r * 0.87, r * 0.87, 0.1, 12, col); break;
+      case 'visor': cylS(t, M(m, mT(0, 0, 0)), r * 1.02, r * 1.02, 0.14, 14, hex('#1a4a2a')); box(t, M(m, mT(0, 0.02, r * 0.85)), r * 1.3, 0.04, r * 0.9, hex('#40e070'), 0.5); break;
+      case 'crown': cyl(t, m, r * 0.9, r * 0.85, r * 0.35, 8, gold, 0.4); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; cyl(t, M(m, mT(Math.cos(a) * r * 0.85, r * 0.35, Math.sin(a) * r * 0.85)), 0.06, 0, r * 0.35, 4, gold, 0.4); } for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + 0.4; sph(t, M(m, mT(Math.cos(a) * r * 0.9, r * 0.18, Math.sin(a) * r * 0.9)), 0.05, 5, 3, [hex('#ff4060'), hex('#40c0ff'), hex('#5aff8a'), hex('#d05aff')][i], 0.9); } break;
+      case 'halo': for (let i = 0; i < 14; i++) { const a = i * Math.PI * 2 / 14; sph(t, M(m, mT(Math.cos(a) * r * 0.8, r * 0.9 + Math.sin(nowT * 2) * 0.03, Math.sin(a) * r * 0.8)), 0.045, 5, 3, gold, 1.0); } break;
+      case 'pirate': cyl(t, m, r * 1.35, r * 1.3, 0.06, 12, black); for (const x of [-1, 1]) box(t, M(m, mT(x * r * 1.05, r * 0.35, 0), mRZ(x * 1.1)), r * 0.7, 0.06, r * 1.3, black); box(t, M(m, mT(0, r * 0.35, r * 1.05), mRX(-1.1)), r * 1.6, 0.06, r * 0.7, black); sphS(t, M(m, mT(0, -r * 0.1, 0)), r * 0.85, 10, 5, black, 0, 0.7); box(t, M(m, mT(0, r * 0.3, r * 1.0)), r * 0.28, r * 0.28, 0.03, white, 0.3); break;
+      case 'chef': cyl(t, M(m, mT(0, 0, 0)), r * 0.85, r * 0.85, r * 0.9, 12, white); sphS(t, M(m, mT(0, r * 0.95, 0)), r * 1.05, 10, 5, white, 0, 0.7); for (let i = 0; i < 5; i++) { const a = i * 1.26; sph(t, M(m, mT(Math.cos(a) * r * 0.6, r * 1.15, Math.sin(a) * r * 0.6)), r * 0.42, 6, 4, white); } break;
+      case 'horns': for (const x of [-1, 1]) cyl(t, M(m, mT(x * r * 0.7, -r * 0.1, 0), mRZ(x * -0.5)), r * 0.16, 0, r * 0.7, 6, hex('#d02030'), 0.2); break;
+    }
   }
   // ---- generic animated character from a glTF model (players, humanoid enemies, bosses, beasts) ----
   // st: { downed, swing:{t,dur}, moving, sprinting, wind, windF (0..1), strikeF (0..1), flash, held (item inst), rootM (override root transform), key }
+  // which clip set a character uses depends on what it holds: unarmed / one-handed / two-handed / bow / staff
+  function heldKind(it) { if (!it) return 'unarmed'; const d = G.ITEMS[it.id]; if (!d) return 'unarmed'; if (d.type === 'bow') return 'bow'; if (d.type === 'staff') return 'staff'; if (d.type === 'shield') return 'shield'; if (d.type === 'weapon' || d.type === 'tool') return d.big ? '2h' : '1h'; return '1h'; }
   function charModel(model, key, x, y, gz, face, tint, st, dt) {
     const spec = model.spec; let want = 'idle', tOverride;
-    const atk = model.anims[spec.clips.attack];
+    const clips = spec.sets && spec.sets[st.kind || heldKind(st.held)] ? Object.assign({}, spec.clips, spec.sets[st.kind || heldKind(st.held)]) : spec.clips;
+    const pickAttack = () => { const a = st.swing && st.swing.anim; const alt = st.swing && (st.swing.combo || 0) % 2 === 1; if (a === 'chop' && clips.chop) return 'chop'; if (a === 'thrust' && clips.stab) return 'stab'; if (a === 'slam' && clips.slam) return 'slam'; if (alt && clips.attackAlt) return 'attackAlt'; return 'attack'; };
     if (st.downed) want = 'death';
-    else if (st.swing) { want = 'attack'; if (atk) tOverride = Math.min(atk.dur - 0.001, (st.swing.t / st.swing.dur) * atk.dur); }
-    else if (st.wind) { want = 'attack'; if (atk) tOverride = Math.min(atk.dur - 0.001, (st.windF || 0) * 0.4 * atk.dur); }
-    else if (st.strikeF !== undefined) { want = 'attack'; if (atk) tOverride = Math.min(atk.dur - 0.001, (0.4 + 0.6 * st.strikeF) * atk.dur); }
-    else if (st.moving) want = st.sprinting && spec.clips.run ? 'run' : 'walk';
-    if (!spec.clips[want]) want = spec.clips.walk && st.moving ? 'walk' : 'idle';
-    const pose = animPose(model, key, want, dt, tOverride);
+    else if (st.swing) { want = pickAttack(); const atk = model.anims[clips[want]]; if (atk) tOverride = Math.min(atk.dur - 0.001, (st.swing.t / st.swing.dur) * atk.dur); }
+    else if (st.wind) { want = clips.wind ? 'wind' : 'attack'; const atk = model.anims[clips[want]]; if (atk && !clips.wind) tOverride = Math.min(atk.dur - 0.001, (st.windF || 0) * 0.4 * atk.dur); }
+    else if (st.strikeF !== undefined) { want = 'attack'; const atk = model.anims[clips.attack]; if (atk) tOverride = Math.min(atk.dur - 0.001, (0.4 + 0.6 * st.strikeF) * atk.dur); }
+    else if (st.block && clips.block) want = 'block';
+    else if (st.dodge && clips.dodge) want = 'dodge';
+    else if (st.sitting && clips.sit) want = 'sit';
+    else if (st.moving) want = st.sprinting && clips.run ? 'run' : 'walk';
+    if (!clips[want]) want = clips.walk && st.moving ? 'walk' : 'idle';
+    const pose = animPose(model, key, want, dt, tOverride, clips);
     const sc = model.scale * (st.scale || 1); const hover = spec.hover ? spec.hover + Math.sin(nowT * 3 + (st.seed || 0)) * 0.12 : 0;
     const root = st.rootM ? M(st.rootM, mT(0, -model.base * sc + hover, 0), mS(sc)) : M(mT(x, gz - model.base * sc + hover, y), mRY((spec.yaw || 0) - face), mS(sc));
     G.GLTF.computeWorld(model, pose, root);
     const rq = { model, tint, worlds: model.nodes.map(n => new Float32Array(n.world)), flash: !!st.flash }; modelReqs.push(rq);
+    if (st.hat && st.hat !== 'none' && spec.headgear) rq.hide = new Set(spec.headgear); // our hat replaces the pack's own helmet/hat
     const it = st.held; const hn = spec.hand !== undefined ? model.byName[spec.hand] : undefined;
     if (it && hn !== undefined && G.ITEMS[it.id]) { const hw = rq.worlds[hn]; const ho = spec.handOffset || [0, 0, 0]; const hr = spec.handRot || [0, 0, 0];
       // bone matrix without its scale (armatures often carry a large internal scale)
       const n = m4(); for (let c = 0; c < 3; c++) { const l = Math.hypot(hw[c * 4], hw[c * 4 + 1], hw[c * 4 + 2]) || 1; n[c * 4] = hw[c * 4] / l; n[c * 4 + 1] = hw[c * 4 + 1] / l; n[c * 4 + 2] = hw[c * 4 + 2] / l; } n[12] = hw[12]; n[13] = hw[13]; n[14] = hw[14];
       const d = G.ITEMS[it.id]; const isc = (spec.itemScale || 1) * (st.scale || 1) * (d.big ? 1.15 : 1);
       const im = M(n, mT(ho[0] * sc, ho[1] * sc, ho[2] * sc), mRX(hr[0]), mRY(hr[1]), mRZ(hr[2]), mS(isc)); itemMesh(dyn, im, it.id, false, it); }
+    if (st.hat && st.hat !== 'none' && spec.head) { const hi = model.byName[spec.head]; if (hi !== undefined) { const hw = rq.worlds[hi]; const n = m4(); for (let c = 0; c < 3; c++) { const l = Math.hypot(hw[c * 4], hw[c * 4 + 1], hw[c * 4 + 2]) || 1; n[c * 4] = hw[c * 4] / l; n[c * 4 + 1] = hw[c * 4 + 1] / l; n[c * 4 + 2] = hw[c * 4 + 2] / l; } n[12] = hw[12]; n[13] = hw[13]; n[14] = hw[14];
+      const ht = spec.headTop || 1.4, hr2 = (spec.headR || 1.3) * sc; hatMesh(dyn, M(n, mT(0, ht * sc, 0)), st.hat, hr2, tint || [1, 1, 1]); } }
     return rq;
   }
   // draws a player with the glTF model; returns true if handled
   function playerModel(p, gz, dt, isMe) {
-    const model = G.Assets.models.player; if (!model || !mprog) return false; if (p.dead) return true;
+    const model = playerModelFor(p); if (!model || !mprog) return false; if (p.dead) return true;
     const it = p.inv[p.held];
-    charModel(model, 'pl:' + p.id, p.x, p.y, gz, p.face, hex(p.col), { downed: p.downed, swing: p.swing, moving: p.moving, sprinting: p.sprinting, wind: p.charge > 0, windF: p.charge, flash: p.flash, held: it }, dt);
+    charModel(model, 'pl:' + p.id, p.x, p.y, gz, p.face, hex(p.col), { downed: p.downed, swing: p.swing, moving: p.moving, sprinting: p.sprinting, wind: p.charge > 0, windF: p.charge, flash: p.flash, held: it, hat: p.hat, block: p.blocking, dodge: p.dodgeT > 0, sitting: p.sitting }, dt);
     return true;
   }
-  R.playerTop = () => { const m = G.Assets && G.Assets.models && G.Assets.models.player; return m ? (m.spec.height || 1.2) + 0.28 : 1.5; };
+  R.playerTop = () => { const m = playerModelFor(null); return m ? (m.spec.height || 1.2) + 0.28 : 1.5; };
   // enemy drawn with a glTF model when assets/models.json has an entry for its type; returns true if handled
   function enemyModel(e, m, V, dt, corpse) {
     const model = mprog && G.Assets.models[e.t]; if (!model) return false; const d = G.ENEMIES[e.t]; const spec = model.spec;
     const isWind = /wind$/.test(e.st); const moving = /chase|charge|lunge|circle|pounce|flee|retreat/.test(e.st); const striking = e.st === 'cool' && (e.tm || 0) > 0.6;
-    const st = { moving, sprinting: /charge|lunge|pounce/.test(e.st), wind: isWind, windF: isWind ? 1 - G.clamp((e.tm || 0) / (d.windup || 0.6), 0, 1) : 0, flash: !!e.flash, seed: e.id, held: spec.held ? { id: spec.held, n: 1 } : null };
+    const st = { moving, sprinting: /charge|lunge|pounce/.test(e.st), wind: isWind, windF: isWind ? 1 - G.clamp((e.tm || 0) / (d.windup || 0.6), 0, 1) : 0, flash: !!e.flash, seed: e.id, held: spec.held ? { id: spec.held, n: 1 } : null, kind: spec.kind };
     if (striking) st.strikeF = G.clamp((1.5 - e.tm) / 0.4, 0, 1);
     let gz = m[13]; if (corpse) { if (spec.clips.death) { st.downed = true; gz = corpse.gz - corpse.sink * 0.6; } else st.rootM = M(mT(e.x, corpse.gz - corpse.sink, e.y), mRY((spec.yaw || 0) - e.face), mRX(corpse.k * 1.5), mS(1, 1 - corpse.k * 0.15, 1)); }
     charModel(model, 'en:' + e.id, e.x, e.y, gz, e.face, spec.noTint ? null : hex(d.col), st, dt);
@@ -805,7 +914,7 @@
     for (const k in F.wobble) { F.wobble[k] -= dt; if (F.wobble[k] <= 0) delete F.wobble[k]; }
     for (const k in R.tellFlash) { R.tellFlash[k] -= dt; if (R.tellFlash[k] <= 0) delete R.tellFlash[k]; }
     // soft vignette
-    { const g = x.createRadialGradient(R.W / 2, R.H / 2, R.H * 0.45, R.W / 2, R.H / 2, R.H * 1.0); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.35)'); x.fillStyle = g; x.fillRect(0, 0, R.W, R.H); }
+    if (!post) { const g = x.createRadialGradient(R.W / 2, R.H / 2, R.H * 0.45, R.W / 2, R.H / 2, R.H * 1.0); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.35)'); x.fillStyle = g; x.fillRect(0, 0, R.W, R.H); }
     // crosshair
     const cx = R.W / 2, cy = R.H / 2; x.strokeStyle = 'rgba(255,255,255,0.9)'; x.lineWidth = 1.5; x.beginPath(); x.moveTo(cx - 8, cy); x.lineTo(cx - 3, cy); x.moveTo(cx + 3, cy); x.lineTo(cx + 8, cy); x.moveTo(cx, cy - 8); x.lineTo(cx, cy - 3); x.moveTo(cx, cy + 3); x.lineTo(cx, cy + 8); x.stroke();
     if (L.lookingAt) { x.fillStyle = '#fff'; x.font = '12px monospace'; x.textAlign = 'center'; x.fillStyle = '#000'; x.fillText(L.lookingAt, cx + 1, cy + 25); x.fillStyle = '#fff'; x.fillText(L.lookingAt, cx, cy + 24); }

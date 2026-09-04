@@ -91,7 +91,7 @@
   GL.bounds = function (model, clipName) {
     const pose = GL.restPose(model); if (clipName && model.anims[clipName]) GL.applyClip(model, pose, clipName, 0, 1); const I = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]); GL.computeWorld(model, pose, I);
     const mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9]; const tmpP = new Float32Array(3 * 20000), tmpN = new Float32Array(3 * 20000);
-    for (const nd of model.nodes) { if (nd.mesh < 0) continue; for (const pr of model.meshes[nd.mesh].prims) { let P = pr.pos; let m = nd.world; if (nd.skin >= 0) { GL.skinPrim(model, model.skins[nd.skin], pr, tmpP, tmpN); P = tmpP; m = I; } for (let v = 0; v < pr.count; v++) { const x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2]; const wx = m[0] * x + m[4] * y + m[8] * z + m[12], wy = m[1] * x + m[5] * y + m[9] * z + m[13], wz = m[2] * x + m[6] * y + m[10] * z + m[14]; if (wx < mn[0]) mn[0] = wx; if (wy < mn[1]) mn[1] = wy; if (wz < mn[2]) mn[2] = wz; if (wx > mx[0]) mx[0] = wx; if (wy > mx[1]) mx[1] = wy; if (wz > mx[2]) mx[2] = wz; } } }
+    for (const nd of model.nodes) { if (nd.mesh < 0 || nd.hidden) continue; for (const pr of model.meshes[nd.mesh].prims) { let P = pr.pos; let m = nd.world; if (nd.skin >= 0) { GL.skinPrim(model, model.skins[nd.skin], pr, tmpP, tmpN); P = tmpP; m = I; } for (let v = 0; v < pr.count; v++) { const x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2]; const wx = m[0] * x + m[4] * y + m[8] * z + m[12], wy = m[1] * x + m[5] * y + m[9] * z + m[13], wz = m[2] * x + m[6] * y + m[10] * z + m[14]; if (wx < mn[0]) mn[0] = wx; if (wy < mn[1]) mn[1] = wy; if (wz < mn[2]) mn[2] = wz; if (wx > mx[0]) mx[0] = wx; if (wy > mx[1]) mx[1] = wy; if (wz > mx[2]) mx[2] = wz; } } }
     return { min: mn, max: mx };
   };
 
@@ -103,12 +103,14 @@
       if (window.__ASSETS && window.__ASSETS.manifest) manifest = window.__ASSETS.manifest;
       else { const r = await fetch('assets/models.json'); manifest = await r.json(); }
       G.Assets.manifest = manifest;
+      const bufCache = {};
       const b64buf = (s) => { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; };
       for (const role in manifest) {
         const spec = manifest[role]; if (!spec || !spec.file) continue;
         try {
-          let buf; if (window.__ASSETS && window.__ASSETS.files && window.__ASSETS.files[spec.file]) buf = b64buf(window.__ASSETS.files[spec.file]); else { const r = await fetch('assets/' + spec.file); if (!r.ok) throw new Error(r.status); buf = await r.arrayBuffer(); }
-          const model = GL.parse(buf); const idle = spec.clips && spec.clips.idle; const b = GL.bounds(model, idle); model.height = b.max[1] - b.min[1]; model.base = b.min[1]; model.center = [(b.min[0] + b.max[0]) / 2, (b.min[2] + b.max[2]) / 2];
+          let buf = bufCache[spec.file]; if (!buf) { if (window.__ASSETS && window.__ASSETS.files && window.__ASSETS.files[spec.file]) buf = b64buf(window.__ASSETS.files[spec.file]); else { const r = await fetch('assets/' + spec.file); if (!r.ok) throw new Error(r.status); buf = await r.arrayBuffer(); } bufCache[spec.file] = buf; }
+          const model = GL.parse(buf); if (spec.hide) for (const nd of model.nodes) if (spec.hide.includes(nd.name)) nd.hidden = true;
+          const idle = spec.clips && spec.clips.idle; const b = GL.bounds(model, idle); model.height = b.max[1] - b.min[1]; model.base = b.min[1]; model.center = [(b.min[0] + b.max[0]) / 2, (b.min[2] + b.max[2]) / 2];
           model.spec = spec; model.scale = (spec.height || 1.2) / Math.max(1e-6, model.height);
           G.Assets.models[role] = model;
         } catch (e) { console.warn('asset ' + role + ' failed', e); }

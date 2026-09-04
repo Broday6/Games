@@ -88,10 +88,35 @@ your LAN can join with your machine's IP, or over the internet via the room code
 
 ### Characters & art
 
-Players, skeletons and the six humanoid bosses are the CC0 **RobotExpressive** rig (tinted per player / boss), wolves and Frostmaw
-use the flat-shaded **Fox** rig, goblins and scout drones use Kenney's kit characters. Every model is loaded by the in-house
-glTF loader (`js/gltf.js`) with idle / walk / run / attack / death clips crossfaded from the simulation state, and weapons are
-attached to the palm bone. Swap or add models by dropping a `.glb` into `driftwood/assets/` and editing `assets/models.json`.
+The look follows *Gamble With Your Friends*: chunky big-headed heroes, saturated colours, toon shading with dark outlines and
+neon light at night (research notes in `docs/GWF_RESEARCH.md`). Players pick one of five **KayKit Adventurers** (CC0) in the lobby —
+Knight, Barbarian, Mage, Rogue, Hooded Rogue — wear unlockable **hats**, and their capes take their player colour. Goblins, skeletons
+and the humanoid bosses are tinted KayKit Adventurers/Skeletons, wolves use the flat-shaded Fox rig, scout drones are Kenney's.
+Every rig is GPU-skinned by the in-house glTF loader (`js/gltf.js`) with idle / walk / run / weapon-specific attack / block / dodge /
+sit / death clips crossfaded from the simulation state; weapons attach to the `handslot.r` bone. `tools/slimglb.js` strips packs
+down to the clips we use. Swap or add models by dropping a `.glb` into `driftwood/assets/` and editing `assets/models.json`.
+
+### The Dealer's Table (gambling)
+
+A neon slot cabinet stands by the shipwreck and next to every altar. Press **E** to sit down and bet coins on **Slots**, a **Dice Duel**,
+the **Wheel of Fates** or **Blackjack**. Wins pay coins; better results grant **boons** (the same pick-of-3 skills you get from chests
+and levels — the wheel shows the exact odds per bet), triple-7 jackpots also unlock a **hat**, skulls and busts **hex** you (−15%
+damage for a while). **Sketchy items** rig the next game: Loaded Dice, Lucky Chip, Holy Statue, Dealer's Peek. Everything is resolved
+by the host, so it is fair in multiplayer.
+
+### Tutorial
+
+New players get a checklist on the left of the HUD that follows their progress (move → wood → axe → workbench → fire → food →
+survive a night → gamble → guardian → ship) with the keys they actually have bound. It disappears once completed and can be toggled
+under Controls & settings. **How to play** in the lobby shows the same steps, the controls and the loop. `docs/TUTORIAL.md` is the
+written version.
+
+### Performance
+
+Rendering is one WebGL pass into an offscreen target plus a post pass (outlines, anti-aliasing, grading). **Auto quality** lowers the
+internal resolution when frames take too long and raises it again when there is headroom; the quality slider sets the ceiling.
+Ten point lights per fragment, GPU skinning, chunked terrain with object culling. If it still stutters: lower the quality slider,
+turn off toon outlines, or close other tabs — the game is single-threaded JavaScript.
 
 ### Code map
 
@@ -108,7 +133,8 @@ driftwood/
   js/sprites.js   procedural pixel-art sprite generation
   js/gltf.js      minimal glTF/GLB loader: node animation with crossfades, CPU skinning, embedded textures
   js/render3d.js  first-person WebGL renderer: heightmap terrain chunks, glTF characters, 16 point lights, fog, overlay HUD, minimap
-  assets/         character models (CC0 / CC-BY, see assets/LICENSES.md) + models.json mapping roles → files, scale, facing, weapon hand, clips
+  assets/         character models (CC0 / CC-BY, see assets/LICENSES.md) + models.json mapping roles → files, scale, facing, sockets, clip sets
+  tools/slimglb.js strips a GLB to the animations we use (drops pack weapons, prunes still channels, resamples keys)
   js/audio.js     WebAudio synthesised SFX and ambient
   js/input.js     pointer-lock mouse look, WASD relative to view, discrete actions
   js/ui.js        lobby, HUD, inventory/crafting, chat, end screen

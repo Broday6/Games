@@ -256,3 +256,20 @@ triggers the **final wave**: a 90-second siege at the dock followed by the final
 3. Nights get harder; a careless player dies; a careful duo wins around day 8-12.
 4. Every complaint in §2 is addressed and visible in play.
 5. Zero external assets; one link to play.
+
+
+## 8c. Art direction update — "Gamble With Your Friends" look (v3)
+
+Reference: *Gamble With Your Friends* (TEAM GWYF, 2026) — first-person, caricatured chunky avatars with big heads, saturated
+colours, toon shading, neon casino lighting, hats and cosmetics, slapstick physics. Research notes: `GWF_RESEARCH.md`.
+
+Translation into Driftwood without touching the survival loop:
+- Characters: KayKit Adventurers (CC0) for players (five looks, chosen in the lobby), tinted Adventurers/Skeletons for humanoid
+  enemies and bosses. Capes carry the player colour; procedural hats sit on the head bone and are earned at the Dealer's Table or
+  bought with Shards.
+- Rendering: 3-band cel lighting + rim light, stepped point-light falloff, depth-based dark outlines, FXAA-lite, vignette and
+  saturation grade in one post pass; pulsing neon pink/cyan lights on casino cabinets at night.
+- Gambling layer ("The Dealer's Table"): slots, dice duel, Wheel of Fates (skill/boon rarities with public odds), blackjack;
+  wins pay coins and boons, jackpots unlock hats, busts hex; four one-use odds riggers (sketchy items). Host-authoritative.
+- Onboarding: a tutorial checklist bound to the player's actual keys, and a How-to-play panel.
+- Feel: bigger island (192²), natural objects keep a walkable gap, round trunk collision so you slide past trees.

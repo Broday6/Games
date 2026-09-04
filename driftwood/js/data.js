@@ -3,7 +3,7 @@
   'use strict';
 
   G.TS = 16;                 // tile size in px (internal resolution)
-  G.WORLD = 160;             // world is WORLD x WORLD tiles
+  G.WORLD = 192;             // world is WORLD x WORLD tiles
   G.DAY_LEN = 240;           // seconds per full day
   G.DUSK_AT = 160;
   G.NIGHT_AT = 180;
@@ -205,14 +205,14 @@
   // solid: blocks movement. tool/tier: needed to harvest. drops: [id, min, max]. light: radius. claim: no spawns within.
   const O = {};
   const obj = (id, def) => O[id] = Object.assign({ id, solid: true, hp: 10 }, def);
-  obj('tree', { name: 'Tree', hp: 12, tool: 'axe', tier: 1, drops: [['wood', 3, 5], ['stick', 0, 2]], tall: true });
-  obj('birch', { name: 'Birch', hp: 16, tool: 'axe', tier: 1, drops: [['wood', 5, 8], ['stick', 1, 2]], tall: true });
-  obj('deadtree', { name: 'Dead Tree', hp: 10, tool: 'axe', tier: 1, drops: [['wood', 2, 3], ['coal', 1, 3]], tall: true });
-  obj('rock', { name: 'Rock', hp: 14, tool: 'pick', tier: 1, drops: [['stone', 3, 5]] });
-  obj('coal_rock', { name: 'Coal Deposit', hp: 16, tool: 'pick', tier: 1, drops: [['coal', 2, 4], ['stone', 1, 2]] });
-  obj('iron_vein', { name: 'Iron Vein', hp: 24, tool: 'pick', tier: 2, drops: [['iron_ore', 2, 4], ['stone', 1, 2]] });
-  obj('gold_vein', { name: 'Gold Vein', hp: 34, tool: 'pick', tier: 3, drops: [['gold_ore', 2, 3]] });
-  obj('obsidian_vein', { name: 'Obsidian Vein', hp: 50, tool: 'pick', tier: 4, drops: [['obsidian', 2, 4]] });
+  obj('tree', { name: 'Tree', hp: 12, tool: 'axe', tier: 1, drops: [['wood', 3, 5], ['stick', 0, 2]], tall: true, colR: 0.3 });
+  obj('birch', { name: 'Birch', hp: 16, tool: 'axe', tier: 1, drops: [['wood', 5, 8], ['stick', 1, 2]], tall: true, colR: 0.28 });
+  obj('deadtree', { name: 'Dead Tree', hp: 10, tool: 'axe', tier: 1, drops: [['wood', 2, 3], ['coal', 1, 3]], tall: true, colR: 0.28 });
+  obj('rock', { name: 'Rock', hp: 14, tool: 'pick', tier: 1, drops: [['stone', 3, 5]], colR: 0.5 });
+  obj('coal_rock', { name: 'Coal Deposit', hp: 16, tool: 'pick', tier: 1, drops: [['coal', 2, 4], ['stone', 1, 2]], colR: 0.5 });
+  obj('iron_vein', { name: 'Iron Vein', hp: 24, tool: 'pick', tier: 2, drops: [['iron_ore', 2, 4], ['stone', 1, 2]], colR: 0.5 });
+  obj('gold_vein', { name: 'Gold Vein', hp: 34, tool: 'pick', tier: 3, drops: [['gold_ore', 2, 3]], colR: 0.5 });
+  obj('obsidian_vein', { name: 'Obsidian Vein', hp: 50, tool: 'pick', tier: 4, drops: [['obsidian', 2, 4]], colR: 0.5 });
   obj('berry_bush', { name: 'Berry Bush', hp: 3, tool: null, tier: 0, drops: [['berry', 2, 4], ['fiber', 1, 2]], solid: false, regrow: 90 });
   obj('mushroom', { name: 'Mushroom', hp: 2, tool: null, tier: 0, drops: [['mushroom', 1, 3]], solid: false, regrow: 120 });
   obj('wheat', { name: 'Wild Wheat', hp: 2, tool: null, tier: 0, drops: [['wheat', 1, 3], ['fiber', 1, 2]], solid: false, regrow: 100 });
@@ -224,6 +224,7 @@
   obj('altar_forest', { name: 'Hollow Altar', hp: 9999, tool: 'none', tier: 99, altar: 'hollow', key: 'totem_forest' });
   obj('altar_volcano', { name: 'Cinder Altar', hp: 9999, tool: 'none', tier: 99, altar: 'cinder', key: 'totem_volcano' });
   obj('boat', { name: 'Shipwreck', hp: 9999, tool: 'none', tier: 99, boat: true });
+  obj('casino', { name: "Dealer's Table", hp: 9999, tool: 'none', tier: 99, casino: true, light: 3, neon: true });
   // placeables
   obj('workbench', { name: 'Workbench', hp: 40, tool: 'none', tier: 99, station: 'workbench', built: true });
   obj('furnace', { name: 'Furnace', hp: 80, tool: 'none', tier: 99, station: 'furnace', built: true, light: 2.5 });
@@ -327,5 +328,43 @@
     { id: 'armory', name: 'Armory', desc: 'weapon drops get an extra affix chance', max: 2, cost: [90, 180] },
   ];
   G.BOAT_NEED = { wood: 60, iron_bar: 20, rope: 10, emerald: 1, sapphire: 1, ruby: 1 };
+  // ---- cosmetics: hats sit on the head bone; the first three are free, the rest are won at the Dealer's Table or bought with shards in the Camp
+  G.HATS = [
+    { id: 'none', name: 'Bare head', cost: 0 }, { id: 'cap', name: 'Ball Cap', cost: 0 }, { id: 'beanie', name: 'Beanie', cost: 0 },
+    { id: 'visor', name: 'Dealer Visor', cost: 60 }, { id: 'chef', name: 'Chef Hat', cost: 80 }, { id: 'tophat', name: 'Top Hat', cost: 120 }, { id: 'cowboy', name: 'Cowboy Hat', cost: 120 },
+    { id: 'pirate', name: 'Pirate Hat', cost: 160 }, { id: 'horns', name: 'Devil Horns', cost: 200 }, { id: 'halo', name: 'Halo', cost: 240 }, { id: 'crown', name: 'Crown', cost: 320 },
+  ];
+  G.HAT = {}; G.HATS.forEach(h => G.HAT[h.id] = h);
+  // playable looks (KayKit Adventurers, CC0) — purely cosmetic, picked in the lobby
+  G.SKINS = [{ id: 'knight', name: 'Knight' }, { id: 'barbarian', name: 'Barbarian' }, { id: 'mage', name: 'Mage' }, { id: 'rogue', name: 'Rogue' }, { id: 'hooded', name: 'Hooded Rogue' }];
+  // tutorial steps: text shown to new players, key names are filled from the current binds, done() checks the client view
+  G.TUTORIAL = [
+    { id: 'move', txt: 'Look around with the mouse. Walk with {forward}{left}{back}{right}, sprint with {sprint}, jump with {jump}.', done: (V, me) => G.dist(me.x, me.y, V.world.spawn.x, V.world.spawn.y) > 4 },
+    { id: 'wood', txt: 'Punch a tree (LMB) until it drops wood and sticks. Walk over drops to pick them up.', done: (V, me) => me.inv.some(s => s && s.id === 'wood') },
+    { id: 'axe', txt: 'Open crafting with {inventory} and make a Stone Axe (punch a rock for stone first).', done: (V, me) => me.inv.some(s => s && /^axe_/.test(s.id)) || me.inv.some(s => s && /^pick_/.test(s.id)) },
+    { id: 'bench', txt: 'Craft a Workbench and place it: select it on the hotbar (1–9) and click where you look. It unlocks better recipes.', done: (V) => [...V.world.objs.values()].some(o => o.t === 'workbench') },
+    { id: 'fire', txt: 'Before dusk craft a Campfire (light keeps monsters away) and a Torch to carry.', done: (V) => [...V.world.objs.values()].some(o => o.t === 'campfire') },
+    { id: 'food', txt: 'Grab berries from bushes and eat with {eat} when the Food bar drops.', done: (V, me) => me.inv.some(s => s && G.ITEMS[s.id] && G.ITEMS[s.id].type === 'food') },
+    { id: 'night', txt: 'Survive the night near your fire. Kill what comes for XP, coins and boons.', done: (V) => V.day >= 2 },
+    { id: 'casino', txt: "Find a Dealer's Table (by the wreck) and gamble coins for boons, hats and sketchy items.", done: (V, me) => (me.gambles || 0) > 0 },
+    { id: 'altar', txt: 'Craft a totem for an altar, summon its guardian and slay it for a gem. Three gems repair the ship.', done: (V) => (V.stats && V.stats.bosses > 0) || Object.values(V.bosses || {}).some(b => b) },
+    { id: 'boat', txt: 'Deposit repairs at the shipwreck with {interact}, then set sail — and brace for the final fight.', done: (V) => V.boat && V.boat.done },
+  ];
+  // ---- the Dealer's Table: gamble coins for coins, boons (skills) and hats. Odds are public so players can read them in-game.
+  G.SLOT_SYMBOLS = [{ id: 'cherry', ch: '🍒', w: 30 }, { id: 'bell', ch: '🔔', w: 22 }, { id: 'bar', ch: '▬', w: 16 }, { id: 'star', ch: '★', w: 12 }, { id: 'skull', ch: '☠', w: 14 }, { id: 'seven', ch: '7', w: 6 }];
+  G.CASINO = {
+    slotsBets: [10, 25, 50, 100], diceBets: [10, 25, 50, 100], bjBets: [10, 25, 50, 100], wheelBets: [30, 60, 120],
+    // wheel segments per bet tier: [common boon, rare boon, epic boon, legendary boon, coins x3, bust]
+    wheel: [[0.40, 0.18, 0.04, 0.00, 0.14, 0.24], [0.30, 0.28, 0.10, 0.02, 0.12, 0.18], [0.18, 0.30, 0.20, 0.06, 0.10, 0.16]],
+    wheelNames: ['Common boon', 'Rare boon', 'Epic boon', 'Legendary boon', 'Coins ×3', 'BUST — hexed'],
+    hex: { atk: -0.15, dur: 120 },
+    // one-use odds riggers sold at the table (inspired by casino party games' 'sketchy items')
+    rigs: [
+      { id: 'dice', name: 'Loaded Dice', cost: 40, desc: '+2 on your next Dice Duel roll' },
+      { id: 'chip', name: 'Lucky Chip', cost: 60, desc: 'your next losing slots spin is re-spun once' },
+      { id: 'statue', name: 'Holy Statue', cost: 90, desc: 'your next Wheel of Fates bust becomes a common boon instead' },
+      { id: 'peek', name: "Dealer's Peek", cost: 50, desc: 'see the dealer\'s hidden blackjack card next hand' },
+    ],
+  };
   G.PLAYER_COLORS = ['#ff5a5a', '#5aa0ff', '#5aff8a', '#ffd25a', '#d05aff', '#5affff', '#ff9a5a', '#ffffff'];
 })(window.G);

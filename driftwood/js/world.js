@@ -75,6 +75,8 @@
     // --- objects ---
     const objs = new Map();
     const setObj = (i, t, extra) => objs.set(i, Object.assign({ t, hp: G.OBJS[t].hp }, extra || {}));
+    const solidNear = (i) => { for (const j of [i - 1, i + 1, i - W, i + W]) { const o = objs.get(j); if (o && G.OBJS[o.t].solid) return true; } return false; };
+    const setNat = (i, t) => { if (G.OBJS[t].solid && solidNear(i)) return; setObj(i, t); }; // natural objects keep a walkable gap between them
     const dToSpawn = (x, y) => G.dist(x, y, spawn.x, spawn.y);
     for (let y = 1; y < W - 1; y++) for (let x = 1; x < W - 1; x++) {
       const i = y * W + x, t = tiles[i], b = biome[i];
@@ -82,32 +84,32 @@
       const r = rng();
       const dens = nz.noise2(x / 9 + 100, y / 9);
       if (t === T.GRASS) {
-        if (r < 0.05 + dens * 0.06) setObj(i, 'tree');
-        else if (r < 0.10) setObj(i, 'grass_tuft');
-        else if (r < 0.115) setObj(i, 'berry_bush');
-        else if (r < 0.128) setObj(i, 'wheat');
-        else if (r < 0.14) setObj(i, 'rock');
-        else if (r < 0.145) setObj(i, 'coal_rock');
-        else if (r < 0.15 && dens > 0.5) setObj(i, 'iron_vein');
+        if (r < 0.045 + dens * 0.05) setNat(i, 'tree');
+        else if (r < 0.10) setNat(i, 'grass_tuft');
+        else if (r < 0.115) setNat(i, 'berry_bush');
+        else if (r < 0.128) setNat(i, 'wheat');
+        else if (r < 0.14) setNat(i, 'rock');
+        else if (r < 0.145) setNat(i, 'coal_rock');
+        else if (r < 0.15 && dens > 0.5) setNat(i, 'iron_vein');
       } else if (t === T.DARKGRASS) {
-        if (r < 0.10 + dens * 0.12) setObj(i, rng() < 0.4 ? 'birch' : 'tree');
-        else if (r < 0.25) setObj(i, 'mushroom');
-        else if (r < 0.265) setObj(i, 'rock');
-        else if (r < 0.275) setObj(i, 'berry_bush');
-        else if (r < 0.285) setObj(i, 'iron_vein');
-        else if (r < 0.29) setObj(i, 'coal_rock');
+        if (r < 0.085 + dens * 0.09) setNat(i, rng() < 0.4 ? 'birch' : 'tree');
+        else if (r < 0.25) setNat(i, 'mushroom');
+        else if (r < 0.265) setNat(i, 'rock');
+        else if (r < 0.275) setNat(i, 'berry_bush');
+        else if (r < 0.285) setNat(i, 'iron_vein');
+        else if (r < 0.29) setNat(i, 'coal_rock');
       } else if (t === T.DIRT) {
-        if (r < 0.08) setObj(i, 'rock'); else if (r < 0.12) setObj(i, 'iron_vein');
+        if (r < 0.08) setNat(i, 'rock'); else if (r < 0.12) setNat(i, 'iron_vein');
       } else if (t === T.STONE) {
-        if (r < 0.08) setObj(i, 'rock'); else if (r < 0.14) setObj(i, 'iron_vein'); else if (r < 0.165) setObj(i, 'coal_rock');
-        else if (r < 0.185 && b !== G.BIOME.MEADOW) setObj(i, 'gold_vein');
+        if (r < 0.08) setNat(i, 'rock'); else if (r < 0.14) setNat(i, 'iron_vein'); else if (r < 0.165) setNat(i, 'coal_rock');
+        else if (r < 0.185 && b !== G.BIOME.MEADOW) setNat(i, 'gold_vein');
       } else if (t === T.ASH) {
-        if (r < 0.05) setObj(i, 'deadtree'); else if (r < 0.10) setObj(i, 'rock'); else if (r < 0.13) setObj(i, 'coal_rock');
-        else if (r < 0.15) setObj(i, 'iron_vein');
+        if (r < 0.05) setNat(i, 'deadtree'); else if (r < 0.10) setNat(i, 'rock'); else if (r < 0.13) setNat(i, 'coal_rock');
+        else if (r < 0.15) setNat(i, 'iron_vein');
       } else if (t === T.OBSIDIAN) {
-        if (r < 0.05) setObj(i, 'obsidian_vein'); else if (r < 0.09) setObj(i, 'gold_vein'); else if (r < 0.11) setObj(i, 'deadtree');
+        if (r < 0.05) setNat(i, 'obsidian_vein'); else if (r < 0.09) setNat(i, 'gold_vein'); else if (r < 0.11) setNat(i, 'deadtree');
       } else if (t === T.SAND) {
-        if (r < 0.03) setObj(i, 'cactus'); else if (r < 0.035) setObj(i, 'rock');
+        if (r < 0.03) setNat(i, 'cactus'); else if (r < 0.035) setNat(i, 'rock');
       }
     }
     // chests: scattered on land, rarity by distance from spawn
@@ -143,10 +145,14 @@
     // boat on the beach next to spawn
     const bx = Math.floor(spawn.x) + 3, by = Math.floor(spawn.y);
     const bi = by * W + bx; objs.delete(bi); setObj(bi, 'boat');
+    // the Dealer's Table: one by the shipwreck, one beside each altar
+    const casinos = [];
+    const placeCasino = (cx, cy) => { for (let r = 0; r < 6; r++) for (let k = 0; k < 8; k++) { const x = Math.round(cx + Math.cos(k * 0.785) * (1 + r)), y = Math.round(cy + Math.sin(k * 0.785) * (1 + r)); const j = y * W + x; if (x < 2 || y < 2 || x >= W - 2 || y >= W - 2) continue; if (tiles[j] > T.SAND && tiles[j] !== T.LAVA && !objs.has(j)) { setObj(j, 'casino'); casinos.push({ x: x + 0.5, y: y + 0.5 }); return; } } };
+    placeCasino(Math.floor(spawn.x) - 3, by - 3); for (const k in altars) placeCasino(altars[k].x + 4, altars[k].y);
     // starter supplies near spawn
     for (let k = 0; k < 4; k++) { const j = (by - 2 - rng.int(2)) * W + Math.floor(spawn.x) - 3 + k * 2; if (tiles[j] > T.SAND && !objs.has(j)) setObj(j, k < 2 ? 'tree' : 'rock'); }
 
-    return { seed: String(seedStr), tiles, biome, height, objs, spawn, boat: { x: bx + 0.5, y: by + 0.5, idx: bi }, altars, changes: new Map() };
+    return { seed: String(seedStr), tiles, biome, height, objs, spawn, boat: { x: bx + 0.5, y: by + 0.5, idx: bi }, altars, casinos, changes: new Map() };
   }
   G.generateWorld = generate;
 
@@ -164,7 +170,7 @@
     if (o) {
       const d = G.OBJS[o.t];
       if (d.door) return forEnemy ? true : !!o.closed;
-      if (d.solid) return true;
+      if (d.solid) { if (d.colR === undefined || o.stub) return true; const dx = x - (Math.floor(x) + 0.5), dy = y - (Math.floor(y) + 0.5); return dx * dx + dy * dy < d.colR * d.colR; }
     }
     return false;
   };

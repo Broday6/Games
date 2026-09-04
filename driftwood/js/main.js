@@ -20,7 +20,7 @@
     if (M.S) return;
     seed = seed || Math.random().toString(36).slice(2, 8).toUpperCase();
     M.S = Sim.create(seed); M.me = 'host'; M.mode = 'host'; M.world = M.S.world;
-    Sim.addPlayer(M.S, 'host', name, col, UI.cls, UI.loadMeta().up);
+    Sim.addPlayer(M.S, 'host', name, col, UI.cls, UI.loadMeta().up, UI.hat, UI.skin);
     updateLobbyPlayers();
   }
   M.host = function (name, col, seed) {
@@ -45,7 +45,7 @@
 
   // ---------- networking ----------
   function onJoin(id) {
-    if (M.mode === 'client') { Net.send('host', { t: 'hello', name: M.pending ? M.pending.name : 'Castaway', col: M.pending ? M.pending.col : '#fff', cls: UI.cls, meta: UI.loadMeta().up }); UI.status('Connected — waiting for host…'); }
+    if (M.mode === 'client') { Net.send('host', { t: 'hello', name: M.pending ? M.pending.name : 'Castaway', col: M.pending ? M.pending.col : '#fff', cls: UI.cls, meta: UI.loadMeta().up, hat: UI.hat, skin: UI.skin }); UI.status('Connected — waiting for host…'); }
   }
   function onLeave(id) {
     if (M.mode === 'host' && M.S) { Sim.removePlayer(M.S, id); updateLobbyPlayers(); }
@@ -55,7 +55,7 @@
     if (M.mode === 'host') {
       if (!M.S) return;
       if (msg.t === 'hello') {
-        if (!M.S.players[from]) Sim.addPlayer(M.S, from, msg.name, msg.col, G.CLASSES.some(c => c.id === msg.cls) ? msg.cls : 'castaway', (msg.meta && typeof msg.meta === 'object') ? msg.meta : {});
+        if (!M.S.players[from]) Sim.addPlayer(M.S, from, msg.name, msg.col, G.CLASSES.some(c => c.id === msg.cls) ? msg.cls : 'castaway', (msg.meta && typeof msg.meta === 'object') ? msg.meta : {}, typeof msg.hat === 'string' ? msg.hat : 'none', typeof msg.skin === 'string' ? msg.skin : 'knight');
         updateLobbyPlayers();
         Net.send(from, { t: 'welcome', id: from, seed: M.S.world.seed, snap: Sim.snapshot(M.S, true) });
         if (M.started) Net.send(from, { t: 'start' });
@@ -106,6 +106,9 @@
         case 'sail': In.unlock(); UI.confirm('<b>The ship is ready.</b><p>Setting sail will summon everything the island has left.<br>Hold the dock for 90 seconds, then kill what rises.<br>Make sure everyone is here and stocked up.</p>', () => M.act({ a: 'sail' })); break;
         case 'boatinfo': { const b = V ? V.boat : null; if (b) UI.toast('Ship repairs', Object.keys(G.BOAT_NEED).map(k => G.ITEMS[k].name + ' ' + b[k] + '/' + G.BOAT_NEED[k]).join(' · ')); break; }
         case 'tile': if (M.world) { M.world.tiles[ev.i] = ev.v; R.dirtyTile(ev.i); } break;
+        case 'casino': UI.casino(true, ev); break;
+        case 'gres': UI.gres(ev); break;
+        case 'hat': UI.unlockHat(ev.id); break;
       }
     }
   }
@@ -168,7 +171,7 @@
     const me = V.players[V.me]; if (!me || me.dead) return me && me.dead ? 'You are dead. You will wash ashore again at dawn.' : '';
     if (me.downed) return '';
     const w = V.world; let best = null, bd = 2.2;
-    for (let y = Math.floor(me.y - 2); y <= me.y + 2; y++) for (let x = Math.floor(me.x - 2); x <= me.x + 2; x++) { const o = w.objs.get(G.idx(x, y)); if (!o) continue; const d = G.OBJS[o.t]; if (!(d.isChest || d.altar || d.boat || d.door)) continue; const dd = G.dist(me.x, me.y, x + .5, y + .5); if (dd < bd) { bd = dd; best = { o, d }; } }
+    for (let y = Math.floor(me.y - 2); y <= me.y + 2; y++) for (let x = Math.floor(me.x - 2); x <= me.x + 2; x++) { const o = w.objs.get(G.idx(x, y)); if (!o) continue; const d = G.OBJS[o.t]; if (!(d.isChest || d.altar || d.boat || d.door || d.casino)) continue; const dd = G.dist(me.x, me.y, x + .5, y + .5); if (dd < bd) { bd = dd; best = { o, d }; } }
     for (const id in V.players) { const q = V.players[id]; if (q !== me && q.downed && G.dist(q.x, q.y, me.x, me.y) < 1.6) return 'Hold E to revive ' + q.name; }
     if (best) {
       const { o, d } = best;
@@ -176,6 +179,7 @@
       if (d.altar) return V.bosses[d.altar] === 'dead' ? 'This guardian is slain.' : V.bosses[d.altar] ? 'The guardian is loose!' : 'E: summon the guardian (needs ' + G.ITEMS[d.key].name + ')';
       if (d.boat) return V.boat.done ? 'E: SET SAIL' : 'E: deposit repairs — ' + Object.keys(G.BOAT_NEED).map(k => G.ITEMS[k].name + ' ' + V.boat[k] + '/' + G.BOAT_NEED[k]).join(', ');
       if (d.door) return 'E: ' + (o.closed ? 'open' : 'close') + ' door';
+      if (d.casino) return "E: sit at the Dealer's Table — slots · dice · Wheel of Fates · blackjack (bet coins, win boons)";
     }
     const it = me.inv[me.held]; if (it && G.ITEMS[it.id].type === 'place') return 'LMB: place ' + G.ITEMS[it.id].name + ' where you look';
     if (it && G.ITEMS[it.id].type === 'bow') return 'Hold RMB to draw, release to shoot';
@@ -193,7 +197,7 @@
   let last = performance.now() / 1000;
   function loop() {
     requestAnimationFrame(loop);
-    const now = performance.now() / 1000; let dt = Math.min(0.1, now - last); last = now;
+    const now = performance.now() / 1000; let dt = Math.min(0.1, now - last); if (M.started) R.autoQuality((now - last) * 1000); last = now;
     if (!M.started) { if (M.mode === 'client' && M.snapCur && Net.count() && now - M.lastIn > 1) { M.lastIn = now; Net.send('host', { t: 'ping', k: performance.now() }); } return; }
     let mePos = M.mode === 'host' ? M.S.players.host : (M.pred || { x: 0, y: 0 });
     if (M.mode === 'host') {
@@ -220,7 +224,7 @@
     // build ghost
     let ghost = null;
     if (me && !me.dead) { const it = me.inv[me.held]; if (it && G.ITEMS[it.id].type === 'place') { const t = targetTile(); if (t) { const d = G.ITEMS[it.id]; const od = G.OBJS[d.obj]; const tt = G.tileAt(V.world, t.tx, t.ty); const ok = G.inWorld(t.tx, t.ty) && G.dist(me.x, me.y, t.tx + .5, t.ty + .5) <= 5.5 && !V.world.objs.has(G.idx(t.tx, t.ty)) && (od.floor ? (tt === G.T.WATER || tt === G.T.DEEP) : (tt > G.T.WATER && tt !== G.T.LAVA)); ghost = { obj: d.obj, tx: t.tx, ty: t.ty, ok }; } } }
-    UI.update(V, hintFor(V));
+    UI.update(V, hintFor(V)); UI.tutorial(V);
     R.frame(V, dt, { yaw: In.yaw, pitch: In.pitch, jumpZ: M.jumpZ, bob: M.bob, walkT: M.walkT, sprinting, ghost, land: M.land, dodgeDir: M.dodgeDir, lookingAt: me && !me.dead ? lookingAt(V, me) : '' });
     A.setNight(Sim.darkness({ time: V.time }));
   }
