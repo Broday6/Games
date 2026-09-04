@@ -45,6 +45,7 @@
       vec3 L = vec3(uAmb) * (0.7 + 0.3 * n.y);
       L += uSunCol * max(0.0, dot(n, uSunDir));
       for(int i=0;i<16;i++){ if(i>=uNL) break; vec3 d = uLights[i].xyz - vPos; float dist = length(d); float a = clamp(1.0 - dist/uLights[i].w, 0.0, 1.0); L += uLightCol[i] * a * a * 1.9 * max(0.3, dot(n, d/dist)); }
+      L = min(L, vec3(1.55));
       vec3 c = vCol * max(L, vec3(vEm));
       if(uWater > 0.5){ vec3 v = normalize(uCam - vPos); vec3 h = normalize(v + uSunDir); float sp = pow(max(dot(n, h), 0.0), 90.0); c += uSunCol * sp * 1.2; c += vec3(0.08,0.1,0.14) * pow(1.0 - max(dot(n, v), 0.0), 2.0); }
       c = mix(c, uFog, vFog);
