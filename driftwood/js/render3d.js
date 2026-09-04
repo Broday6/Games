@@ -675,7 +675,7 @@
     pr.gl = b; return b;
   }
   function modelTexture(model, ti) {
-    const t = model.textures[ti]; if (!t) return null; if (t.gl) return t.gl; if (t.loading) return null; t.loading = true;
+    const t = model.textures[ti]; if (!t || !t.image) return null; if (t.gl) return t.gl; if (t.loading) return null; t.loading = true;
     const img = new Image(); img.onload = () => { const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); t.gl = tex; }; img.src = t.image; return null;
   }
   // animation state per entity: crossfade between clips
