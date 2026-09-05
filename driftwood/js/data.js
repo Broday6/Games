@@ -47,8 +47,8 @@
   const TNAME = ['Wooden', 'Stone', 'Iron', 'Golden', 'Obsidian'];
   TIERS.forEach((t, i) => {
     const tier = i + 1;
-    I['axe_' + t] = { id: 'axe_' + t, name: TNAME[i] + ' Axe', type: 'tool', tool: 'axe', tier, power: 1 + i, dmg: 4 + i * 4, spd: 1.6, reach: 1.3, arc: 1.4, kb: 3, col: TIERCOL[i] };
-    I['pick_' + t] = { id: 'pick_' + t, name: TNAME[i] + ' Pickaxe', type: 'tool', tool: 'pick', tier, power: 1 + i, dmg: 3 + i * 3, spd: 1.6, reach: 1.3, arc: 1.2, kb: 2, col: TIERCOL[i] };
+    I['axe_' + t] = { id: 'axe_' + t, name: TNAME[i] + ' Axe', type: 'tool', tool: 'axe', tier, power: 1 + i, dmg: 4 + i * 4, spd: 2.0, reach: 1.3, arc: 1.4, kb: 3, col: TIERCOL[i] };
+    I['pick_' + t] = { id: 'pick_' + t, name: TNAME[i] + ' Pickaxe', type: 'tool', tool: 'pick', tier, power: 1 + i, dmg: 3 + i * 3, spd: 2.0, reach: 1.3, arc: 1.2, kb: 2, col: TIERCOL[i] };
     I['sword_' + t] = { id: 'sword_' + t, name: TNAME[i] + ' Sword', type: 'weapon', tier, dmg: [7, 12, 19, 28, 40][i], spd: 2.6, reach: 1.6, arc: 2.0, kb: 4, col: TIERCOL[i], anim: 'slash' };
     if (i >= 2) {
       I['helm_' + t] = { id: 'helm_' + t, name: TNAME[i] + ' Helm', type: 'armor', slot: 'head', def: [0, 0, 6, 10, 15][i], col: TIERCOL[i] };

@@ -632,8 +632,9 @@
     if (hitAny) { Sim.ev(S, { t: 'hitstop', to: p.id }); if (sw.heavy) { Sim.ev(S, { t: 'shake', v: 4, id: p.id }); Sim.ev(S, { t: 'sfx', n: 'slam', x: p.x, y: p.y }); } else if (sw.combo === 2) Sim.ev(S, { t: 'txt', x: p.x + Math.cos(sw.ang), y: p.y + Math.sin(sw.ang) - 0.5, s: 'COMBO', c: '#ffe040', to: p.id }); }
     // world object: sample along the aim ray
     const w = S.world;
-    for (let s = 0.4; s <= reach; s += 0.35) {
-      const x = p.x + Math.cos(sw.ang) * s, y = p.y + Math.sin(sw.ang) * s; const i = G.idx(x, y); const o = w.objs.get(i); if (!o) continue;
+    const oreach = reach + 1.1, lx = -Math.sin(sw.ang), ly = Math.cos(sw.ang); // gathering reach is generous and forgiving of aim: sample the ray and a little to either side
+    for (let s = 0.4; s <= oreach; s += 0.3) {
+      let x = 0, y = 0, i = 0, o = null; for (const off of [0, 0.3, -0.3]) { x = p.x + Math.cos(sw.ang) * s + lx * off; y = p.y + Math.sin(sw.ang) * s + ly * off; i = G.idx(x, y); o = w.objs.get(i); if (o) break; } if (!o) continue;
       const od = O[o.t]; if (od.isChest || od.altar || od.boat) continue;
       const tool = wp.tool || 'fist'; let power = wp.power ? (wp.tool === 'fist' ? 1.0 : TOOL_POWER[wp.tier]) : 1.0;
       if (od.tool === 'pick' && tool === 'pick') power *= 1.5; else if (od.tool === 'axe' && tool === 'axe') power *= 1.4; // the right tool is quick: ~5 hits for a tree or rock at tier 1
@@ -645,7 +646,7 @@
       if (!can) { Sim.ev(S, { t: 'txt', x: x, y: y - 0.6, s: 'need ' + (od.tool === 'axe' ? 'axe' : 'pickaxe') + ' tier ' + od.tier, c: '#ff9090', to: p.id, small: true }); Sim.ev(S, { t: 'sfx', n: 'clank', x, y }); return; }
       o.hp -= od.built ? (od.hp / 4) : power;
       Sim.ev(S, { t: 'sfx', n: od.tool === 'pick' ? 'mine' : 'chop', x, y }); Sim.ev(S, { t: 'hit', x: (i % G.WORLD) + .5, y: Math.floor(i / G.WORLD) + .5, c: od.tool === 'pick' ? '#aaa' : '#a0702e', n: 4 });
-      Sim.ev(S, { t: 'wobble', i });
+      Sim.ev(S, { t: 'wobble', i }); Sim.ev(S, { t: 'hitstop', to: p.id });
       if (o.hp <= 0) {
         const tx = (i % G.WORLD) + .5, ty = Math.floor(i / G.WORLD) + .5;
         if (od.built) { const itemId = Object.keys(I).find(k => I[k].type === 'place' && I[k].obj === o.t); if (itemId) Sim.spawnDrop(S, itemId, 1, tx, ty); if (od.floor) { w.tiles[i] = T.WATER; } }

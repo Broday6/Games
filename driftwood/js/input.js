@@ -3,11 +3,11 @@
   'use strict';
   const DEFAULT_BINDS = { forward: 'w', back: 's', left: 'a', right: 'd', sprint: 'Shift', jump: ' ', dodge: 'q', interact: 'e', eat: 'f', ping: 't', emote: 'g', inventory: 'Tab', chat: 'Enter', mute: 'm', menu: 'Escape' };
   const BIND_NAMES = { forward: 'Move forward', back: 'Move back', left: 'Strafe left', right: 'Strafe right', sprint: 'Sprint', jump: 'Jump', dodge: 'Dodge roll', interact: 'Interact / revive', eat: 'Quick eat', emote: 'Emote (cheer)', ping: 'Ping', inventory: 'Inventory & crafting', chat: 'Chat', mute: 'Mute', menu: 'Menu' };
-  const DEFAULT_SETTINGS = { sens: 1.0, fov: 80, invertY: false, quality: 0.75, shake: true, bob: false, toon: true, sprintToggle: false };
+  const DEFAULT_SETTINGS = { sens: 1.0, fov: 80, invertY: false, quality: 1, shake: true, bob: false, toon: true, sprintToggle: false, v: 2 };
   const In = { keys: {}, mouse: { l: false, r: false }, yaw: -Math.PI / 2, pitch: 0, onAction: null, onKey: null, locked: false, ptrLocked: false, wantLock: false, canvas: null, aim: { x: 0, y: 0 }, binds: null, settings: null, BIND_NAMES, DEFAULT_BINDS, capture: null };
   G.Input = In;
   const load = (k, def) => { try { return Object.assign({}, def, JSON.parse(localStorage.getItem(k) || '{}')); } catch (e) { return Object.assign({}, def); } };
-  In.binds = load('driftwood_binds', DEFAULT_BINDS); In.settings = load('driftwood_settings', DEFAULT_SETTINGS);
+  In.binds = load('driftwood_binds', DEFAULT_BINDS); In.settings = load('driftwood_settings', DEFAULT_SETTINGS); if (!In.settings.v || In.settings.v < 2) { In.settings.quality = 1; In.settings.v = 2; } // older saves had a 75% render scale baked in
   In.saveBinds = () => { try { localStorage.setItem('driftwood_binds', JSON.stringify(In.binds)); } catch (e) { } };
   In.saveSettings = () => { try { localStorage.setItem('driftwood_settings', JSON.stringify(In.settings)); } catch (e) { } if (G.Render && G.Render.resize) G.Render.resize(); };
   In.resetBinds = () => { In.binds = Object.assign({}, DEFAULT_BINDS); In.saveBinds(); };

@@ -53,7 +53,7 @@
       vec3 c = vCol * max(L, vec3(vEm)) + vCol * rim * (uSunCol * 0.5 + uAmb * 0.5);
       if(uWater > 0.5){ vec3 v = normalize(uCam - vPos); vec3 h = normalize(v + uSunDir); float sp = pow(max(dot(n, h), 0.0), 90.0); c += uSunCol * sp * 1.2; c += vec3(0.08,0.1,0.14) * pow(1.0 - max(dot(n, v), 0.0), 2.0); }
       c = mix(c, uFog, vFog);
-      gl_FragColor = vec4(c, uAlpha); }`;
+      gl_FragColor = vec4(c, vEm < -0.5 ? 0.0 : uAlpha); }`; // alpha 0 marks 'no outline' surfaces (grass) for the post pass
   // model program: rigid glTF meshes (uModel) with optional texture; skinned parts are CPU-skinned and drawn with identity
   let MAXJ = 24; // joint palette size per skinned primitive (set from MAX_VERTEX_UNIFORM_VECTORS at init)
   const MVS_SRC = (maxj) => `attribute vec3 aPos; attribute vec3 aNrm; attribute vec2 aUV; attribute vec4 aJ; attribute vec4 aW;
@@ -82,12 +82,12 @@
     void main(){ vec2 uv = vP * 0.5 + 0.5; vec3 c = texture2D(uCol, uv).rgb;
       if(uOutline > 0.5){ float d0 = lin(texture2D(uDepth, uv).r); vec2 o = uInvRes * uOutline;
         float e = max(max(lin(texture2D(uDepth, uv + vec2(o.x, 0.0)).r) - d0, lin(texture2D(uDepth, uv - vec2(o.x, 0.0)).r) - d0), max(lin(texture2D(uDepth, uv + vec2(0.0, o.y)).r) - d0, lin(texture2D(uDepth, uv - vec2(0.0, o.y)).r) - d0));
-        float thr = 0.06 + d0 * 0.05; float edge = smoothstep(thr, thr * 2.0, e) * (1.0 - smoothstep(9.0, 26.0, d0)); // outlines fade out with distance so thin far geometry (grass) never turns into black spikes
+        float thr = 0.06 + d0 * 0.05; float edge = smoothstep(thr, thr * 2.0, e) * (1.0 - smoothstep(9.0, 26.0, d0)) * texture2D(uCol, uv).a; // grass opts out via alpha so blades stay green instead of inking over // outlines fade out with distance so thin far geometry (grass) never turns into black spikes
         c = mix(c, c * 0.32, edge * 0.8); if(uDebug > 0.5) c = vec3(edge, d0 / 40.0, 0.0); }
       // FXAA-lite: blend towards the 4 diagonal neighbours where local luma contrast is high (softens polygon edges the FBO lost MSAA on)
       { vec2 o = uInvRes * 0.6; vec3 c1 = texture2D(uCol, uv + vec2(-o.x, -o.y)).rgb, c2 = texture2D(uCol, uv + vec2(o.x, -o.y)).rgb, c3 = texture2D(uCol, uv + vec2(-o.x, o.y)).rgb, c4 = texture2D(uCol, uv + vec2(o.x, o.y)).rgb;
         vec3 lw = vec3(0.299, 0.587, 0.114); float l0 = dot(c, lw), l1 = dot(c1, lw), l2 = dot(c2, lw), l3 = dot(c3, lw), l4 = dot(c4, lw); float lmin = min(l0, min(min(l1, l2), min(l3, l4))), lmax = max(l0, max(max(l1, l2), max(l3, l4)));
-        float k = smoothstep(0.05, 0.22, lmax - lmin); c = mix(c, (c + c1 + c2 + c3 + c4) * 0.2, k * 0.85); }
+        float k = smoothstep(0.1, 0.32, lmax - lmin); c = mix(c, (c + c1 + c2 + c3 + c4) * 0.2, k * 0.6); }
       float l = dot(c, vec3(0.299, 0.587, 0.114)); c = mix(vec3(l), c, uSat); c = (c - 0.5) * 1.06 + 0.5;
       float vig = smoothstep(0.55, 1.15, length((uv - 0.5) * vec2(1.25, 1.0)) * 1.6); c *= 1.0 - 0.38 * vig;
       if(uHurt > 0.001) c = mix(c, vec3(0.62, 0.02, 0.02), uHurt * smoothstep(0.35, 1.05, length((uv - 0.5) * vec2(1.25, 1.0)) * 1.6));
@@ -106,7 +106,7 @@
   function drawPost() {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND); gl.useProgram(postProg);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, post.col); gl.uniform1i(postProg.u.uCol, 0); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, post.dep); gl.uniform1i(postProg.u.uDepth, 1); gl.activeTexture(gl.TEXTURE0);
-    const S = G.Input && G.Input.settings ? G.Input.settings : {}; gl.uniform2f(postProg.u.uInvRes, 1 / R.W, 1 / R.H); gl.uniform1f(postProg.u.uNear, 0.05); gl.uniform1f(postProg.u.uFar, 80); gl.uniform1f(postProg.u.uOutline, S.toon === false ? 0 : (R.W > 1400 ? 1.4 : 1.0)); gl.uniform1f(postProg.u.uSat, 1.1); gl.uniform1f(postProg.u.uDebug, R.debugEdges ? 1 : 0); gl.uniform1f(postProg.u.uHurt, Math.min(0.8, R.hurtV || 0));
+    const S = G.Input && G.Input.settings ? G.Input.settings : {}; gl.uniform2f(postProg.u.uInvRes, 1 / R.W, 1 / R.H); gl.uniform1f(postProg.u.uNear, 0.05); gl.uniform1f(postProg.u.uFar, 80); gl.uniform1f(postProg.u.uOutline, S.toon === false ? 0 : (R.W > 2200 ? 1.8 : R.W > 1400 ? 1.3 : 1.0)); gl.uniform1f(postProg.u.uSat, 1.1); gl.uniform1f(postProg.u.uDebug, R.debugEdges ? 1 : 0); gl.uniform1f(postProg.u.uHurt, Math.min(0.8, R.hurtV || 0));
     gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf); gl.enableVertexAttribArray(postProg.a.aP); gl.vertexAttribPointer(postProg.a.aP, 2, gl.FLOAT, false, 0, 0); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     // unbind the target textures or next frame's draws into the FBO would form a feedback loop and be dropped
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, null); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, null);
@@ -155,13 +155,15 @@
   R.autoQuality = function (dtMs) {
     const S = G.Input && G.Input.settings; if (!S || S.autoq === false) return; ftAvg += (Math.min(100, dtMs) - ftAvg) * 0.03; ftT += dtMs;
     if (ftT < 6000) return; ftT = 0; // slow, hysteretic: only step when clearly over/under budget so the resolution never visibly pumps
-    if (ftAvg > 28 && R.qScale > 0.6) { R.qScale = Math.max(0.6, R.qScale - 0.1); R.resize(); }
+    if (ftAvg > 28 && R.qScale > 0.6) { R.qScale = Math.max(0.6, R.qScale - (ftAvg > 45 ? 0.2 : 0.1)); R.resize(); }
     else if (ftAvg < 10 && R.qScale < 1.34) { R.qScale = Math.min(1.34, R.qScale + 0.05); R.resize(); }
   };
   R.resize = function () {
-    const ww = window.innerWidth, wh = window.innerHeight; const scale = G.clamp((G.Input && G.Input.settings ? G.Input.settings.quality : 0.75) * R.qScale, 0.4, 1) * (ww > 2000 ? 0.85 : 1);
-    R.W = Math.round(ww * scale); R.H = Math.round(wh * scale);
-    cv.width = R.W; cv.height = R.H; ov.width = R.W; ov.height = R.H;
+    const ww = window.innerWidth, wh = window.innerHeight; const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // the 3D target renders at device pixels (no more blur from upscaling a 75% CSS-pixel buffer); capped near 2.6 Mpx so 4K/high-DPR screens stay playable, auto quality takes it from there
+    let scale = G.clamp((G.Input && G.Input.settings ? G.Input.settings.quality : 1) * R.qScale, 0.5, 1) * dpr; const px = ww * wh * scale * scale; if (px > 2.6e6) scale *= Math.sqrt(2.6e6 / px);
+    R.W = Math.round(ww * scale); R.H = Math.round(wh * scale); R.VW = ww; R.VH = wh; R.DPR = dpr;
+    cv.width = R.W; cv.height = R.H; ov.width = Math.round(ww * dpr); ov.height = Math.round(wh * dpr); // the HUD overlay is always crisp: CSS-pixel coordinates drawn at full device resolution
     for (const c of [cv, ov]) { c.style.width = ww + 'px'; c.style.height = wh + 'px'; }
     if (gl) { gl.viewport(0, 0, R.W, R.H); setupPost(); }
   };
@@ -191,7 +193,7 @@
     const X = x, Y = z, Z = y;
     const cx = vp[0] * X + vp[4] * Y + vp[8] * Z + vp[12], cy = vp[1] * X + vp[5] * Y + vp[9] * Z + vp[13], cw = vp[3] * X + vp[7] * Y + vp[11] * Z + vp[15];
     if (cw <= 0.05) return null;
-    return { x: (cx / cw * 0.5 + 0.5) * R.W, y: (1 - (cy / cw * 0.5 + 0.5)) * R.H, d: cw };
+    return { x: (cx / cw * 0.5 + 0.5) * R.VW, y: (1 - (cy / cw * 0.5 + 0.5)) * R.VH, d: cw };
   };
   R.forward = () => ({ x: Math.cos(R.cam.yaw) * Math.cos(R.cam.pitch), z: Math.sin(R.cam.pitch), y: Math.sin(R.cam.yaw) * Math.cos(R.cam.pitch) });
   R.rayGround = function (world, maxD) {
@@ -298,7 +300,7 @@
     pf('mushroom', (t, m) => { cyl(t, m, 0.1, 0.08, 0.35, 5, hex('#e8e0c8')); sph(t, M(m, mT(0, 0.38, 0)), 0.3, 6, 3, hex('#c04040'), 0, 0.5); box(t, M(m, mT(0.1, 0.5, 0.08)), 0.08, 0.04, 0.08, hex('#fff')); box(t, M(m, mT(-0.12, 0.47, -0.05)), 0.07, 0.04, 0.07, hex('#fff')); cyl(t, M(m, mT(0.3, 0, 0.2)), 0.06, 0.05, 0.2, 5, hex('#e8e0c8')); sph(t, M(m, mT(0.3, 0.22, 0.2)), 0.16, 5, 3, hex('#d05050'), 0, 0.5); });
     pf('wheat', (t, m) => { for (let i = 0; i < 7; i++) { const g = M(m, mT((h2(i, 1) - .5) * 0.7, 0, (h2(i, 2) - .5) * 0.7), mRY(h2(i, 3) * 6)); blade(t, g, 0.05, 0.6 + h2(i, 4) * 0.3, hex('#c8b040'), 0, 0.1); box(t, M(g, mT(0.05, 0.7 + h2(i, 4) * 0.3, 0)), 0.07, 0.22, 0.07, hex('#e0c850')); } });
     pf('cactus', (t, m) => { const c = hex('#3a9a4a'); cyl(t, m, 0.16, 0.14, 1.1, 6, c); cyl(t, M(m, mT(0.28, 0.55, 0), mRZ(-1.3)), 0.09, 0.09, 0.3, 5, c); cyl(t, M(m, mT(0.42, 0.55, 0)), 0.09, 0.08, 0.35, 5, c); cyl(t, M(m, mT(-0.25, 0.4, 0), mRZ(1.3)), 0.08, 0.08, 0.28, 5, c); cyl(t, M(m, mT(-0.4, 0.4, 0)), 0.08, 0.07, 0.3, 5, c); box(t, M(m, mT(0, 1.15, 0)), 0.12, 0.12, 0.12, hex('#e05a9a')); });
-    pf('grass_tuft', (t, m) => { for (let i = 0; i < 6; i++) { const g = M(m, mT((h2(i, 5) - .5) * 0.6, 0, (h2(i, 6) - .5) * 0.6), mRY(h2(i, 7) * 6)); blade(t, g, 0.08, 0.35 + h2(i, 8) * 0.25, i % 2 ? hex('#7ab84a') : hex('#5c9a45'), 0, 0.12); } });
+    pf('grass_tuft', (t, m) => { const base = hex('#4f9a3c'), tip = hex('#a6e05a'); for (let i = 0; i < 7; i++) { const g = M(m, mT((h2(i, 5) - .5) * 0.7, 0, (h2(i, 6) - .5) * 0.7), mRY(h2(i, 7) * 6)); blade2(t, g, 0.1, 0.3 + h2(i, 8) * 0.3, base, i % 2 ? tip : sh(tip, 0.88), -1, 0.1 + h2(i, 9) * 0.08); } }); // bright tapered clump, lit like the ground
     pf('stub', (t, m) => { cyl(t, m, 0.14, 0.12, 0.2, 6, wood); });
     if (G.PROPS && G.PROPS.tree_a) { // KayKit nature props replace the procedural trees and rocks when baked
       const ore = (t, m, col, em, n, seedK) => { const collar = hex('#26222c'); for (let i = 0; i < n; i++) { const a = seedK + i * 1.9, r = 0.2 + (i % 3) * 0.09, h = 0.42 + (i % 3) * 0.14; const C = M(m, mT(Math.cos(a) * r, 0.12 + (i % 2) * 0.12, Math.sin(a) * r), mRY(a), mRX(0.3 + (i % 2) * 0.3)); cyl(t, C, 0.13 + (i % 2) * 0.03, 0.0, h, 5, col, em); cyl(t, M(C, mT(0, 0, 0)), 0.15 + (i % 2) * 0.03, 0.12, 0.08, 5, collar, 0); cyl(t, M(C, mT(0.1, 0.02, 0.07), mRZ(0.45)), 0.075, 0.0, h * 0.55, 5, sh(col, 1.2), em); cyl(t, M(C, mT(-0.08, 0.0, -0.06), mRZ(-0.4), mRX(0.2)), 0.06, 0.0, h * 0.42, 4, sh(col, 0.85), em); } };
@@ -485,7 +487,12 @@
 
   // ================= terrain & static object chunks =================
   // colour of a tile with its per-tile variation; corners blend the four surrounding tiles for a painterly, non-gridded ground
-  function tileCol(world, X, Y) { if (X < 0 || Y < 0 || X >= W || Y >= W) return [0.1, 0.25, 0.5]; const tile = world.tiles[Y * W + X]; const r = h2(X, Y); return sh(hex(G.TILE_INFO[tile].col), 0.92 + r * 0.16); }
+  const vn = (x, y) => { const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy); const a = h2(xi, yi), b = h2(xi + 1, yi), c = h2(xi, yi + 1), d = h2(xi + 1, yi + 1); return (a + (b - a) * u) * (1 - v) + (c + (d - c) * u) * v; };
+  function tileCol(world, X, Y) { if (X < 0 || Y < 0 || X >= W || Y >= W) return [0.1, 0.25, 0.5]; const tile = world.tiles[Y * W + X]; const r = h2(X, Y); let c = hex(G.TILE_INFO[tile].col);
+    if (tile === T.GRASS || tile === T.DARKGRASS) { // meadows are patchy: warm sunlit swathes and cooler dips instead of one flat green
+      const n = vn(X / 6.5 + 7, Y / 6.5 + 3), n2 = vn(X / 17 + 40, Y / 17); const warm = tile === T.GRASS ? [0.64, 0.8, 0.3] : [0.3, 0.52, 0.26]; const k = G.clamp((n - 0.5) * 1.6 + 0.5, 0, 1) * 0.55;
+      c = [c[0] + (warm[0] - c[0]) * k, c[1] + (warm[1] - c[1]) * k, c[2] + (warm[2] - c[2]) * k]; return sh(c, 0.9 + r * 0.08 + (n2 - 0.5) * 0.2); }
+    return sh(c, 0.92 + r * 0.16); }
   function cornerCol(world, X, Y) { const a = tileCol(world, X - 1, Y - 1), b = tileCol(world, X, Y - 1), c = tileCol(world, X - 1, Y), d = tileCol(world, X, Y); return [(a[0] + b[0] + c[0] + d[0]) / 4, (a[1] + b[1] + c[1] + d[1]) / 4, (a[2] + b[2] + c[2] + d[2]) / 4]; }
   function buildChunk(world, cxI, cyI) {
     const t = { arr: new Float32Array(CH * CH * 6 * VF), n: 0 }, w = { arr: new Float32Array(CH * CH * 6 * VF), n: 0 }, ob = { arr: new Float32Array(VF * 3 * 6000), n: 0 }, sb = { arr: new Float32Array(VF * 3 * 1200), n: 0 };
@@ -509,7 +516,10 @@
       const o = world.objs.get(Y * W + X);
       if (o) { staticObject(ob, world, o, X, Y); const d2 = O[o.t]; if (d2.solid && !d2.wall && !d2.floor) { const gz = R.groundZ(world, X + .5, Y + .5); cyl(sb, M(mT(X + .5, gz + 0.012, Y + .5)), d2.tall ? 0.75 : (d2.isChest ? 0.5 : 0.55), d2.tall ? 0.75 : 0.5, 0.005, 8, [0, 0, 0], 0); } }
       // grass tufts on open grass: cheap blades that make the ground read as lush instead of flat
-      if ((tile === T.GRASS || tile === T.DARKGRASS) && !o) { const n = tile === T.GRASS ? 2 : 3; for (let k = 0; k < n; k++) { const gx = X + 0.12 + h2(X * 3 + k, Y) * 0.76, gy = Y + 0.12 + h2(X, Y * 5 + k) * 0.76; const gz = R.groundZ(world, gx, gy); const g = M(mT(gx, gz, gy), mRY(h2(X + k, Y + 11) * 6.28)); const hv = h2(X, Y + k); const base = sh(own, 0.82), tip = sh(own, 1.28 + (k % 2) * 0.12 + hv * 0.1); blade2(ob, g, 0.1, 0.22 + hv * 0.3, base, tip, 0, 0.08 + hv * 0.06); blade2(ob, M(g, mRY(1.3), mT(0.04, 0, 0)), 0.08, 0.16 + h2(X + 1, Y + k) * 0.2, base, sh(tip, 0.92), 0, -0.07); } }
+      if ((tile === T.GRASS || tile === T.DARKGRASS) && !o) { const n = tile === T.GRASS ? 2 : 3; for (let k = 0; k < n; k++) { const gx = X + 0.12 + h2(X * 3 + k, Y) * 0.76, gy = Y + 0.12 + h2(X, Y * 5 + k) * 0.76; const gz = R.groundZ(world, gx, gy); const g = M(mT(gx, gz, gy), mRY(h2(X + k, Y + 11) * 6.28)); const hv = h2(X, Y + k); const base = sh(own, 0.82), tip = sh(own, 1.28 + (k % 2) * 0.12 + hv * 0.1); blade2(ob, g, 0.1, 0.22 + hv * 0.3, base, tip, -1, 0.08 + hv * 0.06); blade2(ob, M(g, mRY(1.3), mT(0.04, 0, 0)), 0.08, 0.16 + h2(X + 1, Y + k) * 0.2, base, sh(tip, 0.92), -1, -0.07); } }
+      if ((tile === T.GRASS || tile === T.DARKGRASS) && !o) { const dh = h2(X * 7 + 3, Y * 11 + 5); // flowers and pebbles dress the meadow (no collision, baked into the chunk)
+        if (dh < 0.07) { const fx = X + 0.2 + h2(X, Y + 21) * 0.6, fy = Y + 0.2 + h2(X + 21, Y) * 0.6, fz = R.groundZ(world, fx, fy); const fc = [hex('#ff5a7a'), hex('#ffd24a'), hex('#f4f4ff'), hex('#b07aff')][Math.floor(h2(X + 2, Y + 2) * 4)]; const g = M(mT(fx, fz, fy)); blade(ob, g, 0.04, 0.24, sh(own, 0.8), 0, 0.02); box(ob, M(g, mT(0.02, 0.26, 0)), 0.11, 0.05, 0.11, fc, 0.15, 0); box(ob, M(g, mT(0.02, 0.26, 0), mRY(0.78)), 0.11, 0.045, 0.11, sh(fc, 1.1), 0.15, 0); box(ob, M(g, mT(0.02, 0.29, 0)), 0.04, 0.03, 0.04, hex('#ffe680'), 0.3, 0); }
+        else if (dh > 0.955) { const px = X + 0.2 + h2(X, Y + 31) * 0.6, py = Y + 0.2 + h2(X + 31, Y) * 0.6, pz = R.groundZ(world, px, py); box(ob, M(mT(px, pz, py), mRY(h2(X, Y + 41) * 3)), 0.16, 0.08, 0.12, hex('#8a8e96'), 0, 0.03); box(ob, M(mT(px + 0.12, pz, py + 0.08), mRY(h2(X, Y + 43) * 3)), 0.09, 0.05, 0.08, hex('#a0a4ac'), 0, 0.02); } }
     }
     const mk = (src) => { const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, src.arr.subarray(0, src.n * VF), gl.STATIC_DRAW); return b; };
     return { vbo: mk(t), n: t.n, wvbo: mk(w), wn: w.n, obo: mk(ob), on: ob.n, sbo: mk(sb), sn: sb.n };
@@ -520,7 +530,9 @@
     const p = PF[name]; if (!p) return;
     const scale = d.tall ? 0.9 + h2(X, Y + 9) * 0.35 : 1;
     const m = M(mT(X + .5, gz - 0.02, Y + .5), mRY((d.built || d.altar || d.boat || d.isChest) ? 0 : rot), mS(scale));
-    inst(t, p, m);
+    const n0 = t.n; inst(t, p, m);
+    if (d.tall || name === 'berry_bush') { // no two trees the same green: tint the foliage per instance, leave the trunk alone
+      const k = 0.86 + h2(X + 13, Y + 17) * 0.26, kb = 0.92 + h2(X + 19, Y + 23) * 0.16; for (let i = n0; i < t.n; i++) { const o = i * VF; if (t.arr[o + 7] > t.arr[o + 6] * 1.2) { t.arr[o + 6] *= k * kb; t.arr[o + 7] *= k; t.arr[o + 8] *= k * (2 - kb); } } }
   }
   function chunk(world, cxI, cyI) { const k = cxI + ',' + cyI; return chunks[k] || (chunks[k] = buildChunk(world, cxI, cyI)); }
   function dropChunk(k) { const c = chunks[k]; if (!c) return; gl.deleteBuffer(c.vbo); gl.deleteBuffer(c.wvbo); gl.deleteBuffer(c.obo); gl.deleteBuffer(c.sbo); delete chunks[k]; }
@@ -558,7 +570,7 @@
       case 'dust': for (let i = 0; i < 6; i++) F.parts.push({ x: ev.x, y: ev.y, z: 0.1, vx: (Math.random() - .5) * 2, vy: (Math.random() - .5) * 2, vz: 1, c: [0.8, 0.75, 0.6], t: 0, life: 0.35, g: 2 }); break;
       case 'fire': F.parts.push({ x: ev.x + (Math.random() - .5) * 0.4, y: ev.y + (Math.random() - .5) * 0.4, z: 0.6, vx: 0, vy: 0, vz: 1.5, c: Math.random() < 0.5 ? [1, 0.42, 0.1] : [1, 0.82, 0.25], t: 0, life: 0.4, g: -3, e: 1 }); break;
       case 'shake': if ((!ev.id || ev.id === me) && (!G.Input.settings || G.Input.settings.shake)) R.shake = Math.max(R.shake, ev.v); break;
-      case 'hitstop': if (ev.to === me) R.hitstop = 0.05; break;
+      case 'hitstop': if (ev.to === me) { R.hitstop = 0.06; R.dip = 0.012; } break;
       case 'wobble': F.wobble[ev.i] = 0.25; break;
       case 'tell': R.tellFlash[ev.id] = 0.3; break;
       case 'bossin': R.banner = { txt: G.ENEMIES[ev.k].name, sub: 'NIGHT BOSS', t: 0 }; break;
@@ -578,7 +590,7 @@
     if (me && me.flash && R.kick < 0.02) R.kick = 0.035; R.kick = Math.max(0, R.kick - dt * 0.4);
     R.roll = 0; // dodging keeps the camera upright (no roll)
     const shx = (Math.random() - .5) * R.shake * 0.01, shy = (Math.random() - .5) * R.shake * 0.01;
-    const yaw = R.cam.yaw + shx, pitch = G.clamp(R.cam.pitch + shy - R.kick, -1.5, 1.5);
+    R.dip = Math.max(0, (R.dip || 0) - dt * 0.09); const yaw = R.cam.yaw + shx, pitch = G.clamp(R.cam.pitch + shy - R.kick - R.dip, -1.5, 1.5);
     const fx = Math.cos(yaw) * Math.cos(pitch), fz = Math.sin(pitch), fy = Math.sin(yaw) * Math.cos(pitch);
     const baseFov = (G.Input && G.Input.settings ? G.Input.settings.fov : 80); R.fovCur = G.lerp(R.fovCur || baseFov, baseFov + (L.sprinting ? 1.5 : 0), Math.min(1, dt * 8)); const fov = R.fovCur * Math.PI / 180;
     perspective(proj, fov, R.W / R.H, 0.05, 80);
@@ -732,7 +744,8 @@
     C[12] = R.cam.x; C[13] = R.cam.z; C[14] = R.cam.y;
     const bob = (L.bob || 0) * 0.5, sway = Math.sin((L.walkT || 0) * 0.5) * 0.006, idle = Math.sin(nowT * 1.5) * 0.004;
     const it = me.inv[me.held]; const d = it ? G.ITEMS[it.id] : null;
-    const prog = me.swing ? Math.min(1, me.swing.t / me.swing.dur) : 0; const sw = Math.sin(prog * Math.PI); const anim = me.swing ? (me.swing.anim || 'slash') : null; const combo = me.swing ? (me.swing.combo || 0) : 0;
+    let prog = me.swing ? Math.min(1, me.swing.t / me.swing.dur) : 0; if (me.swing && R.hitstop > 0 && R.frozenProg != null) prog = R.frozenProg; else R.frozenProg = me.swing ? prog : null; // hitstop: the hand freezes on the frame of impact
+    const sw = Math.sin(prog * Math.PI); const anim = me.swing ? (me.swing.anim || 'slash') : null; const combo = me.swing ? (me.swing.combo || 0) : 0;
     // first-person hands match the chosen character: gauntlets for the knight, bare arms for the barbarian, sleeves for the rest; a robot look if the robot rig is in use
     const big = d && d.big; const robot = false; const pc = hex(me.col);
     const skin = sh(pc, 1.08), sleeve = sh(pc, 0.72), wrist = sh(pc, 0.55);
@@ -744,7 +757,7 @@
     const rest = { x: 0.34 + sway, y: -0.36 + bob + idle, z: 0.78 };
     let punchL = 0; // left-hand punch amount (fists alternate)
     if (me.swing) {
-      const kind = !it ? 'punch' : (anim === 'chop' || anim === 'slam' || (d && d.type === 'tool')) ? 'chop' : anim;
+      const kind = (!it || !(d.type === 'weapon' || d.type === 'tool' || d.type === 'staff')) ? 'punch' : (anim === 'chop' || anim === 'slam' || d.type === 'tool') ? 'chop' : anim;
       if (kind === 'slash') {
         // u: -0.3 wound back, 0 rest, 1 end of the sweep, back to 0
         const u = prog < 0.18 ? -0.3 * ss(0, 0.18, prog) : prog < 0.42 ? -0.3 + 1.3 * outq((prog - 0.18) / 0.24) : 1 - ss(0.42, 1, prog);
@@ -757,15 +770,17 @@
         }
       } else if (kind === 'chop') {
         // raise over the shoulder, drive down fast, hold the bite for a beat, then ease back
-        let u; if (prog < 0.16) u = -ss(0, 0.16, prog); else if (prog < 0.32) u = -1 + 2 * outq((prog - 0.16) / 0.16); else if (prog < 0.5) u = 1 - Math.sin((prog - 0.32) / 0.18 * Math.PI) * 0.08; else u = 1 - ss(0.5, 1, prog);
-        if (u < 0) { const k = -u; hand = M(C, mT(rest.x - 0.04 * k, rest.y + 0.3 * k, rest.z - 0.2 * k), mRX(-0.15 - 0.9 * k), mRZ(-0.1 * k)); }
-        else hand = M(C, mT(rest.x - 0.12 * u, rest.y + 0.02 * u, rest.z + 0.08 * u), mRX(-0.15 + 0.8 * u), mRZ(0.1 * u));
+        // raise (0-0.14), a beat of anticipation at the top, slam (0.18-0.3, impact exactly at the sim's hit), recoil bounce, ease back
+        let u; if (prog < 0.14) u = -ss(0, 0.14, prog); else if (prog < 0.18) u = -1 - Math.sin((prog - 0.14) / 0.04 * Math.PI) * 0.06; else if (prog < 0.3) u = -1 + 2 * outq((prog - 0.18) / 0.12); else if (prog < 0.5) u = 1 - Math.sin((prog - 0.3) / 0.2 * Math.PI) * 0.22; else u = 1 - ss(0.5, 1, prog);
+        if (u < 0) { const k = -u; hand = M(C, mT(rest.x - 0.02 * k, rest.y + 0.32 * k, rest.z - 0.22 * k), mRX(-0.15 - 0.95 * k), mRY(0.2 * k), mRZ(-0.12 * k)); }
+        else hand = M(C, mT(rest.x - 0.14 * u, rest.y + 0.01 * u, rest.z + 0.1 * u), mRX(-0.15 + 0.85 * u), mRY(-0.22 * u), mRZ(0.12 * u));
       } else if (kind === 'thrust') {
         const u = prog < 0.15 ? -0.35 * ss(0, 0.15, prog) : prog < 0.34 ? -0.35 + 1.35 * outq((prog - 0.15) / 0.19) : 1 - ss(0.34, 1, prog);
         hand = M(C, mT(rest.x - 0.16 * Math.max(0, u), rest.y - 0.02 * u, rest.z + u * 0.36), mRX(-0.15 - Math.max(0, u) * 0.15), mRY(-0.15 - u * 0.15));
       } else { // punch: fists alternate hands
-        const u = prog < 0.12 ? -0.25 * ss(0, 0.12, prog) : prog < 0.3 ? -0.25 + 1.25 * outq((prog - 0.12) / 0.18) : 1 - ss(0.3, 1, prog);
-        if (combo % 2 === 1) punchL = u; else hand = M(C, mT(rest.x - 0.14 * Math.max(0, u), rest.y + 0.08 * Math.max(0, u), rest.z + u * 0.42), mRX(-0.15 - u * 0.6), mRY(-u * 0.35), mRZ(u * 0.25));
+        // pull back, drive the fist at the crosshair (impact at 0.3), snap back
+        const u = prog < 0.1 ? -0.3 * ss(0, 0.1, prog) : prog < 0.3 ? -0.3 + 1.3 * outq((prog - 0.1) / 0.2) : 1 - ss(0.3, 0.8, prog); const uf = Math.max(0, u);
+        if (combo % 2 === 1) punchL = u; else hand = M(C, mT(rest.x - 0.24 * uf + 0.06 * Math.min(0, u), rest.y + 0.14 * uf, rest.z + u * 0.5), mRX(-0.15 - uf * 0.4), mRY(-u * 0.5), mRZ(uf * 0.3));
       }
     }
     if (me.blocking) hand = M(C, mT(0.12, -0.2 + bob, 0.7), mRX(-0.1), mRY(-0.3));
@@ -785,7 +800,7 @@
       if (d.type === 'bow' && me.draw > 0) { const lh = M(C, mT(0.28 - Math.min(1, me.draw / d.draw) * 0.28, -0.22 + bob, 0.7)); sph(dyn, lh, 0.07, 6, 4, skin); box(dyn, M(lh, mT(0, -0.04, -0.15), mRX(0.2)), 0.09, 0.09, 0.3, sleeve, 0, 0); itemMesh(dyn, M(lh, mT(0, 0.02, 0.3), mRX(1.57)), 'arrow', false); }
       if (big && !me.blocking) { const lh = M(hand, mT(-0.06, 0.16, -0.02)); sph(dyn, lh, 0.07, 7, 4, skin); capsule(dyn, M(lh, mT(-0.3, -0.1, -0.22), mRX(1.2), mRY(0.9)), 0.05, 0.3, 7, sleeve); }
     }
-    if (!it || me.blocking) { const lh = M(C, mT(-0.36 - sway + 0.14 * Math.max(0, punchL), -0.38 + bob + idle + 0.08 * Math.max(0, punchL), 0.8 + punchL * 0.42), mRX(-0.15 - punchL * 0.6), mRY(punchL * 0.35), mRZ(-punchL * 0.25)); capsuleS(dyn, M(lh, mT(-0.03, -0.04, -0.34), mRX(1.47), mRY(0.12)), 0.05, 0.3, 9, sleeve); if (robot) { cyl(dyn, M(lh, mT(-0.01, -0.02, -0.12), mRX(1.47)), 0.075, 0.075, 0.06, 9, wrist); sphS(dyn, M(lh, mS(1.15, 0.9, 1.05)), 0.085, 9, 6, skin); box(dyn, M(lh, mT(0, 0.055, 0.02)), 0.1, 0.035, 0.09, hex('#2a2a30'), 0, 0); } else { cylS(dyn, M(lh, mT(-0.01, -0.03, -0.14), mRX(1.47)), 0.075, 0.068, 0.06, 9, wrist); sphS(dyn, M(lh, mS(1.15, 0.9, 1.2)), 0.09, 9, 6, skin); capsuleS(dyn, M(lh, mT(-0.075, 0.01, 0.03), mRZ(1.0), mRX(0.4)), 0.032, 0.08, 6, skin); } if (!it && me.swing) { /* punch: left/right alternate handled by hand pose above */ } }
+    if (!it || me.blocking) { const pl = Math.max(0, punchL); const lh = M(C, mT(-0.36 - sway + 0.24 * pl - 0.06 * Math.min(0, punchL), -0.38 + bob + idle + 0.14 * pl, 0.8 + punchL * 0.5), mRX(-0.15 - pl * 0.4), mRY(punchL * 0.5), mRZ(-pl * 0.3)); capsuleS(dyn, M(lh, mT(-0.03, -0.04, -0.34), mRX(1.47), mRY(0.12)), 0.05, 0.3, 9, sleeve); if (robot) { cyl(dyn, M(lh, mT(-0.01, -0.02, -0.12), mRX(1.47)), 0.075, 0.075, 0.06, 9, wrist); sphS(dyn, M(lh, mS(1.15, 0.9, 1.05)), 0.085, 9, 6, skin); box(dyn, M(lh, mT(0, 0.055, 0.02)), 0.1, 0.035, 0.09, hex('#2a2a30'), 0, 0); } else { cylS(dyn, M(lh, mT(-0.01, -0.03, -0.14), mRX(1.47)), 0.075, 0.068, 0.06, 9, wrist); sphS(dyn, M(lh, mS(1.15, 0.9, 1.2)), 0.09, 9, 6, skin); capsuleS(dyn, M(lh, mT(-0.075, 0.01, 0.03), mRZ(1.0), mRX(0.4)), 0.032, 0.08, 6, skin); } if (!it && me.swing) { /* punch: left/right alternate handled by hand pose above */ } }
   }
 
   // ================= glTF character models =================
@@ -1031,16 +1046,16 @@
     gl.bindBuffer(gl.ARRAY_BUFFER, dynBuf); gl.bufferData(gl.ARRAY_BUFFER, dyn.arr.subarray(0, dyn.n * VF), gl.DYNAMIC_DRAW); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, dyn.n);
     drawModels(); gl.useProgram(prog);
     if (post) drawPost();
-    if (ox) ox.clearRect(0, 0, R.W, R.H);
+    if (ox) { ox.setTransform(1, 0, 0, 1, 0, 0); ox.clearRect(0, 0, ov.width, ov.height); }
   };
   // ================= 2D overlay =================
   function drawOverlay(V, me, dt, L, darkness) {
-    const F = R.fx; const x = ox; x.clearRect(0, 0, R.W, R.H);
+    const F = R.fx; const x = ox; x.setTransform(R.DPR || 1, 0, 0, R.DPR || 1, 0, 0); x.clearRect(0, 0, R.VW, R.VH);
     for (let i = F.parts.length - 1; i >= 0; i--) { const p = F.parts[i]; p.t += dt; if (p.t > p.life) { F.parts.splice(i, 1); continue; } p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.vz -= (p.g || 0) * dt; }
     for (let i = F.floats.length - 1; i >= 0; i--) { const f = F.floats[i]; f.t += dt; f.z += dt * 0.8; if (f.t > 1.1) F.floats.splice(i, 1); }
     for (const e of V.enemies) {
       if (e.hidden) continue; const d = G.ENEMIES[e.t]; const gz = R.groundZ(V.world, e.x, e.y); const top = R.project(e.x, e.y, gz + (d.boss ? e.r * 3.0 : e.r * 3.0) + 0.3); if (!top) continue;
-      if (top.x < -20 || top.x > R.W + 20 || top.y < -20 || top.y > R.H + 20) continue;
+      if (top.x < -20 || top.x > R.VW + 20 || top.y < -20 || top.y > R.VH + 20) continue;
       const sc = G.clamp(14 / top.d, 0.5, 2.2);
       if (e.elite) { x.fillStyle = '#c060ff'; x.font = Math.round(9 * sc) + 'px monospace'; x.textAlign = 'center'; x.fillText('ELITE', top.x, top.y - 14 * sc); }
       if (!d.boss && e.hp < e.maxHp) { const w = 26 * sc; x.fillStyle = '#000'; x.fillRect(top.x - w / 2, top.y, w, 3 * sc); x.fillStyle = (e.pet || e.owner) ? '#60ff60' : '#e03030'; x.fillRect(top.x - w / 2, top.y, w * Math.max(0, e.hp / e.maxHp), 3 * sc); }
@@ -1060,27 +1075,27 @@
     for (let i = F.zaps.length - 1; i >= 0; i--) { const z = F.zaps[i]; z.t += dt; if (z.t > 0.15) { F.zaps.splice(i, 1); continue; } const a = R.project(z.x1, z.y1, R.groundZ(V.world, z.x1, z.y1) + 0.6), b = R.project(z.x2, z.y2, R.groundZ(V.world, z.x2, z.y2) + 0.6); if (!a || !b) continue; x.strokeStyle = '#a0d0ff'; x.lineWidth = 2; x.beginPath(); x.moveTo(a.x, a.y); x.lineTo((a.x + b.x) / 2 + (Math.random() - .5) * 12, (a.y + b.y) / 2 + (Math.random() - .5) * 12); x.lineTo(b.x, b.y); x.stroke(); }
     for (let i = F.slashes.length - 1; i >= 0; i--) { const s = F.slashes[i]; s.t += dt; if (s.t > 0.2) { F.slashes.splice(i, 1); continue; } ring(V, s.x + Math.cos(s.a) * s.r * 0.5, s.y + Math.sin(s.a) * s.r * 0.5, s.r * 0.5, '#ff6060', 1 - s.t / 0.2, 2); }
     for (let i = F.targets.length - 1; i >= 0; i--) { const t = F.targets[i]; t.t += dt; if (t.t > t.d) { F.targets.splice(i, 1); continue; } ring(V, t.x, t.y, t.r, '#ff5050', 0.9, 2); ring(V, t.x, t.y, t.r * (t.t / t.d), '#ff5050', 0.6, 2); }
-    for (let i = F.pings.length - 1; i >= 0; i--) { const p = F.pings[i]; p.t += dt; if (p.t > 5) { F.pings.splice(i, 1); continue; } const pt = R.project(p.x, p.y, R.groundZ(V.world, p.x, p.y) + 8.3); if (pt) { x.fillStyle = p.col; x.font = '12px monospace'; x.textAlign = 'center'; x.fillText(p.name + ' · ' + Math.round(G.dist(p.x, p.y, R.cam.x, R.cam.y)) + 'm', pt.x, pt.y); } }
+    for (let i = F.pings.length - 1; i >= 0; i--) { const p = F.pings[i]; p.t += dt; if (p.t > 5) { F.pings.splice(i, 1); continue; } const pt = R.project(p.x, p.y, R.groundZ(V.world, p.x, p.y) + 8.3); if (pt) { x.fillStyle = p.col; x.font = '12px system-ui, sans-serif'; x.textAlign = 'center'; x.fillText(p.name + ' · ' + Math.round(G.dist(p.x, p.y, R.cam.x, R.cam.y)) + 'm', pt.x, pt.y); } }
     for (const k in F.wobble) { F.wobble[k] -= dt; if (F.wobble[k] <= 0) delete F.wobble[k]; }
     for (const k in R.tellFlash) { R.tellFlash[k] -= dt; if (R.tellFlash[k] <= 0) delete R.tellFlash[k]; }
     // soft vignette
-    if (!post) { if (!R.vigG || R.vigK !== R.W * 7919 + R.H) { R.vigK = R.W * 7919 + R.H; const g = x.createRadialGradient(R.W / 2, R.H / 2, R.H * 0.45, R.W / 2, R.H / 2, R.H * 1.0); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.35)'); R.vigG = g; R.hurtG = null; } x.fillStyle = R.vigG; x.fillRect(0, 0, R.W, R.H); }
+    if (!post) { if (!R.vigG || R.vigK !== R.VW * 7919 + R.VH) { R.vigK = R.VW * 7919 + R.VH; const g = x.createRadialGradient(R.VW / 2, R.VH / 2, R.VH * 0.45, R.VW / 2, R.VH / 2, R.VH * 1.0); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.35)'); R.vigG = g; R.hurtG = null; } x.fillStyle = R.vigG; x.fillRect(0, 0, R.VW, R.VH); }
     // crosshair
-    const cx = R.W / 2, cy = R.H / 2; x.strokeStyle = 'rgba(255,255,255,0.9)'; x.lineWidth = 1.5; x.beginPath(); x.moveTo(cx - 8, cy); x.lineTo(cx - 3, cy); x.moveTo(cx + 3, cy); x.lineTo(cx + 8, cy); x.moveTo(cx, cy - 8); x.lineTo(cx, cy - 3); x.moveTo(cx, cy + 3); x.lineTo(cx, cy + 8); x.stroke();
-    if (L.lookingAt) { x.fillStyle = '#fff'; x.font = '12px monospace'; x.textAlign = 'center'; x.fillStyle = '#000'; x.fillText(L.lookingAt, cx + 1, cy + 25); x.fillStyle = '#fff'; x.fillText(L.lookingAt, cx, cy + 24); }
-    if (me && me.inv[me.held] && G.ITEMS[me.inv[me.held].id].type === 'bow') { x.fillStyle = '#fff'; x.font = '12px monospace'; x.textAlign = 'right'; x.fillText(G.Sim.count(me, 'arrow') + ' arrows', R.W - 12, R.H - 12); }
+    const cx = R.VW / 2, cy = R.VH / 2; x.strokeStyle = 'rgba(255,255,255,0.9)'; x.lineWidth = 1.5; x.beginPath(); x.moveTo(cx - 8, cy); x.lineTo(cx - 3, cy); x.moveTo(cx + 3, cy); x.lineTo(cx + 8, cy); x.moveTo(cx, cy - 8); x.lineTo(cx, cy - 3); x.moveTo(cx, cy + 3); x.lineTo(cx, cy + 8); x.stroke();
+    if (L.lookingAt) { x.fillStyle = '#fff'; x.font = 'bold 14px system-ui, sans-serif'; x.textAlign = 'center'; x.fillStyle = '#000'; x.fillText(L.lookingAt, cx + 1, cy + 25); x.fillStyle = '#fff'; x.fillText(L.lookingAt, cx, cy + 24); }
+    if (me && me.inv[me.held] && G.ITEMS[me.inv[me.held].id].type === 'bow') { x.fillStyle = '#fff'; x.font = '12px system-ui, sans-serif'; x.textAlign = 'right'; x.fillText(G.Sim.count(me, 'arrow') + ' arrows', R.VW - 12, R.VH - 12); }
     if (!me) R.hurtV = 0;
     if (me) {
       const hpF = me.hp / me.maxHp; if (me.flash) R.hurt = 0.35; R.hurt = Math.max(0, R.hurt - dt * 1.2);
       const v = Math.max(R.hurt, hpF < 0.3 ? (0.3 - hpF) * 2 * (0.6 + Math.sin(nowT * 6) * 0.3) : 0);
       R.hurtV = v;
-      if (v > 0 && !post) { if (!R.hurtG) { const g = x.createRadialGradient(cx, cy, R.H * 0.3, cx, cy, R.H * 0.8); g.addColorStop(0, 'rgba(180,0,0,0)'); g.addColorStop(1, 'rgba(180,0,0,1)'); R.hurtG = g; } x.globalAlpha = Math.min(0.8, v); x.fillStyle = R.hurtG; x.fillRect(0, 0, R.W, R.H); x.globalAlpha = 1; }
-      if (me.downed) { x.fillStyle = 'rgba(60,0,0,0.45)'; x.fillRect(0, 0, R.W, R.H); x.fillStyle = '#ff6060'; x.font = 'bold 24px monospace'; x.textAlign = 'center'; x.fillText('YOU ARE DOWN — ' + me.bleed + 's', cx, cy - 30); x.font = '13px monospace'; x.fillStyle = '#fff'; x.fillText('a teammate can revive you (hold E)', cx, cy - 10); }
-      if (me.dark && darkness > 0.8) { x.fillStyle = '#8080ff'; x.font = '13px monospace'; x.textAlign = 'center'; x.fillText('the dark bites… find light', cx, cy + 44); }
+      if (v > 0 && !post) { if (!R.hurtG) { const g = x.createRadialGradient(cx, cy, R.VH * 0.3, cx, cy, R.VH * 0.8); g.addColorStop(0, 'rgba(180,0,0,0)'); g.addColorStop(1, 'rgba(180,0,0,1)'); R.hurtG = g; } x.globalAlpha = Math.min(0.8, v); x.fillStyle = R.hurtG; x.fillRect(0, 0, R.VW, R.VH); x.globalAlpha = 1; }
+      if (me.downed) { x.fillStyle = 'rgba(60,0,0,0.45)'; x.fillRect(0, 0, R.VW, R.VH); x.fillStyle = '#ff6060'; x.font = 'bold 24px system-ui, sans-serif'; x.textAlign = 'center'; x.fillText('YOU ARE DOWN — ' + me.bleed + 's', cx, cy - 30); x.font = '13px system-ui, sans-serif'; x.fillStyle = '#fff'; x.fillText('a teammate can revive you (hold E)', cx, cy - 10); }
+      if (me.dark && darkness > 0.8) { x.fillStyle = '#8080ff'; x.font = '13px system-ui, sans-serif'; x.textAlign = 'center'; x.fillText('the dark bites… find light', cx, cy + 44); }
     }
-    if (R.banner) { R.banner.t += dt; const bt = R.banner.t; if (bt > 4) R.banner = null; else { const a = Math.min(1, bt * 3) * Math.min(1, (4 - bt)); x.globalAlpha = a; x.textAlign = 'center'; x.fillStyle = 'rgba(0,0,0,0.5)'; x.fillRect(0, R.H * 0.28, R.W, 62); x.font = 'bold 30px monospace'; x.fillStyle = R.banner.col || '#ff5050'; x.fillText(R.banner.txt, cx, R.H * 0.28 + 36); x.font = '12px monospace'; x.fillStyle = '#fff'; x.fillText(R.banner.sub, cx, R.H * 0.28 + 54); x.globalAlpha = 1; } }
+    if (R.banner) { R.banner.t += dt; const bt = R.banner.t; if (bt > 4) R.banner = null; else { const a = Math.min(1, bt * 3) * Math.min(1, (4 - bt)); x.globalAlpha = a; x.textAlign = 'center'; x.fillStyle = 'rgba(0,0,0,0.5)'; x.fillRect(0, R.VH * 0.28, R.VW, 62); x.font = 'bold 30px system-ui, sans-serif'; x.fillStyle = R.banner.col || '#ff5050'; x.fillText(R.banner.txt, cx, R.VH * 0.28 + 36); x.font = '12px system-ui, sans-serif'; x.fillStyle = '#fff'; x.fillText(R.banner.sub, cx, R.VH * 0.28 + 54); x.globalAlpha = 1; } }
     let by = 10;
-    for (const e of V.enemies) if (G.ENEMIES[e.t].boss) { const d = G.ENEMIES[e.t]; const w = Math.min(360, R.W - 60); const x0 = (R.W - w) / 2; x.fillStyle = '#000'; x.fillRect(x0 - 2, by - 2, w + 4, 12); x.fillStyle = '#601010'; x.fillRect(x0, by, w, 8); x.fillStyle = '#e03030'; x.fillRect(x0, by, w * Math.max(0, e.hp / e.maxHp), 8); x.fillStyle = '#fff'; x.font = '11px monospace'; x.textAlign = 'center'; x.fillText(d.name, R.W / 2, by + 22); by += 28; }
+    for (const e of V.enemies) if (G.ENEMIES[e.t].boss) { const d = G.ENEMIES[e.t]; const w = Math.min(360, R.VW - 60); const x0 = (R.VW - w) / 2; x.fillStyle = '#000'; x.fillRect(x0 - 2, by - 2, w + 4, 12); x.fillStyle = '#601010'; x.fillRect(x0, by, w, 8); x.fillStyle = '#e03030'; x.fillRect(x0, by, w * Math.max(0, e.hp / e.maxHp), 8); x.fillStyle = '#fff'; x.font = '11px system-ui, sans-serif'; x.textAlign = 'center'; x.fillText(d.name, R.VW / 2, by + 22); by += 28; }
   }
   function ring(V, wx, wy, r, col, alpha, lw) {
     const x = ox; x.strokeStyle = col; x.globalAlpha = alpha; x.lineWidth = lw; x.beginPath(); let first = true;

@@ -123,20 +123,27 @@ written version.
 First-person hands are stubby castaway arms in your player colour. Every attack has a wind-up, a snappy strike that lands exactly
 when the sim registers the hit (30% into the swing) and an eased recovery: swords sweep (horizontal → rising backhand → overhead
 finisher across the 3-hit combo), axes and picks chop over the shoulder, daggers and spears thrust, fists alternate left/right jabs.
-Tools are held with the head turned inward so the blade reads, weapons rest blade-forward. Items are modelled with wrapped hafts,
+Tools are held with the head turned inward so the blade reads, weapons rest blade-forward. Every connecting hit freezes the hand for a
+few frames (hitstop) and nods the camera a touch; the chop holds a beat at the top before slamming down and recoils off the bite. Gathering
+reach is generous and forgives aim (the swing samples a little to either side of the crosshair), tools swing at 2 per second, and the
+look-at label shows how many hits a resource has left. Items are modelled with wrapped hafts,
 bevelled axe heads, two-pronged picks, cylinder crossguards with knobs and pommels, and fullered blades.
 
 ### Terrain
 
 The island has rolling hills and valleys (a slope-limited relief layer on top of the biome height, so every rise is walkable
 without jumping), smooth-shaded grass and rock with crisp beaches, KayKit trees and rocks, and ore veins with glowing crystal
-clusters (bigger, brighter and collared so they read from across a clearing); grass is drawn as tapered two-tone blades. Movement follows Muck's feel (notes in `docs/MUCK_NOTES.md`): sprint is 1.8× walk, head bob is off by default (a whisper if
+clusters (bigger, brighter and collared so they read from across a clearing); grass is drawn as tapered two-tone blades that opt out of
+the outline pass, meadows are patchy (warm and cool swathes from smooth noise) and dressed with flowers and pebbles, and every tree's foliage
+is tinted a little differently. Movement follows Muck's feel (notes in `docs/MUCK_NOTES.md`): sprint is 1.8× walk, head bob is off by default (a whisper if
 enabled), the sprint field-of-view kick is 1.5°, landings dip softly, swinging barely slows you, base FOV is 80.
 
 ### Performance
 
-Rendering is one WebGL pass into an offscreen target plus a post pass (outlines, anti-aliasing, grading). **Auto quality** lowers the
-internal resolution when frames take too long and raises it again when there is headroom; the quality slider sets the ceiling. It re-evaluates
+Rendering is one WebGL pass into an offscreen target plus a post pass (outlines, anti-aliasing, grading). The 3D target renders at
+**device pixels** (the render-quality default is 100%; earlier builds rendered a 75% CSS-pixel buffer and upscaled it, which is what made
+everything look soft) and the HUD overlay is always drawn at full device resolution. **Auto quality** lowers the internal resolution when
+frames take too long and raises it again when there is headroom; the quality slider sets the ceiling. It re-evaluates
 only every six seconds and never drops below 60%, so the picture no longer visibly pumps between resolutions. The hurt and low-health
 vignettes are drawn in the post shader (the old per-frame canvas gradient was a real frame-time sink at low HP), the hit kick is a small
 pitch nudge and dodging no longer rolls the camera. Toon outlines fade out past ~10 m so distant grass stays green instead of turning

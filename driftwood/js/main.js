@@ -190,7 +190,7 @@
   }
   function lookingAt(V, me) {
     const w = V.world; const f = In.forward();
-    for (let s = 0.6; s <= 3.2; s += 0.4) { const x = me.x + f.x * s, y = me.y + f.y * s; const o = w.objs.get(G.idx(x, y)); if (o && !o.stub) { const d = G.OBJS[o.t]; let txt = d.name; if (d.tool && d.tool !== 'none' && d.tier > 1) txt += ' — needs ' + (d.tool === 'axe' ? 'axe' : 'pickaxe') + ' tier ' + d.tier + '+'; if (d.built && o.hp < d.hp) txt += ' (' + Math.ceil(o.hp) + '/' + d.hp + ')'; return txt; } }
+    for (let s = 0.6; s <= 3.2; s += 0.4) { const x = me.x + f.x * s, y = me.y + f.y * s; const o = w.objs.get(G.idx(x, y)); if (o && !o.stub) { const d = G.OBJS[o.t]; let txt = d.name; if (!d.built && d.hp && o.hp < d.hp) { const k = Math.max(1, Math.ceil(o.hp / d.hp * 5)); txt += '  ' + '■'.repeat(k) + '□'.repeat(5 - k); } if (d.tool && d.tool !== 'none' && d.tier > 1) txt += ' — needs ' + (d.tool === 'axe' ? 'axe' : 'pickaxe') + ' tier ' + d.tier + '+'; if (d.built && o.hp < d.hp) txt += ' (' + Math.ceil(o.hp) + '/' + d.hp + ')'; return txt; } }
     for (const e of V.enemies) { if (e.hidden) continue; const d = G.dist(me.x, me.y, e.x, e.y); if (d > 12) continue; const a = G.angleTo(me.x, me.y, e.x, e.y); if (Math.abs(G.angDiff(In.yaw, a)) < Math.atan2(e.r + 0.2, d)) return (e.elite ? 'ELITE ' : '') + G.ENEMIES[e.t].name + ' ' + Math.round(e.hp) + '/' + e.maxHp; }
     return '';
   }
