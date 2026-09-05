@@ -16,10 +16,10 @@
   });
 
   // ---------- lobby flows ----------
-  function makeHostSim(name, col, seed) {
+  function makeHostSim(name, col, seed, opts) {
     if (M.S) return;
     seed = seed || Math.random().toString(36).slice(2, 8).toUpperCase();
-    M.S = Sim.create(seed); M.me = 'host'; M.mode = 'host'; M.world = M.S.world;
+    M.S = Sim.create(seed, opts); M.me = 'host'; M.mode = 'host'; M.world = M.S.world;
     Sim.addPlayer(M.S, 'host', name, col, UI.cls, UI.loadMeta().up, UI.hat, UI.skin);
     updateLobbyPlayers();
   }
@@ -31,6 +31,8 @@
   };
   M.ensureHostForManual = function (name, col, seed) { makeHostSim(name, col, seed); Net.mode = 'host'; Net.id = 'host'; document.getElementById('hostinfo').classList.remove('hidden'); document.getElementById('seed').value = M.S.world.seed; };
   M.solo = function (name, col, seed) { makeHostSim(name, col, seed); M.startHostGame(); };
+  // tutorial run: a guaranteed clearing with a tree, rock and bush by the beach, the clock frozen until the first campfire, no spawns meanwhile
+  M.tutorialRun = function (name, col) { makeHostSim(name, col, 'LESSON', { tutorial: true }); M.startHostGame(); const m = UI.loadMeta(); m.tutorialOff = false; m.tutorialDone = false; UI.saveMeta(m); UI.tutMeta = null; UI.tutStep = 0; UI.tutLast = ''; UI.toast('Tutorial', 'Time stands still until you light a campfire. Follow the checklist on the left.', '#80ffd0'); };
   M.startHostGame = function () {
     if (!M.S || M.started) return; M.started = true; A.init(); A.resume();
     UI.enterGame(M.S.world.seed); Net.broadcast({ t: 'start' });
@@ -216,11 +218,12 @@
     }
     const V = M.V; const me = V.players[V.me];
     // local first-person motion: jump & head bob
-    if (M.jumpZ > 0 || M.vz > 0) { M.vz -= 12 * dt; const wasUp = M.jumpZ > 0; M.jumpZ = Math.max(0, M.jumpZ + M.vz * dt); if (M.jumpZ === 0) { if (wasUp) { M.land = 0.12; A.play('thud'); } M.vz = 0; } }
-    M.land = Math.max(0, (M.land || 0) - dt * 0.6);
+    if (M.jumpZ > 0 || M.vz > 0) { M.vz -= 12 * dt; const wasUp = M.jumpZ > 0; M.jumpZ = Math.max(0, M.jumpZ + M.vz * dt); if (M.jumpZ === 0) { if (wasUp) { M.land = 0.06; A.play('thud'); } M.vz = 0; } }
+    M.land = Math.max(0, (M.land || 0) - dt * 0.5);
     if (me && me.dodgeT && !M.dodging) { M.dodging = true; const f = In.forward(); M.dodgeDir = (In.is('left') || In.keys.ArrowLeft) ? -1 : (In.is('right') || In.keys.ArrowRight) ? 1 : (In.is('back') ? 0.5 : 0.3); } else if (me && !me.dodgeT) M.dodging = false;
     const moving = me && me.moving && !me.dead && !me.downed; const sprinting = moving && In.is('sprint') && me.stam > 0;
-    if (moving && M.jumpZ === 0) M.walkT += dt * (sprinting ? 13 : 9); M.bob = moving && M.jumpZ === 0 && In.settings.bob ? Math.sin(M.walkT) * 0.035 : G.lerp(M.bob, 0, dt * 8);
+    // head bob: gentle and eased in/out so sprinting reads as speed, not as bouncing
+    if (moving && M.jumpZ === 0) M.walkT += dt * (sprinting ? 9.5 : 7); const bobTarget = moving && M.jumpZ === 0 && In.settings.bob ? Math.sin(M.walkT) * (sprinting ? 0.016 : 0.012) : 0; M.bob = G.lerp(M.bob, bobTarget, Math.min(1, dt * 10));
     // build ghost
     let ghost = null;
     if (me && !me.dead) { const it = me.inv[me.held]; if (it && G.ITEMS[it.id].type === 'place') { const t = targetTile(); if (t) { const d = G.ITEMS[it.id]; const od = G.OBJS[d.obj]; const tt = G.tileAt(V.world, t.tx, t.ty); const ok = G.inWorld(t.tx, t.ty) && G.dist(me.x, me.y, t.tx + .5, t.ty + .5) <= 5.5 && !V.world.objs.has(G.idx(t.tx, t.ty)) && (od.floor ? (tt === G.T.WATER || tt === G.T.DEEP) : (tt > G.T.WATER && tt !== G.T.LAVA)); ghost = { obj: d.obj, tx: t.tx, ty: t.ty, ok }; } } }

@@ -109,10 +109,20 @@ by the host, so it is fair in multiplayer.
 
 ### Tutorial
 
+**Start tutorial run** (solo tab) drops you in a clearing with a tree, a rock, a berry bush and a coal vein a few steps from the
+beach. The clock stands still and nothing spawns until you light your first campfire, so you can learn at your pace. The checklist
+walks through gathering, the crafting screen (the recipe you need pulses green), tools, the workbench, fire, food and basic gear.
+
 New players get a checklist on the left of the HUD that follows their progress (move → wood → axe → workbench → fire → food →
 survive a night → gamble → guardian → ship) with the keys they actually have bound. It disappears once completed and can be toggled
 under Controls & settings. **How to play** in the lobby shows the same steps, the controls and the loop. `docs/TUTORIAL.md` is the
 written version.
+
+### Terrain
+
+The island has rolling hills and valleys (a slope-limited relief layer on top of the biome height, so every rise is walkable
+without jumping), smooth-shaded grass and rock with crisp beaches, KayKit trees and rocks, and ore veins with glowing crystal
+clusters. Movement is deliberately calm: light head bob, a small sprint field-of-view kick, soft landings.
 
 ### Performance
 

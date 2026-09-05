@@ -6,7 +6,7 @@
   const R = { cam: { x: 0, y: 0, z: 1, yaw: -Math.PI / 2, pitch: 0 }, shake: 0, hitstop: 0, fx: { parts: [], floats: [], booms: [], zaps: [], slashes: [], targets: [], pings: [], wobble: {}, corpses: [] }, banner: null, kick: 0, roll: 0, tellFlash: {}, W: 640, H: 360, hurt: 0 };
   G.Render = R;
   let gl, cv, ov, ox, mini, minx, miniBase = null, prog, skyProg, skyBuf;
-  const CH = 16, WATER_Y = 0.0, HSCALE = 4.2, EYE = 1.0;
+  const CH = 16, WATER_Y = 0.0, HSCALE = 6.5, EYE = 1.0;
   const VF = 10; // floats per vertex: pos3 nrm3 col3 em1
   const chunks = {}; // key -> { vbo, n, wvbo, wn, obo, on }
   let dynBuf = null, dyn = { arr: new Float32Array(VF * 3 * 60000), n: 0 };
@@ -17,10 +17,12 @@
   // ================= heights =================
   R.hAt = function (world, tx, ty) {
     if (tx < 0 || ty < 0 || tx >= W || ty >= W) return -0.6;
-    const h = world.height[ty * W + tx]; const t = world.tiles[ty * W + tx];
+    const i = ty * W + tx; const h = world.height[i]; const t = world.tiles[i];
     if (t <= T.WATER) return -0.6 + Math.max(0, h + 0.3) * 0.7;
-    return Math.max(0.15, (h - 0.02) * HSCALE * 0.6 + 0.15);
+    const r = world.relief ? world.relief[i] : h; return Math.max(0.15, (r - 0.02) * HSCALE * 0.6 + 0.15);
   };
+  // smooth terrain normal at a tile corner from the surrounding corner heights (central differences)
+  function cornerN(world, cx, cy) { const dx = (cornerH(world, cx + 1, cy) - cornerH(world, cx - 1, cy)) * 0.5, dy = (cornerH(world, cx, cy + 1) - cornerH(world, cx, cy - 1)) * 0.5; const l = Math.hypot(dx, 1, dy); return [-dx / l, 1 / l, -dy / l]; }
   function cornerH(world, cx, cy) { return (R.hAt(world, cx - 1, cy - 1) + R.hAt(world, cx, cy - 1) + R.hAt(world, cx - 1, cy) + R.hAt(world, cx, cy)) / 4; }
   R.groundZ = function (world, x, y) {
     if (!world) return 0;
@@ -44,10 +46,10 @@
     varying vec3 vCol; varying float vFog; varying vec3 vNrm; varying vec3 vPos; varying float vEm;
     void main(){ vec3 n = normalize(vNrm); if(!gl_FrontFacing) n = -n;
       vec3 L = uAmb * (0.7 + 0.3 * n.y);
-      float nd = max(0.0, dot(n, uSunDir)); float band = smoothstep(0.10, 0.18, nd) * 0.45 + smoothstep(0.48, 0.56, nd) * 0.55; L += uSunCol * band;
-      for(int i=0;i<10;i++){ if(i>=uNL) break; vec3 d = uLights[i].xyz - vPos; float dist = length(d); float a = clamp(1.0 - dist/uLights[i].w, 0.0, 1.0); float att = floor(a * a * 4.0 + 0.5) / 4.0; L += uLightCol[i] * att * 1.9 * max(0.3, dot(n, d/dist)); }
+      float nd = max(0.0, dot(n, uSunDir)); float band = smoothstep(0.02, 0.34, nd) * 0.5 + smoothstep(0.42, 0.78, nd) * 0.5; L += uSunCol * band;
+      for(int i=0;i<10;i++){ if(i>=uNL) break; vec3 d = uLights[i].xyz - vPos; float dist = length(d); float a = clamp(1.0 - dist/uLights[i].w, 0.0, 1.0); float att = floor(a * a * 6.0 + 0.5) / 6.0; L += uLightCol[i] * att * 1.9 * max(0.3, dot(n, d/dist)); }
       L = min(L, vec3(1.55));
-      vec3 vd = normalize(uCam - vPos); float rim = pow(1.0 - max(dot(n, vd), 0.0), 3.0) * 0.16;
+      vec3 vd = normalize(uCam - vPos); float rim = pow(1.0 - max(dot(n, vd), 0.0), 3.0) * 0.09;
       vec3 c = vCol * max(L, vec3(vEm)) + vCol * rim * (uSunCol * 0.5 + uAmb * 0.5);
       if(uWater > 0.5){ vec3 v = normalize(uCam - vPos); vec3 h = normalize(v + uSunDir); float sp = pow(max(dot(n, h), 0.0), 90.0); c += uSunCol * sp * 1.2; c += vec3(0.08,0.1,0.14) * pow(1.0 - max(dot(n, v), 0.0), 2.0); }
       c = mix(c, uFog, vFog);
@@ -66,11 +68,11 @@
     uniform vec4 uColor; uniform sampler2D uTex; uniform float uHasTex; uniform float uEm;
     varying vec3 vNrm; varying vec3 vPos; varying vec2 vUV; varying float vFog;
     void main(){ vec3 n = normalize(vNrm); if(!gl_FrontFacing) n = -n;
-      vec3 L = uAmb * (0.7 + 0.3 * n.y); float nd = max(0.0, dot(n, uSunDir)); float band = smoothstep(0.10, 0.18, nd) * 0.45 + smoothstep(0.48, 0.56, nd) * 0.55; L += uSunCol * band;
-      for(int i=0;i<10;i++){ if(i>=uNL) break; vec3 d = uLights[i].xyz - vPos; float dist = length(d); float a = clamp(1.0 - dist/uLights[i].w, 0.0, 1.0); float att = floor(a * a * 4.0 + 0.5) / 4.0; L += uLightCol[i] * att * 1.9 * max(0.3, dot(n, d/dist)); }
+      vec3 L = uAmb * (0.7 + 0.3 * n.y); float nd = max(0.0, dot(n, uSunDir)); float band = smoothstep(0.02, 0.34, nd) * 0.5 + smoothstep(0.42, 0.78, nd) * 0.5; L += uSunCol * band;
+      for(int i=0;i<10;i++){ if(i>=uNL) break; vec3 d = uLights[i].xyz - vPos; float dist = length(d); float a = clamp(1.0 - dist/uLights[i].w, 0.0, 1.0); float att = floor(a * a * 6.0 + 0.5) / 6.0; L += uLightCol[i] * att * 1.9 * max(0.3, dot(n, d/dist)); }
       L = min(L, vec3(1.55));
       vec3 base = uColor.rgb; if(uHasTex > 0.5) base *= texture2D(uTex, vUV).rgb;
-      vec3 vd = normalize(uCam - vPos); float rim = pow(1.0 - max(dot(n, vd), 0.0), 3.0) * 0.16;
+      vec3 vd = normalize(uCam - vPos); float rim = pow(1.0 - max(dot(n, vd), 0.0), 3.0) * 0.09;
       vec3 c = base * max(L, vec3(uEm)) + base * rim * (uSunCol * 0.5 + uAmb * 0.5); c = mix(c, uFog, vFog); gl_FragColor = vec4(c, uAlpha); }`;
   let mprog = null; const modelReqs = []; const animStates = {};
   // post pass: the scene is drawn to an offscreen colour+depth target, then outlined (depth discontinuities) and graded — the toon look
@@ -81,11 +83,11 @@
       if(uOutline > 0.5){ float d0 = lin(texture2D(uDepth, uv).r); vec2 o = uInvRes * uOutline;
         float e = max(max(lin(texture2D(uDepth, uv + vec2(o.x, 0.0)).r) - d0, lin(texture2D(uDepth, uv - vec2(o.x, 0.0)).r) - d0), max(lin(texture2D(uDepth, uv + vec2(0.0, o.y)).r) - d0, lin(texture2D(uDepth, uv - vec2(0.0, o.y)).r) - d0));
         float thr = 0.06 + d0 * 0.05; float edge = smoothstep(thr, thr * 2.0, e) * (1.0 - smoothstep(24.0, 48.0, d0));
-        c = mix(c, c * 0.14, edge * 0.92); if(uDebug > 0.5) c = vec3(edge, d0 / 40.0, 0.0); }
+        c = mix(c, c * 0.32, edge * 0.8); if(uDebug > 0.5) c = vec3(edge, d0 / 40.0, 0.0); }
       // FXAA-lite: blend towards the 4 diagonal neighbours where local luma contrast is high (softens polygon edges the FBO lost MSAA on)
       { vec2 o = uInvRes * 0.6; vec3 c1 = texture2D(uCol, uv + vec2(-o.x, -o.y)).rgb, c2 = texture2D(uCol, uv + vec2(o.x, -o.y)).rgb, c3 = texture2D(uCol, uv + vec2(-o.x, o.y)).rgb, c4 = texture2D(uCol, uv + vec2(o.x, o.y)).rgb;
         vec3 lw = vec3(0.299, 0.587, 0.114); float l0 = dot(c, lw), l1 = dot(c1, lw), l2 = dot(c2, lw), l3 = dot(c3, lw), l4 = dot(c4, lw); float lmin = min(l0, min(min(l1, l2), min(l3, l4))), lmax = max(l0, max(max(l1, l2), max(l3, l4)));
-        float k = smoothstep(0.06, 0.25, lmax - lmin); c = mix(c, (c + c1 + c2 + c3 + c4) * 0.2, k * 0.75); }
+        float k = smoothstep(0.05, 0.22, lmax - lmin); c = mix(c, (c + c1 + c2 + c3 + c4) * 0.2, k * 0.85); }
       float l = dot(c, vec3(0.299, 0.587, 0.114)); c = mix(vec3(l), c, uSat); c = (c - 0.5) * 1.06 + 0.5;
       float vig = smoothstep(0.55, 1.15, length((uv - 0.5) * vec2(1.25, 1.0)) * 1.6); c *= 1.0 - 0.38 * vig;
       gl_FragColor = vec4(c, 1.0); }`;
@@ -103,7 +105,7 @@
   function drawPost() {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND); gl.useProgram(postProg);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, post.col); gl.uniform1i(postProg.u.uCol, 0); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, post.dep); gl.uniform1i(postProg.u.uDepth, 1); gl.activeTexture(gl.TEXTURE0);
-    const S = G.Input && G.Input.settings ? G.Input.settings : {}; gl.uniform2f(postProg.u.uInvRes, 1 / R.W, 1 / R.H); gl.uniform1f(postProg.u.uNear, 0.05); gl.uniform1f(postProg.u.uFar, 80); gl.uniform1f(postProg.u.uOutline, S.toon === false ? 0 : (R.W > 1400 ? 1.8 : 1.3)); gl.uniform1f(postProg.u.uSat, 1.15); gl.uniform1f(postProg.u.uDebug, R.debugEdges ? 1 : 0);
+    const S = G.Input && G.Input.settings ? G.Input.settings : {}; gl.uniform2f(postProg.u.uInvRes, 1 / R.W, 1 / R.H); gl.uniform1f(postProg.u.uNear, 0.05); gl.uniform1f(postProg.u.uFar, 80); gl.uniform1f(postProg.u.uOutline, S.toon === false ? 0 : (R.W > 1400 ? 1.4 : 1.0)); gl.uniform1f(postProg.u.uSat, 1.1); gl.uniform1f(postProg.u.uDebug, R.debugEdges ? 1 : 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf); gl.enableVertexAttribArray(postProg.a.aP); gl.vertexAttribPointer(postProg.a.aP, 2, gl.FLOAT, false, 0, 0); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     // unbind the target textures or next frame's draws into the FBO would form a feedback loop and be dropped
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, null); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, null);
@@ -293,14 +295,14 @@
     pf('grass_tuft', (t, m) => { for (let i = 0; i < 6; i++) { const g = M(m, mT((h2(i, 5) - .5) * 0.6, 0, (h2(i, 6) - .5) * 0.6), mRY(h2(i, 7) * 6)); blade(t, g, 0.08, 0.35 + h2(i, 8) * 0.25, i % 2 ? hex('#7ab84a') : hex('#5c9a45'), 0, 0.12); } });
     pf('stub', (t, m) => { cyl(t, m, 0.14, 0.12, 0.2, 6, wood); });
     if (G.PROPS && G.PROPS.tree_a) { // KayKit nature props replace the procedural trees and rocks when baked
-      const ore = (t, m, col, em, n, seedK) => { for (let i = 0; i < n; i++) { const a = seedK + i * 1.9; box(t, M(m, mT(Math.cos(a) * 0.28, 0.12 + (i % 2) * 0.14, Math.sin(a) * 0.28), mRY(a)), 0.14, 0.14, 0.14, col, em, 0); } };
+      const ore = (t, m, col, em, n, seedK) => { for (let i = 0; i < n; i++) { const a = seedK + i * 1.9, r = 0.16 + (i % 3) * 0.08; const C = M(m, mT(Math.cos(a) * r, 0.1 + (i % 2) * 0.1, Math.sin(a) * r), mRY(a), mRX(0.35 + (i % 2) * 0.25)); cyl(t, C, 0.1 + (i % 2) * 0.03, 0.0, 0.34 + (i % 3) * 0.1, 5, col, em); cyl(t, M(C, mT(0.08, 0, 0.06), mRZ(0.4)), 0.06, 0.0, 0.2, 5, sh(col, 1.15), em); } };
       pf('tree', (t, m) => propMesh(t, M(m, mS(2.35)), 'tree_a', [0.7, 0.78, 0.78])); pf('tree2', (t, m) => propMesh(t, M(m, mRY(2.1), mS(2.25)), 'tree_b', [0.7, 0.78, 0.78]));
       pf('birch', (t, m) => propMesh(t, M(m, mRY(0.8), mS(2.4)), 'tree_b', [0.8, 0.86, 0.84]));
       pf('rock', (t, m) => propMesh(t, M(m, mS(2.9, 3.4, 2.9)), 'rock_c')); pf('stub', (t, m) => propMesh(t, M(m, mS(2.35)), 'stump_a'));
-      pf('coal_rock', (t, m) => { propMesh(t, M(m, mS(3.1, 3.6, 3.1)), 'rock_b', [0.8, 0.8, 0.82]); ore(t, m, hex('#1a1a1e'), 0, 3, 0.4); });
-      pf('iron_vein', (t, m) => { propMesh(t, M(m, mS(3.2, 3.8, 3.2)), 'rock_d', [0.95, 0.88, 0.85]); ore(t, m, hex('#b06a40'), 0, 4, 1.1); });
-      pf('gold_vein', (t, m) => { propMesh(t, M(m, mS(2.7, 3.6, 2.7)), 'rock_e'); ore(t, m, hex('#ffd24a'), 0.35, 4, 0.2); });
-      pf('obsidian_vein', (t, m) => { propMesh(t, M(m, mS(3.0, 3.8, 3.0)), 'rock_c', [0.45, 0.4, 0.6]); ore(t, m, hex('#a070ff'), 0.7, 3, 2.0); });
+      pf('coal_rock', (t, m) => { propMesh(t, M(m, mS(3.1, 3.6, 3.1)), 'rock_b', [0.8, 0.8, 0.82]); ore(t, m, hex('#23232a'), 0.05, 4, 0.4); });
+      pf('iron_vein', (t, m) => { propMesh(t, M(m, mS(3.2, 3.8, 3.2)), 'rock_d', [0.95, 0.88, 0.85]); ore(t, m, hex('#c8784a'), 0.1, 4, 1.1); });
+      pf('gold_vein', (t, m) => { propMesh(t, M(m, mS(2.7, 3.6, 2.7)), 'rock_e'); ore(t, m, hex('#ffd24a'), 0.55, 5, 0.2); });
+      pf('obsidian_vein', (t, m) => { propMesh(t, M(m, mS(3.0, 3.8, 3.0)), 'rock_c', [0.45, 0.4, 0.6]); ore(t, m, hex('#a070ff'), 0.85, 4, 2.0); });
     }
     const chest = (name, col) => pf(name, (t, m) => { const c = hex(col); box(t, M(m, mT(0, 0, 0)), 0.8, 0.45, 0.55, c, 0.05); box(t, M(m, mT(0, 0.45, 0)), 0.84, 0.2, 0.6, sh(c, 1.25), 0.05); box(t, M(m, mT(0, 0.32, 0.29)), 0.12, 0.16, 0.06, hex('#ffd24a'), 0.4); for (const x of [-0.3, 0.3]) box(t, M(m, mT(x, 0.3, 0)), 0.06, 0.66, 0.6, hex('#3a3030')); });
     chest('chest_c', '#8a6a3f'); chest('chest_u', '#3a9a4a'); chest('chest_r', '#b03030'); chest('chest_l', '#d0a020');
@@ -478,8 +480,11 @@
       const blend = (cc) => tile <= T.SAND || tile === T.LAVA ? own : [own[0] * 0.45 + cc[0] * 0.55, own[1] * 0.45 + cc[1] * 0.55, own[2] * 0.45 + cc[2] * 0.55];
       const c00 = blend(cornerCol(world, X, Y)), c10 = blend(cornerCol(world, X + 1, Y)), c01 = blend(cornerCol(world, X, Y + 1)), c11 = blend(cornerCol(world, X + 1, Y + 1));
       const a = [X, h00, Y], b = [X + 1, h10, Y], c = [X + 1, h11, Y + 1], d = [X, h01, Y + 1];
-      if ((X + Y) % 2) { tri3(t, I, a, c, b, c00, c11, c10, em); tri3(t, I, a, d, c, sh(c00, 0.97), sh(c01, 0.97), sh(c11, 0.97), em); }
-      else { tri3(t, I, a, d, b, c00, c01, c10, em); tri3(t, I, b, d, c, sh(c10, 0.97), sh(c01, 0.97), sh(c11, 0.97), em); }
+      const n00 = cornerN(world, X, Y), n10 = cornerN(world, X + 1, Y), n01 = cornerN(world, X, Y + 1), n11 = cornerN(world, X + 1, Y + 1);
+      const smooth = tile > T.SAND && tile !== T.LAVA; // beaches and lava keep crisp facets, grass and rock roll smoothly over hills
+      const put = (p, n, col) => vert(t, p, n, col, em);
+      if (!smooth) { if ((X + Y) % 2) { tri3(t, I, a, c, b, c00, c11, c10, em); tri3(t, I, a, d, c, sh(c00, 0.97), sh(c01, 0.97), sh(c11, 0.97), em); } else { tri3(t, I, a, d, b, c00, c01, c10, em); tri3(t, I, b, d, c, sh(c10, 0.97), sh(c01, 0.97), sh(c11, 0.97), em); } }
+      else { grow(t, 6); if ((X + Y) % 2) { put(a, n00, c00); put(c, n11, c11); put(b, n10, c10); put(a, n00, c00); put(d, n01, c01); put(c, n11, c11); } else { put(a, n00, c00); put(d, n01, c01); put(b, n10, c10); put(b, n10, c10); put(d, n01, c01); put(c, n11, c11); } }
       if (tile <= T.WATER) { const wc = tile === T.DEEP ? [0.12, 0.3, 0.6] : [0.22, 0.5, 0.8]; quad(w, I, [X, WATER_Y, Y], [X, WATER_Y, Y + 1], [X + 1, WATER_Y, Y + 1], [X + 1, WATER_Y, Y], wc, 0.05, [X + .5, -100, Y + .5]); }
       const o = world.objs.get(Y * W + X);
       if (o) { staticObject(ob, world, o, X, Y); const d2 = O[o.t]; if (d2.solid && !d2.wall && !d2.floor) { const gz = R.groundZ(world, X + .5, Y + .5); cyl(sb, M(mT(X + .5, gz + 0.012, Y + .5)), d2.tall ? 0.75 : (d2.isChest ? 0.5 : 0.55), d2.tall ? 0.75 : 0.5, 0.005, 8, [0, 0, 0], 0); } }
@@ -555,7 +560,7 @@
     const shx = (Math.random() - .5) * R.shake * 0.01, shy = (Math.random() - .5) * R.shake * 0.01;
     const yaw = R.cam.yaw + shx, pitch = G.clamp(R.cam.pitch + shy - R.kick, -1.5, 1.5);
     const fx = Math.cos(yaw) * Math.cos(pitch), fz = Math.sin(pitch), fy = Math.sin(yaw) * Math.cos(pitch);
-    const baseFov = (G.Input && G.Input.settings ? G.Input.settings.fov : 74); R.fovCur = G.lerp(R.fovCur || baseFov, baseFov + (L.sprinting ? 6 : 0), Math.min(1, dt * 6)); const fov = R.fovCur * Math.PI / 180;
+    const baseFov = (G.Input && G.Input.settings ? G.Input.settings.fov : 74); R.fovCur = G.lerp(R.fovCur || baseFov, baseFov + (L.sprinting ? 2.5 : 0), Math.min(1, dt * 4)); const fov = R.fovCur * Math.PI / 180;
     perspective(proj, fov, R.W / R.H, 0.05, 80);
     lookAt(view, R.cam.x, R.cam.z, R.cam.y, fx, fz, fy);
     if (Math.abs(R.roll) > 0.001) { const rz = mRZ(R.roll); view = mmul(rz, view); const b2 = camBasis; const r = b2.r, u = b2.u; const c = Math.cos(R.roll), sn = Math.sin(R.roll); camBasis = { r: [r[0] * c + u[0] * sn, r[1] * c + u[1] * sn, r[2] * c + u[2] * sn], u: [u[0] * c - r[0] * sn, u[1] * c - r[1] * sn, u[2] * c - r[2] * sn], f: b2.f }; }
@@ -705,7 +710,7 @@
     const b = camBasis; const C = m4();
     C[0] = b.r[0]; C[1] = b.r[1]; C[2] = b.r[2]; C[4] = b.u[0]; C[5] = b.u[1]; C[6] = b.u[2]; C[8] = b.f[0]; C[9] = b.f[1]; C[10] = b.f[2];
     C[12] = R.cam.x; C[13] = R.cam.z; C[14] = R.cam.y;
-    const bob = (L.bob || 0) * 0.6, sway = Math.sin((L.walkT || 0) * 0.5) * 0.012, idle = Math.sin(nowT * 1.5) * 0.006;
+    const bob = (L.bob || 0) * 0.5, sway = Math.sin((L.walkT || 0) * 0.5) * 0.006, idle = Math.sin(nowT * 1.5) * 0.004;
     const it = me.inv[me.held]; const d = it ? G.ITEMS[it.id] : null;
     const prog = me.swing ? Math.min(1, me.swing.t / me.swing.dur) : 0; const sw = Math.sin(prog * Math.PI); const anim = me.swing ? (me.swing.anim || 'slash') : null; const combo = me.swing ? (me.swing.combo || 0) : 0;
     // first-person hands match the chosen character: gauntlets for the knight, bare arms for the barbarian, sleeves for the rest; a robot look if the robot rig is in use

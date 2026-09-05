@@ -9,10 +9,10 @@
   const Sim = {};
   G.Sim = Sim;
 
-  Sim.create = function (seedStr) {
-    const world = G.generateWorld(seedStr);
+  Sim.create = function (seedStr, opts) {
+    const world = G.generateWorld(seedStr, opts);
     return {
-      world, time: 30, day: 1, elapsed: 0, phase: 'run', players: {}, enemies: [], projs: [], drops: [], puddles: [],
+      world, time: 30, day: 1, elapsed: 0, phase: 'run', players: {}, tutorial: !!(opts && opts.tutorial), tutHold: !!(opts && opts.tutorial), enemies: [], projs: [], drops: [], puddles: [],
       events: [], boat: { wood: 0, iron_bar: 0, rope: 0, emerald: 0, sapphire: 0, ruby: 0, done: false },
       siegeT: 0, bosses: {}, kills: 0, spawnT: 4, waves: {}, lights: [], lightT: 0, order: 0, stats: { kills: 0, chests: 0, deaths: 0, bosses: 0 }, nev: 'clear', nevDay: 0,
       msg: [],
@@ -451,6 +451,7 @@
     Sim.take(p, item, 1);
     const o = { t: d.obj, hp: od.hp }; if (od.door) o.closed = true;
     if (od.floor) { G.setObj(w, i, o); w.tiles[i] = T.WATER; Sim.ev(S, { t: 'tile', i, v: T.WATER }); } else G.setObj(w, i, o);
+    if (S.tutHold && d.obj === 'campfire') { S.tutHold = false; Sim.ev(S, { t: 'chat', sys: true, msg: 'The fire is lit — the day begins. Dusk comes in a few minutes; gather food and stay near the light tonight.' }); }
     if (od.light) Sim.rebuildLights(S);
     Sim.ev(S, { t: 'sfx', n: 'build', x: tx + .5, y: ty + .5 });
   };
@@ -722,6 +723,8 @@
     let tdt = dt;
     if (Sim.isNight(S)) { let n = 0; for (const id in S.players) n = Math.max(n, S.players[id].pw.sundial || 0); tdt = dt / (1 - Math.min(0.5, 0.12 * n)); if (S.nev === 'eclipse') tdt /= 1.4; }
     if (S.phase === 'run' && S.time >= G.DUSK_AT && S.nevDay !== S.day) Sim.pickNightEvent(S);
+    if (S.tutHold && S.elapsed > 480) S.tutHold = false;
+    if (S.tutHold) tdt = 0;
     if (S.phase === 'run') { S.time += tdt; if (S.time >= G.DAY_LEN) { S.time -= G.DAY_LEN; S.day++; S.waves = {}; S.nev = 'clear'; Sim.ev(S, { t: 'nev', id: 'clear' }); Sim.ev(S, { t: 'chat', sys: true, msg: 'Day ' + S.day + ' dawns.' }); for (const id in S.players) { const p = S.players[id]; if (p.dead) { p.dead = false; p.downed = false; p.hp = p.maxHp * 0.5; p.hunger = 60; p.x = S.world.spawn.x; p.y = S.world.spawn.y; p.inv = new Array(INV).fill(null); Sim.ev(S, { t: 'chat', sys: true, msg: p.name + ' washed back ashore.' }); } } } }
     else if (S.phase === 'siege') { S.time = Math.min(S.time + tdt, G.DAY_LEN - 1); S.siegeT -= dt; if (S.siegeT <= 0) { S.phase = 'final'; G.Enemies.spawnLeviathan(S); } }
     for (const id in S.players) updatePlayer(S, S.players[id], dt);

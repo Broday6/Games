@@ -312,6 +312,7 @@
   };
 
   Enemies.update = function (S, dt) {
+    if (S.tutHold) { for (const e of S.enemies) if (!e.dead && !e.owner) e.dead = true; S.enemies = S.enemies.filter(e => !e.dead); return; } // the tutorial clearing stays quiet until the first campfire
     const players = alivePlayers(S), night = S.day - 1, nPl = Math.max(1, Object.keys(S.players).length);
     const alive = S.enemies.filter(e => !e.dead && !e.owner && !e.boss).length;
     const cap = 30 + 8 * nPl;

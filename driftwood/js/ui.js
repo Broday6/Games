@@ -33,6 +33,7 @@
     $('btn-start').onclick = () => G.Main.startHostGame();
     $('btn-join').onclick = () => { const code = $('joincode').value.trim().toUpperCase(); if (code.length < 5) return UI.status('Enter the 5-letter room code.'); $('btn-join').disabled = true; G.Main.join(name(), UI.color, code); };
     $('btn-solo').onclick = () => G.Main.solo(name(), UI.color, $('seed2').value.trim());
+    $('btn-tut').onclick = () => G.Main.tutorialRun(name(), UI.color);
     $('copycode').onclick = () => { try { navigator.clipboard.writeText($('roomcode').textContent); UI.status('Code copied!'); } catch (e) { } };
     $('joincode').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-join').click(); });
     // manual signalling
@@ -122,6 +123,24 @@
   [...$('cas-tabs').children].forEach(b => b.onclick = () => { UI.casGame = b.dataset.g; [...$('cas-tabs').children].forEach(x => x.classList.toggle('sel', x === b)); UI.casRender(); });
   const betRow = (bets, key, onPick) => { const row = document.createElement('div'); row.className = 'bets'; const l = document.createElement('span'); l.className = 'small'; l.textContent = 'Bet:'; row.appendChild(l); if (UI.casBet[key] === undefined) UI.casBet[key] = bets[0]; bets.forEach(b => { const x = document.createElement('button'); x.textContent = b + ' ⬤'; x.className = UI.casBet[key] === b ? 'sel' : ''; x.onclick = () => { UI.casBet[key] = b; UI.casRender(); }; row.appendChild(x); }); return row; };
   const bigBtn = (txt, fn) => { const b = document.createElement('button'); b.className = 'bigbtn'; b.textContent = txt; b.onclick = fn; return b; };
+  // slot symbols drawn as little vector icons so the reels look like a machine, not a text field
+  const SYM_COL = { cherry: '#ff3b5c', bell: '#ffd24a', bar: '#3b8bff', star: '#7cf57c', skull: '#d8d8e8', seven: '#ff8a2a' };
+  UI.drawSym = function (x, id, cx, cy, s) {
+    x.save(); x.translate(cx, cy); x.lineWidth = s * 0.08; x.lineJoin = 'round'; x.strokeStyle = '#1a1020'; x.fillStyle = SYM_COL[id] || '#fff';
+    const circ = (px, py, r) => { x.beginPath(); x.arc(px, py, r, 0, Math.PI * 2); x.fill(); x.stroke(); };
+    if (id === 'cherry') { x.strokeStyle = '#2f8a3a'; x.lineWidth = s * 0.09; x.beginPath(); x.moveTo(-s * 0.2, s * 0.15); x.quadraticCurveTo(-s * 0.05, -s * 0.45, s * 0.25, -s * 0.4); x.moveTo(s * 0.2, s * 0.18); x.quadraticCurveTo(s * 0.15, -s * 0.3, s * 0.25, -s * 0.4); x.stroke(); x.strokeStyle = '#1a1020'; x.lineWidth = s * 0.07; circ(-s * 0.2, s * 0.22, s * 0.2); circ(s * 0.2, s * 0.25, s * 0.2); x.fillStyle = 'rgba(255,255,255,0.5)'; x.beginPath(); x.arc(-s * 0.26, s * 0.16, s * 0.05, 0, 7); x.fill(); }
+    else if (id === 'bell') { x.beginPath(); x.moveTo(-s * 0.32, s * 0.22); x.quadraticCurveTo(-s * 0.3, -s * 0.3, 0, -s * 0.36); x.quadraticCurveTo(s * 0.3, -s * 0.3, s * 0.32, s * 0.22); x.closePath(); x.fill(); x.stroke(); x.fillStyle = '#c99a1a'; circ(0, s * 0.32, s * 0.09); x.fillStyle = '#fff6c0'; x.beginPath(); x.arc(0, -s * 0.4, s * 0.07, 0, 7); x.fill(); }
+    else if (id === 'bar') { for (let k = -1; k <= 1; k++) { x.fillStyle = k ? '#2f6fd6' : '#3b8bff'; x.beginPath(); x.roundRect(-s * 0.4, k * s * 0.26 - s * 0.1, s * 0.8, s * 0.2, s * 0.05); x.fill(); x.stroke(); } x.fillStyle = '#fff'; x.font = 'bold ' + (s * 0.17) + 'px monospace'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('BAR', 0, s * 0.01); }
+    else if (id === 'star') { x.beginPath(); for (let k = 0; k < 10; k++) { const r = k % 2 ? s * 0.18 : s * 0.42, a = -Math.PI / 2 + k * Math.PI / 5; x.lineTo(Math.cos(a) * r, Math.sin(a) * r); } x.closePath(); x.fill(); x.stroke(); }
+    else if (id === 'skull') { x.beginPath(); x.arc(0, -s * 0.06, s * 0.3, 0, Math.PI * 2); x.fill(); x.stroke(); x.fillStyle = SYM_COL.skull; x.beginPath(); x.roundRect(-s * 0.18, s * 0.12, s * 0.36, s * 0.22, s * 0.05); x.fill(); x.stroke(); x.fillStyle = '#1a1020'; x.beginPath(); x.arc(-s * 0.12, -s * 0.08, s * 0.08, 0, 7); x.arc(s * 0.12, -s * 0.08, s * 0.08, 0, 7); x.fill(); x.fillRect(-s * 0.03, s * 0.06, s * 0.06, s * 0.08); for (const k of [-0.1, 0, 0.1]) x.fillRect(k * s - s * 0.02, s * 0.22, s * 0.04, s * 0.1); }
+    else if (id === 'seven') { x.font = 'bold ' + (s * 0.9) + 'px monospace'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.lineWidth = s * 0.1; x.strokeText('7', 0, s * 0.04); x.fillText('7', 0, s * 0.04); }
+    x.restore();
+  };
+  const SYM_ORDER = ['cherry', 'bell', 'bar', 'star', 'skull', 'seven'];
+  // a reel canvas shows one symbol; during a spin it scrolls a strip of symbols downward and eases onto the result
+  UI.reelDraw = function (cv, offset, ids) { const x = cv.getContext('2d'); const w = cv.width, h = cv.height; x.clearRect(0, 0, w, h); const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#d8d8e0'); g.addColorStop(0.5, '#ffffff'); g.addColorStop(1, '#d8d8e0'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+    const n = ids.length; for (let k = -1; k <= 1; k++) { const idx = ((Math.floor(offset) + k) % n + n) % n; const yy = h / 2 + (k - (offset - Math.floor(offset))) * h; UI.drawSym(x, ids[idx], w / 2, yy, w * 0.62); }
+    x.fillStyle = 'rgba(0,0,0,0.18)'; x.fillRect(0, 0, w, h * 0.12); x.fillRect(0, h * 0.88, w, h * 0.12); x.strokeStyle = 'rgba(255,210,74,0.9)'; x.lineWidth = 2; x.strokeRect(0, h * 0.28, w, h * 0.44); };
   const sym = (id) => (G.SLOT_SYMBOLS.find(s => s.id === id) || { ch: '?' }).ch;
   const DIE = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
   const WHEEL_COL = ['#c0c0c0', '#5aa0ff', '#d05aff', '#ffd24a', '#5aff8a', '#ff4060'];
@@ -131,7 +150,8 @@
     const rigRow = document.createElement('div'); rigRow.className = 'bets rigs'; const rl = document.createElement('span'); rl.className = 'small'; rl.textContent = 'Sketchy items:'; rigRow.appendChild(rl);
     C.rigs.forEach(r => { const b = document.createElement('button'); const have = me && me.rig && me.rig[r.id]; b.className = have ? 'sel' : ''; b.textContent = r.name + (have ? ' ✓' : ' · ' + r.cost + ' ⬤'); b.title = r.desc; b.disabled = !!have; b.onclick = () => casAct({ a: 'gamble', g: 'buy', item: r.id }); rigRow.appendChild(b); });
     if (g === 'slots') {
-      const reels = document.createElement('div'); reels.className = 'reels'; reels.id = 'reels'; for (let i = 0; i < 3; i++) { const r = document.createElement('div'); r.className = 'reel'; r.textContent = UI.casLast && UI.casLast.reels ? sym(UI.casLast.reels[i]) : ['🍒', '🔔', '7'][i]; reels.appendChild(r); } body.appendChild(reels);
+      const reels = document.createElement('div'); reels.className = 'reels'; reels.id = 'reels'; for (let i = 0; i < 3; i++) { const r = document.createElement('canvas'); r.className = 'reel'; r.width = 156; r.height = 156; const id = UI.casLast && UI.casLast.reels ? UI.casLast.reels[i] : ['cherry', 'bell', 'seven'][i]; UI.reelDraw(r, SYM_ORDER.indexOf(id), SYM_ORDER); reels.appendChild(r); } body.appendChild(reels);
+      const pay = document.createElement('div'); pay.className = 'paytable'; [['seven', '×20 + epic boon + hat'], ['star', '×6 + rare boon'], ['bell', '×6 + boon'], ['bar', '×6 + boon'], ['cherry', '×6 + boon'], ['skull', 'hex!']].forEach(([id, txt]) => { const c = document.createElement('canvas'); c.width = 44; c.height = 44; UI.drawSym(c.getContext('2d'), id, 22, 22, 30); const w = document.createElement('div'); w.appendChild(c); const t = document.createElement('span'); t.textContent = txt; w.appendChild(t); pay.appendChild(w); }); body.appendChild(pay);
       body.appendChild(betRow(C.slotsBets, 'slots')); body.appendChild(bigBtn('SPIN', () => casAct({ a: 'gamble', g: 'slots', bet: UI.casBet.slots })));
       const o = document.createElement('div'); o.className = 'odds'; o.innerHTML = 'Pair pays <b>×2</b> · two 7s <b>×4</b> · three of a kind <b>×6</b> (+ a boon) · <b>777</b> pays <b>×20</b>, an <b>epic boon</b> and a <b>hat</b> · skulls hex you (−15% damage for a while).'; body.appendChild(o);
     } else if (g === 'dice') {
@@ -165,7 +185,8 @@
     UI.casLast = ev; if (!UI.casOpen) { UI.casino(true); }
     const tab = ev.g; if (UI.casGame !== tab) { UI.casGame = tab; [...$('cas-tabs').children].forEach(x => x.classList.toggle('sel', x.dataset.g === tab)); }
     const done = () => { UI.casRender(); $('cas-coins').textContent = '⬤ ' + ev.coins; $('cas-log').textContent = ev.msg + (ev.win ? ' — +' + ev.win + ' coins' : '') + (ev.boon >= 0 ? ' — pick your boon!' : ''); if (ev.win > ev.bet) G.Audio.play('pw'); else if (ev.hex) G.Audio.play('hurt'); };
-    if (ev.g === 'slots') { UI.casRender(); const rs = $('reels'); if (!rs) return done(); [...rs.children].forEach(r => r.classList.add('spin')); let n = 0; const iv = setInterval(() => { n++; [...rs.children].forEach((r, i) => { if (n > 6 + i * 4) { r.classList.remove('spin'); r.textContent = sym(ev.reels[i]); } else r.textContent = sym(G.SLOT_SYMBOLS[Math.floor(Math.random() * G.SLOT_SYMBOLS.length)].id); }); if (n > 15) { clearInterval(iv); done(); } }, 90); $('cas-log').textContent = 'Spinning…'; return; }
+    if (ev.g === 'slots') { UI.casRender(); const rs = $('reels'); if (!rs) return done(); $('cas-log').textContent = 'Spinning…'; const t0 = performance.now(); const durs = [1100, 1500, 1900]; const targets = ev.reels.map(id => SYM_ORDER.indexOf(id)); const turns = [5, 7, 9]; let lastTick = 0;
+      const step = () => { const now = performance.now(); let all = true; [...rs.children].forEach((r, i) => { const k = Math.min(1, (now - t0) / durs[i]); const e = 1 - Math.pow(1 - k, 3); const off = e * (turns[i] * SYM_ORDER.length + targets[i]); UI.reelDraw(r, k >= 1 ? targets[i] : off, SYM_ORDER); if (k < 1) all = false; r.classList.toggle('lit', k >= 1); }); if (now - lastTick > 90 && !all) { lastTick = now; G.Audio.play('tick'); } if (!all) requestAnimationFrame(step); else { rs.classList.toggle('win', ev.win > 0); done(); } }; step(); return; }
     if (ev.g === 'wheel') { UI.casRender(); const cv = $('wheelcv'); if (!cv) return done(); const odds = G.CASINO.wheel[Math.max(0, G.CASINO.wheelBets.indexOf(ev.bet))]; let start = 0; for (let i = 0; i < ev.seg; i++) start += odds[i]; const mid = start + odds[ev.seg] / 2; const target = -Math.PI / 2 - mid * Math.PI * 2 - Math.PI * 2 * 4; const from = UI.casWheelAng || 0; const t0 = performance.now(); const dur = 2200; $('cas-log').textContent = 'The wheel spins…';
       const step = () => { const k = Math.min(1, (performance.now() - t0) / dur); const e = 1 - Math.pow(1 - k, 3); UI.casWheelAng = from + (target - from) * e; const c = $('wheelcv'); if (c) UI.drawWheel(c, odds, UI.casWheelAng); if (k < 1) requestAnimationFrame(step); else done(); }; step(); return; }
     done();
@@ -176,7 +197,7 @@
   UI.tutStep = 0; UI.tutLast = '';
   UI.tutorial = function (V) {
     const box = $('tutorial'); const me = V && V.players[V.me]; const meta = UI.tutMeta || (UI.tutMeta = UI.loadMeta());
-    if (!me || meta.tutorialOff || meta.tutorialDone) { box.classList.add('hidden'); return; }
+    UI.tutHidden = !me || meta.tutorialOff || meta.tutorialDone; if (UI.tutHidden) { box.classList.add('hidden'); return; }
     const T = G.TUTORIAL; while (UI.tutStep < T.length && T[UI.tutStep].done(V, me)) { UI.tutStep++; UI.tutLast = ''; if (UI.tutStep < T.length) UI.toast('Tutorial', 'Step done! Next: ' + T[UI.tutStep].txt.replace(/\{(\w+)\}/g, (m, k) => keyName((G.Input.binds || {})[k] || k)).slice(0, 90), '#80ffd0'); }
     if (UI.tutStep >= T.length) { meta.tutorialDone = true; UI.saveMeta(meta); UI.toast('Tutorial complete', 'You know everything you need. Good luck out there.', '#80ffd0'); box.classList.add('hidden'); return; }
     const key = UI.tutStep + ':' + JSON.stringify(G.Input.binds || {}); if (key === UI.tutLast) return; UI.tutLast = key; box.classList.remove('hidden');
@@ -313,7 +334,7 @@
   };
   UI.refreshCraft = function (rebuild) {
     const V = G.Main.view(); const me = V && V.players[V.me]; if (!me) return;
-    const list = $('craftlist');
+    const list = $('craftlist'); const hl = (G.TUTORIAL[UI.tutStep] && !UI.tutHidden && G.TUTORIAL[UI.tutStep].hl) || [];
     const S = G.Main.simForUI();
     if (rebuild || !list.children.length) {
       list.innerHTML = '';
@@ -327,5 +348,6 @@
       });
     }
     [...list.children].forEach(d => { const r = G.RECIPES[+d.dataset.r]; const ok = G.Sim.canCraft(S, me, r); d.classList.toggle('no', !ok); d.querySelectorAll('[data-k]').forEach(sp => { const k = sp.dataset.k; sp.style.color = G.Sim.count(me, k) >= r.needs[k] ? '' : '#ff8080'; }); });
+    for (const d of list.children) { const r = G.RECIPES[d.dataset.r]; d.classList.toggle('tut', !!r && hl.includes(r.out)); }
   };
 })(window.G);

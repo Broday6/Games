@@ -3,7 +3,8 @@
   'use strict';
   const T = G.T, W = G.WORLD;
 
-  function generate(seedStr) {
+  function generate(seedStr, opts) {
+    opts = opts || {};
     const seed = G.hashStr(String(seedStr));
     const rng = G.RNG(seed);
     const nz = G.makeNoise(seed ^ 0x9e3779b9);
@@ -61,6 +62,10 @@
       }
     }
 
+    // --- relief: hills and valleys for the renderer (tiles/biomes use the base height). Slope-limited so nothing is a wall.
+    const relief = new Float32Array(W * W);
+    for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) { const i = y * W + x; const h = height[i]; const land = Math.max(0, Math.min(1, (h - 0.1) / 0.12)); const hill = (nz2.fbm(x / 36 + 7, y / 36 + 3, 3, 2, 0.5) - 0.5) * 0.5 + (nz.fbm(x / 12 + 40, y / 12, 2, 2, 0.5) - 0.5) * 0.08; relief[i] = tiles[i] > T.WATER ? Math.max(0.115, h + hill * land) : h; }
+    const MAXD = 0.07; for (let pass = 0; pass < 4; pass++) for (let y = 1; y < W - 1; y++) for (let x = 1; x < W - 1; x++) { const i = y * W + x; if (tiles[i] <= T.WATER) continue; for (const j of [i - 1, i + 1, i - W, i + W]) { if (tiles[j] <= T.WATER) { relief[i] = Math.min(relief[i], 0.115 + MAXD * 1.5); continue; } if (relief[i] - relief[j] > MAXD) relief[i] = relief[j] + MAXD; } }
     // --- main landmass: label connected land (4-neighbours); everything important goes on the largest piece ---
     const comp = new Int32Array(W * W).fill(-1); const compSize = []; { const q = new Int32Array(W * W);
       for (let s0 = 0; s0 < W * W; s0++) { if (comp[s0] >= 0 || tiles[s0] <= T.WATER) continue; const id = compSize.length; let head = 0, tail = 0; q[tail++] = s0; comp[s0] = id; let n = 0;
@@ -159,7 +164,10 @@
     // starter supplies near spawn
     for (let k = 0; k < 4; k++) { const j = (by - 2 - rng.int(2)) * W + Math.floor(spawn.x) - 3 + k * 2; if (tiles[j] > T.SAND && !objs.has(j)) setObj(j, k < 2 ? 'tree' : 'rock'); }
 
-    return { seed: String(seedStr), tiles, biome, height, objs, spawn, boat: { x: bx + 0.5, y: by + 0.5, idx: bi }, altars, casinos, changes: new Map() };
+    // tutorial clearing: a tree, a rock, a berry bush and a coal rock a few steps from the beach so every lesson has its material at hand
+    if (opts.tutorial) { const sx = Math.floor(spawn.x); let y0 = Math.floor(spawn.y) - 1; while (y0 > 4 && tiles[y0 * W + sx] <= T.SAND) y0--; // first grass row north of the beach
+      for (const [dx, dy, t] of [[-2, -1, 'tree'], [2, -1, 'rock'], [0, -2, 'berry_bush'], [3, -3, 'coal_rock'], [-3, -4, 'tree'], [1, -5, 'rock'], [-1, -3, 'grass_tuft']]) { const x = sx + dx, y = y0 + dy; const j = y * W + x; if (x > 1 && y > 1 && x < W - 2 && y < W - 2 && tiles[j] > T.WATER && tiles[j] !== T.LAVA) { for (const k of [j - 1, j + 1, j - W, j + W]) objs.delete(k); setObj(j, t); } } }
+    return { seed: String(seedStr), tiles, biome, height, relief, objs, spawn, boat: { x: bx + 0.5, y: by + 0.5, idx: bi }, altars, casinos, tutorial: !!opts.tutorial, changes: new Map() };
   }
   G.generateWorld = generate;
 

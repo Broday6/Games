@@ -340,10 +340,13 @@
   // tutorial steps: text shown to new players, key names are filled from the current binds, done() checks the client view
   G.TUTORIAL = [
     { id: 'move', txt: 'Look around with the mouse. Walk with {forward}{left}{back}{right}, sprint with {sprint}, jump with {jump}.', done: (V, me) => G.dist(me.x, me.y, V.world.spawn.x, V.world.spawn.y) > 4 },
-    { id: 'wood', txt: 'Punch a tree (LMB) until it drops wood and sticks. Walk over drops to pick them up.', done: (V, me) => me.inv.some(s => s && s.id === 'wood') },
-    { id: 'axe', txt: 'Open crafting with {inventory} and make a Stone Axe (punch a rock for stone first).', done: (V, me) => me.inv.some(s => s && /^axe_/.test(s.id)) || me.inv.some(s => s && /^pick_/.test(s.id)) },
-    { id: 'bench', txt: 'Craft a Workbench and place it: select it on the hotbar (1–9) and click where you look. It unlocks better recipes.', done: (V) => [...V.world.objs.values()].some(o => o.t === 'workbench') },
-    { id: 'fire', txt: 'Before dusk craft a Campfire (light keeps monsters away) and a Torch to carry.', done: (V) => [...V.world.objs.values()].some(o => o.t === 'campfire') },
+    { id: 'wood', txt: 'Punch a tree (LMB) until it drops wood and sticks. Walk over drops to pick them up. You need 3 wood.', done: (V, me) => me.inv.some(s => s && s.id === 'wood' && s.n >= 3) },
+    { id: 'stone', txt: 'Punch a rock the same way for stone (2 is enough).', done: (V, me) => me.inv.some(s => s && s.id === 'stone') },
+    { id: 'axe', txt: 'Open crafting with {inventory}. Bright recipes are ready to make — click the highlighted Stone Axe. Hover a recipe to see what it needs.', hl: ['axe_stone'], done: (V, me) => me.inv.some(s => s && /^axe_/.test(s.id)) },
+    { id: 'pick', txt: 'Craft a Stone Pickaxe too — tools harvest much faster, and pickaxes open ore veins.', hl: ['pick_stone'], done: (V, me) => me.inv.some(s => s && /^pick_/.test(s.id)) },
+    { id: 'bench', txt: 'Craft a Workbench, put it on your hotbar (1–9), select it and click where you look to place it. Stand near it for better recipes.', hl: ['workbench'], done: (V) => [...V.world.objs.values()].some(o => o.t === 'workbench') },
+    { id: 'fire', txt: 'Light keeps monsters away: craft a Campfire and place it, then a Torch to carry. The clock starts when the fire is lit.', hl: ['campfire', 'torch_hand', 'torch'], done: (V) => [...V.world.objs.values()].some(o => o.t === 'campfire') },
+    { id: 'gear', txt: 'Gear up at the workbench: craft a Wooden Sword and a Wooden Shield (hold RMB to block). Leather armour comes later from wolf pelts — right-click armour in the inventory to equip it.', hl: ['sword_wood', 'sword_stone', 'shield_wood'], done: (V, me) => me.inv.some(s => s && (/^sword_/.test(s.id) || s.id === 'shield_wood')) },
     { id: 'food', txt: 'Grab berries from bushes and eat with {eat} when the Food bar drops.', done: (V, me) => me.inv.some(s => s && G.ITEMS[s.id] && G.ITEMS[s.id].type === 'food') },
     { id: 'night', txt: 'Survive the night near your fire. Kill what comes for XP, coins and boons.', done: (V) => V.day >= 2 },
     { id: 'casino', txt: "Find a Dealer's Table (by the wreck) and gamble coins for boons, hats and sketchy items.", done: (V, me) => (me.gambles || 0) > 0 },
