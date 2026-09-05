@@ -164,7 +164,7 @@
     const c = M.snapCur; if (!c || !M.pred) return; const me = c.players[M.me]; if (!me || me.dead || me.downed || me.dodgeT) return;
     const inp = In.packet(M.pred.x, M.pred.y); const l = Math.hypot(inp.ax, inp.ay); if (!l) return;
     const st = Sim.stats(me); let spd = st.speed * G.tileSpeed(M.world, M.pred.x, M.pred.y);
-    if (inp.sprint && me.stam > 0 && !me.blocking && !me.draw) spd *= 1.5; if (me.blocking) spd *= 0.5; if (me.draw > 0) spd *= 0.6; if (me.swing) spd *= 0.75;
+    if (inp.sprint && me.stam > 0 && !me.blocking && !me.draw) spd *= 1.8; if (me.blocking) spd *= 0.5; if (me.draw > 0) spd *= 0.6; if (me.swing) spd *= 0.9;
     G.moveCircle(M.world, M.pred, inp.ax * spd * dt, inp.ay * spd * dt, 0.3, false);
   }
 
@@ -223,7 +223,7 @@
     if (me && me.dodgeT && !M.dodging) { M.dodging = true; const f = In.forward(); M.dodgeDir = (In.is('left') || In.keys.ArrowLeft) ? -1 : (In.is('right') || In.keys.ArrowRight) ? 1 : (In.is('back') ? 0.5 : 0.3); } else if (me && !me.dodgeT) M.dodging = false;
     const moving = me && me.moving && !me.dead && !me.downed; const sprinting = moving && In.is('sprint') && me.stam > 0;
     // head bob: gentle and eased in/out so sprinting reads as speed, not as bouncing
-    if (moving && M.jumpZ === 0) M.walkT += dt * (sprinting ? 9.5 : 7); const bobTarget = moving && M.jumpZ === 0 && In.settings.bob ? Math.sin(M.walkT) * (sprinting ? 0.016 : 0.012) : 0; M.bob = G.lerp(M.bob, bobTarget, Math.min(1, dt * 10));
+    if (moving && M.jumpZ === 0) M.walkT += dt * (sprinting ? 9.5 : 7); const bobTarget = moving && M.jumpZ === 0 && In.settings.bob ? Math.sin(M.walkT) * (sprinting ? 0.007 : 0.005) : 0; M.bob = G.lerp(M.bob, bobTarget, Math.min(1, dt * 10));
     // build ghost
     let ghost = null;
     if (me && !me.dead) { const it = me.inv[me.held]; if (it && G.ITEMS[it.id].type === 'place') { const t = targetTile(); if (t) { const d = G.ITEMS[it.id]; const od = G.OBJS[d.obj]; const tt = G.tileAt(V.world, t.tx, t.ty); const ok = G.inWorld(t.tx, t.ty) && G.dist(me.x, me.y, t.tx + .5, t.ty + .5) <= 5.5 && !V.world.objs.has(G.idx(t.tx, t.ty)) && (od.floor ? (tt === G.T.WATER || tt === G.T.DEEP) : (tt > G.T.WATER && tt !== G.T.LAVA)); ghost = { obj: d.obj, tx: t.tx, ty: t.ty, ok }; } } }

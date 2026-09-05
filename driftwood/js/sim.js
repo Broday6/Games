@@ -553,9 +553,9 @@
     p.moving = l > 0.1;
     let spd = st.speed * G.tileSpeed(w, p.x, p.y) * (p.slow > 0 ? 0.6 : 1);
     const sprinting = p.in.sprint && p.moving && p.stam > 0 && !p.blocking && p.draw <= 0;
-    if (sprinting) { spd *= 1.5; p.stam -= st.sprintCost * dt; }
+    if (sprinting) { spd *= 1.8; p.stam -= st.sprintCost * dt; }
     else p.stam = Math.min(100, p.stam + st.stamRegen * dt * (p.swing ? 0.3 : 1));
-    if (p.blocking) spd *= 0.5; if (p.draw > 0) spd *= 0.6; if (p.swing) spd *= 0.75; if (p.charge > 0) spd *= 0.55;
+    if (p.blocking) spd *= 0.5; if (p.draw > 0) spd *= 0.6; if (p.swing) spd *= 0.9; if (p.charge > 0) spd *= 0.55;
     if (p.dodgeT > 0) { p.dodgeT -= dt; G.moveCircle(w, p, p.dodgeDx * 11 * dt, p.dodgeDy * 11 * dt, 0.3, false); }
     else if (p.moving) { G.moveCircle(w, p, ax * spd * dt, ay * spd * dt, 0.3, false); p.sitting = false; p.emote = 0; }
     if (p.emote > 0) p.emote -= dt;

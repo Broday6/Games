@@ -560,7 +560,7 @@
     const shx = (Math.random() - .5) * R.shake * 0.01, shy = (Math.random() - .5) * R.shake * 0.01;
     const yaw = R.cam.yaw + shx, pitch = G.clamp(R.cam.pitch + shy - R.kick, -1.5, 1.5);
     const fx = Math.cos(yaw) * Math.cos(pitch), fz = Math.sin(pitch), fy = Math.sin(yaw) * Math.cos(pitch);
-    const baseFov = (G.Input && G.Input.settings ? G.Input.settings.fov : 74); R.fovCur = G.lerp(R.fovCur || baseFov, baseFov + (L.sprinting ? 2.5 : 0), Math.min(1, dt * 4)); const fov = R.fovCur * Math.PI / 180;
+    const baseFov = (G.Input && G.Input.settings ? G.Input.settings.fov : 80); R.fovCur = G.lerp(R.fovCur || baseFov, baseFov + (L.sprinting ? 1.5 : 0), Math.min(1, dt * 8)); const fov = R.fovCur * Math.PI / 180;
     perspective(proj, fov, R.W / R.H, 0.05, 80);
     lookAt(view, R.cam.x, R.cam.z, R.cam.y, fx, fz, fy);
     if (Math.abs(R.roll) > 0.001) { const rz = mRZ(R.roll); view = mmul(rz, view); const b2 = camBasis; const r = b2.r, u = b2.u; const c = Math.cos(R.roll), sn = Math.sin(R.roll); camBasis = { r: [r[0] * c + u[0] * sn, r[1] * c + u[1] * sn, r[2] * c + u[2] * sn], u: [u[0] * c - r[0] * sn, u[1] * c - r[1] * sn, u[2] * c - r[2] * sn], f: b2.f }; }

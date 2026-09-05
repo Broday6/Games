@@ -122,7 +122,8 @@ written version.
 
 The island has rolling hills and valleys (a slope-limited relief layer on top of the biome height, so every rise is walkable
 without jumping), smooth-shaded grass and rock with crisp beaches, KayKit trees and rocks, and ore veins with glowing crystal
-clusters. Movement is deliberately calm: light head bob, a small sprint field-of-view kick, soft landings.
+clusters. Movement follows Muck's feel (notes in `docs/MUCK_NOTES.md`): sprint is 1.8× walk, head bob is off by default (a whisper if
+enabled), the sprint field-of-view kick is 1.5°, landings dip softly, swinging barely slows you, base FOV is 80.
 
 ### Performance
 
