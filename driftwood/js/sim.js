@@ -331,6 +331,9 @@
       case 'sail': if (S.boat.done && S.phase === 'run') Sim.startSiege(S); break;
       case 'gamble': Sim.gamble(S, p, a); break;
       case 'sit': p.sitting = !!a.v; break;
+      case 'sort': { const rest = p.inv.slice(HOTBAR).filter(Boolean); const merged = []; for (const s of rest) { const m = merged.find(x => x.id === s.id && !x.aff && !s.aff && x.n < G.STACK(s.id)); if (m) { const take = Math.min(G.STACK(s.id) - m.n, s.n); m.n += take; s.n -= take; if (s.n > 0) merged.push(s); } else merged.push(s); }
+        const order = { weapon: 0, tool: 1, bow: 2, staff: 3, shield: 4, armor: 5, food: 6, place: 7, gem: 8, key: 9 }; merged.sort((a, b) => ((order[I[a.id].type] ?? 20) - (order[I[b.id].type] ?? 20)) || I[a.id].name.localeCompare(I[b.id].name));
+        for (let k = HOTBAR; k < INV; k++) p.inv[k] = merged[k - HOTBAR] || null; break; }
       case 'emote': if (!p.swing && p.emote <= 0) { p.emote = 2.2; Sim.ev(S, { t: 'sfx', n: 'pw', x: p.x, y: p.y }); } break;
       case 'bj': Sim.blackjack(S, p, a); break;
     }
@@ -586,7 +589,7 @@
       p.charge = 0;
     }
     if (p.atkCd > 0) p.atkCd -= dt;
-    if (p.swing) { p.swing.t += dt; if (!p.swing.hit && p.swing.t >= p.swing.dur * 0.45) { p.swing.hit = true; Sim.meleeHit(S, p); } if (p.swing.t >= p.swing.dur) p.swing = null; }
+    if (p.swing) { p.swing.t += dt; if (!p.swing.hit && p.swing.t >= p.swing.dur * 0.3) { p.swing.hit = true; Sim.meleeHit(S, p); } if (p.swing.t >= p.swing.dur) p.swing = null; }
     if (p.in.attack && !p.swing && p.atkCd <= 0 && !p.blocking && p.draw <= 0 && p.dodgeT <= 0 && p.charge <= 0) {
       if (d && d.type === 'place') { /* placing handled by client 'build' action */ }
       else if (d && d.type === 'bow') { /* bows attack via RMB */ }
@@ -632,7 +635,8 @@
     for (let s = 0.4; s <= reach; s += 0.35) {
       const x = p.x + Math.cos(sw.ang) * s, y = p.y + Math.sin(sw.ang) * s; const i = G.idx(x, y); const o = w.objs.get(i); if (!o) continue;
       const od = O[o.t]; if (od.isChest || od.altar || od.boat) continue;
-      const tool = wp.tool || 'fist', power = wp.power ? (wp.tool === 'fist' ? 0.6 : TOOL_POWER[wp.tier]) : 0.6;
+      const tool = wp.tool || 'fist'; let power = wp.power ? (wp.tool === 'fist' ? 1.0 : TOOL_POWER[wp.tier]) : 1.0;
+      if (od.tool === 'pick' && tool === 'pick') power *= 1.5; else if (od.tool === 'axe' && tool === 'axe') power *= 1.4; // the right tool is quick: ~5 hits for a tree or rock at tier 1
       let can = false;
       if (od.built) can = true;
       else if (!od.tool) can = true;

@@ -3,7 +3,7 @@
   'use strict';
   const DEFAULT_BINDS = { forward: 'w', back: 's', left: 'a', right: 'd', sprint: 'Shift', jump: ' ', dodge: 'q', interact: 'e', eat: 'f', ping: 't', emote: 'g', inventory: 'Tab', chat: 'Enter', mute: 'm', menu: 'Escape' };
   const BIND_NAMES = { forward: 'Move forward', back: 'Move back', left: 'Strafe left', right: 'Strafe right', sprint: 'Sprint', jump: 'Jump', dodge: 'Dodge roll', interact: 'Interact / revive', eat: 'Quick eat', emote: 'Emote (cheer)', ping: 'Ping', inventory: 'Inventory & crafting', chat: 'Chat', mute: 'Mute', menu: 'Menu' };
-  const DEFAULT_SETTINGS = { sens: 1.0, fov: 80, invertY: false, quality: 0.75, shake: true, bob: false, toon: true };
+  const DEFAULT_SETTINGS = { sens: 1.0, fov: 80, invertY: false, quality: 0.75, shake: true, bob: false, toon: true, sprintToggle: false };
   const In = { keys: {}, mouse: { l: false, r: false }, yaw: -Math.PI / 2, pitch: 0, onAction: null, onKey: null, locked: false, ptrLocked: false, wantLock: false, canvas: null, aim: { x: 0, y: 0 }, binds: null, settings: null, BIND_NAMES, DEFAULT_BINDS, capture: null };
   G.Input = In;
   const load = (k, def) => { try { return Object.assign({}, def, JSON.parse(localStorage.getItem(k) || '{}')); } catch (e) { return Object.assign({}, def); } };
@@ -15,10 +15,12 @@
   const norm = (e) => e.key.length === 1 ? e.key.toLowerCase() : e.key;
   In.actionsFor = (k) => Object.keys(In.binds).filter(a => In.binds[a] === k);
   In.is = (action) => !!In.keys[In.binds[action]];
+  In.keyMatches = (e, action) => norm(e) === In.binds[action];
 
   In.init = function (canvas) {
     In.canvas = canvas;
     window.addEventListener('keydown', (e) => {
+      if (In.settings.sprintToggle && !In.locked && !e.repeat && In.keyMatches(e, 'sprint')) In.sprintLatch = !In.sprintLatch;
       const k = norm(e);
       if (In.capture) { e.preventDefault(); if (k !== 'Escape') { In.binds[In.capture] = k; In.saveBinds(); } const cb = In.onCaptured; In.capture = null; if (cb) cb(); return; }
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
@@ -64,7 +66,8 @@
     if (In.is('forward') || In.keys.ArrowUp) f += 1; if (In.is('back') || In.keys.ArrowDown) f -= 1; if (In.is('right') || In.keys.ArrowRight) s += 1; if (In.is('left') || In.keys.ArrowLeft) s -= 1;
     const fx = Math.cos(In.yaw), fy = Math.sin(In.yaw), rx = -fy, ry = fx;
     let ax = fx * f + rx * s, ay = fy * f + ry * s; const l = Math.hypot(ax, ay); if (l > 1) { ax /= l; ay /= l; }
+    if (!f && !s && In.wasMoving) In.sprintLatch = false; In.wasMoving = !!(f || s); // sprint toggle releases once you stop moving
     In.aim = { x: px + fx * 3, y: py + fy * 3 };
-    return { ax: +ax.toFixed(3), ay: +ay.toFixed(3), aimx: +In.aim.x.toFixed(2), aimy: +In.aim.y.toFixed(2), sprint: In.is('sprint'), attack: In.mouse.l && !In.locked && In.ptrLocked, sec: In.mouse.r && !In.locked && In.ptrLocked, interact: In.is('interact') };
+    return { ax: +ax.toFixed(3), ay: +ay.toFixed(3), aimx: +In.aim.x.toFixed(2), aimy: +In.aim.y.toFixed(2), sprint: In.settings.sprintToggle ? !!In.sprintLatch : In.is('sprint'), attack: In.mouse.l && !In.locked && In.ptrLocked, sec: In.mouse.r && !In.locked && In.ptrLocked, interact: In.is('interact') };
   };
 })(window.G);

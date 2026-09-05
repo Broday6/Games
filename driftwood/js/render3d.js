@@ -77,12 +77,12 @@
   let mprog = null; const modelReqs = []; const animStates = {};
   // post pass: the scene is drawn to an offscreen colour+depth target, then outlined (depth discontinuities) and graded — the toon look
   let post = null, postProg = null;
-  const POST_FS = `precision mediump float; varying vec2 vP; uniform sampler2D uCol; uniform sampler2D uDepth; uniform vec2 uInvRes; uniform float uNear; uniform float uFar; uniform float uOutline; uniform float uSat; uniform float uDebug;
+  const POST_FS = `precision mediump float; varying vec2 vP; uniform sampler2D uCol; uniform sampler2D uDepth; uniform vec2 uInvRes; uniform float uNear; uniform float uFar; uniform float uOutline; uniform float uSat; uniform float uDebug; uniform float uHurt;
     float lin(float d){ float z = d * 2.0 - 1.0; return (2.0 * uNear * uFar) / (uFar + uNear - z * (uFar - uNear)); }
     void main(){ vec2 uv = vP * 0.5 + 0.5; vec3 c = texture2D(uCol, uv).rgb;
       if(uOutline > 0.5){ float d0 = lin(texture2D(uDepth, uv).r); vec2 o = uInvRes * uOutline;
         float e = max(max(lin(texture2D(uDepth, uv + vec2(o.x, 0.0)).r) - d0, lin(texture2D(uDepth, uv - vec2(o.x, 0.0)).r) - d0), max(lin(texture2D(uDepth, uv + vec2(0.0, o.y)).r) - d0, lin(texture2D(uDepth, uv - vec2(0.0, o.y)).r) - d0));
-        float thr = 0.06 + d0 * 0.05; float edge = smoothstep(thr, thr * 2.0, e) * (1.0 - smoothstep(24.0, 48.0, d0));
+        float thr = 0.06 + d0 * 0.05; float edge = smoothstep(thr, thr * 2.0, e) * (1.0 - smoothstep(9.0, 26.0, d0)); // outlines fade out with distance so thin far geometry (grass) never turns into black spikes
         c = mix(c, c * 0.32, edge * 0.8); if(uDebug > 0.5) c = vec3(edge, d0 / 40.0, 0.0); }
       // FXAA-lite: blend towards the 4 diagonal neighbours where local luma contrast is high (softens polygon edges the FBO lost MSAA on)
       { vec2 o = uInvRes * 0.6; vec3 c1 = texture2D(uCol, uv + vec2(-o.x, -o.y)).rgb, c2 = texture2D(uCol, uv + vec2(o.x, -o.y)).rgb, c3 = texture2D(uCol, uv + vec2(-o.x, o.y)).rgb, c4 = texture2D(uCol, uv + vec2(o.x, o.y)).rgb;
@@ -90,10 +90,11 @@
         float k = smoothstep(0.05, 0.22, lmax - lmin); c = mix(c, (c + c1 + c2 + c3 + c4) * 0.2, k * 0.85); }
       float l = dot(c, vec3(0.299, 0.587, 0.114)); c = mix(vec3(l), c, uSat); c = (c - 0.5) * 1.06 + 0.5;
       float vig = smoothstep(0.55, 1.15, length((uv - 0.5) * vec2(1.25, 1.0)) * 1.6); c *= 1.0 - 0.38 * vig;
+      if(uHurt > 0.001) c = mix(c, vec3(0.62, 0.02, 0.02), uHurt * smoothstep(0.35, 1.05, length((uv - 0.5) * vec2(1.25, 1.0)) * 1.6));
       gl_FragColor = vec4(c, 1.0); }`;
   function setupPost() {
     post = null; const ext = gl.getExtension('WEBGL_depth_texture') || gl.getExtension('WEBKIT_WEBGL_depth_texture'); if (!ext) { document.body.classList.add('nopost'); return; }
-    try { postProg = postProg || program(SKY_VS, POST_FS, ['aP'], ['uCol', 'uDepth', 'uInvRes', 'uNear', 'uFar', 'uOutline', 'uSat', 'uDebug']); } catch (e) { console.warn('post shader failed', e); document.body.classList.add('nopost'); return; }
+    try { postProg = postProg || program(SKY_VS, POST_FS, ['aP'], ['uCol', 'uDepth', 'uInvRes', 'uNear', 'uFar', 'uOutline', 'uSat', 'uDebug', 'uHurt']); } catch (e) { console.warn('post shader failed', e); document.body.classList.add('nopost'); return; }
     const mk = () => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); return t; };
     const col = mk(); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, R.W, R.H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
     const dep = mk(); gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT, R.W, R.H, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_SHORT, null);
@@ -105,7 +106,7 @@
   function drawPost() {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND); gl.useProgram(postProg);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, post.col); gl.uniform1i(postProg.u.uCol, 0); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, post.dep); gl.uniform1i(postProg.u.uDepth, 1); gl.activeTexture(gl.TEXTURE0);
-    const S = G.Input && G.Input.settings ? G.Input.settings : {}; gl.uniform2f(postProg.u.uInvRes, 1 / R.W, 1 / R.H); gl.uniform1f(postProg.u.uNear, 0.05); gl.uniform1f(postProg.u.uFar, 80); gl.uniform1f(postProg.u.uOutline, S.toon === false ? 0 : (R.W > 1400 ? 1.4 : 1.0)); gl.uniform1f(postProg.u.uSat, 1.1); gl.uniform1f(postProg.u.uDebug, R.debugEdges ? 1 : 0);
+    const S = G.Input && G.Input.settings ? G.Input.settings : {}; gl.uniform2f(postProg.u.uInvRes, 1 / R.W, 1 / R.H); gl.uniform1f(postProg.u.uNear, 0.05); gl.uniform1f(postProg.u.uFar, 80); gl.uniform1f(postProg.u.uOutline, S.toon === false ? 0 : (R.W > 1400 ? 1.4 : 1.0)); gl.uniform1f(postProg.u.uSat, 1.1); gl.uniform1f(postProg.u.uDebug, R.debugEdges ? 1 : 0); gl.uniform1f(postProg.u.uHurt, Math.min(0.8, R.hurtV || 0));
     gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf); gl.enableVertexAttribArray(postProg.a.aP); gl.vertexAttribPointer(postProg.a.aP, 2, gl.FLOAT, false, 0, 0); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     // unbind the target textures or next frame's draws into the FBO would form a feedback loop and be dropped
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, null); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, null);
@@ -152,10 +153,10 @@
   // adaptive quality: qScale drifts down when frames are slow and back up when there is headroom (settings.quality is the base)
   R.qScale = 1; let ftAvg = 16, ftT = 0;
   R.autoQuality = function (dtMs) {
-    const S = G.Input && G.Input.settings; if (!S || S.autoq === false) return; ftAvg += (Math.min(100, dtMs) - ftAvg) * 0.05; ftT += dtMs;
-    if (ftT < 2000) return; ftT = 0;
-    if (ftAvg > 24 && R.qScale > 0.5) { R.qScale = Math.max(0.5, R.qScale - 0.1); R.resize(); }
-    else if (ftAvg < 11.5 && R.qScale < 1.34) { R.qScale = Math.min(1.34, R.qScale + 0.05); R.resize(); }
+    const S = G.Input && G.Input.settings; if (!S || S.autoq === false) return; ftAvg += (Math.min(100, dtMs) - ftAvg) * 0.03; ftT += dtMs;
+    if (ftT < 6000) return; ftT = 0; // slow, hysteretic: only step when clearly over/under budget so the resolution never visibly pumps
+    if (ftAvg > 28 && R.qScale > 0.6) { R.qScale = Math.max(0.6, R.qScale - 0.1); R.resize(); }
+    else if (ftAvg < 10 && R.qScale < 1.34) { R.qScale = Math.min(1.34, R.qScale + 0.05); R.resize(); }
   };
   R.resize = function () {
     const ww = window.innerWidth, wh = window.innerHeight; const scale = G.clamp((G.Input && G.Input.settings ? G.Input.settings.quality : 0.75) * R.qScale, 0.4, 1) * (ww > 2000 ? 0.85 : 1);
@@ -264,6 +265,11 @@
   function blade(t, m, w, h, col, em, lean) { // vertical quad (double sided via shader), base at origin
     quad(t, m, [-w / 2, 0, 0], [w / 2, 0, 0], [w / 2 + (lean || 0), h, 0], [-w / 2 + (lean || 0), h, 0], col, em);
   }
+  function blade2(t, m, w, h, cb, ct, em, lean) { // tapered vertical blade, dark base to bright tip
+    const l = lean || 0, n = xfn(m, 0, 1, 0); grow(t, 6); // lit with an up normal so blades match the ground instead of going black on their shadow side
+    const a = xf(m, -w / 2, 0, 0), b = xf(m, w / 2, 0, 0), c = xf(m, l + w / 6, h, 0), d = xf(m, l - w / 6, h, 0);
+    vert(t, a, n, cb, em); vert(t, b, n, cb, em); vert(t, c, n, ct, em); vert(t, a, n, cb, em); vert(t, c, n, ct, em); vert(t, d, n, ct, em);
+  }
   function inst(t, prefab, m) { // copy a prefab (local space Float32Array) transformed by m
     const n = prefab.length / VF; grow(t, n);
     for (let i = 0; i < n; i++) { const o = i * VF; const p = xf(m, prefab[o], prefab[o + 1], prefab[o + 2]); const nn = xfn(m, prefab[o + 3], prefab[o + 4], prefab[o + 5]); vert(t, p, nn, [prefab[o + 6], prefab[o + 7], prefab[o + 8]], prefab[o + 9]); }
@@ -295,14 +301,14 @@
     pf('grass_tuft', (t, m) => { for (let i = 0; i < 6; i++) { const g = M(m, mT((h2(i, 5) - .5) * 0.6, 0, (h2(i, 6) - .5) * 0.6), mRY(h2(i, 7) * 6)); blade(t, g, 0.08, 0.35 + h2(i, 8) * 0.25, i % 2 ? hex('#7ab84a') : hex('#5c9a45'), 0, 0.12); } });
     pf('stub', (t, m) => { cyl(t, m, 0.14, 0.12, 0.2, 6, wood); });
     if (G.PROPS && G.PROPS.tree_a) { // KayKit nature props replace the procedural trees and rocks when baked
-      const ore = (t, m, col, em, n, seedK) => { for (let i = 0; i < n; i++) { const a = seedK + i * 1.9, r = 0.16 + (i % 3) * 0.08; const C = M(m, mT(Math.cos(a) * r, 0.1 + (i % 2) * 0.1, Math.sin(a) * r), mRY(a), mRX(0.35 + (i % 2) * 0.25)); cyl(t, C, 0.1 + (i % 2) * 0.03, 0.0, 0.34 + (i % 3) * 0.1, 5, col, em); cyl(t, M(C, mT(0.08, 0, 0.06), mRZ(0.4)), 0.06, 0.0, 0.2, 5, sh(col, 1.15), em); } };
+      const ore = (t, m, col, em, n, seedK) => { const collar = hex('#26222c'); for (let i = 0; i < n; i++) { const a = seedK + i * 1.9, r = 0.2 + (i % 3) * 0.09, h = 0.42 + (i % 3) * 0.14; const C = M(m, mT(Math.cos(a) * r, 0.12 + (i % 2) * 0.12, Math.sin(a) * r), mRY(a), mRX(0.3 + (i % 2) * 0.3)); cyl(t, C, 0.13 + (i % 2) * 0.03, 0.0, h, 5, col, em); cyl(t, M(C, mT(0, 0, 0)), 0.15 + (i % 2) * 0.03, 0.12, 0.08, 5, collar, 0); cyl(t, M(C, mT(0.1, 0.02, 0.07), mRZ(0.45)), 0.075, 0.0, h * 0.55, 5, sh(col, 1.2), em); cyl(t, M(C, mT(-0.08, 0.0, -0.06), mRZ(-0.4), mRX(0.2)), 0.06, 0.0, h * 0.42, 4, sh(col, 0.85), em); } };
       pf('tree', (t, m) => propMesh(t, M(m, mS(2.35)), 'tree_a', [0.7, 0.78, 0.78])); pf('tree2', (t, m) => propMesh(t, M(m, mRY(2.1), mS(2.25)), 'tree_b', [0.7, 0.78, 0.78]));
       pf('birch', (t, m) => propMesh(t, M(m, mRY(0.8), mS(2.4)), 'tree_b', [0.8, 0.86, 0.84]));
       pf('rock', (t, m) => propMesh(t, M(m, mS(2.9, 3.4, 2.9)), 'rock_c')); pf('stub', (t, m) => propMesh(t, M(m, mS(2.35)), 'stump_a'));
-      pf('coal_rock', (t, m) => { propMesh(t, M(m, mS(3.1, 3.6, 3.1)), 'rock_b', [0.8, 0.8, 0.82]); ore(t, m, hex('#23232a'), 0.05, 4, 0.4); });
-      pf('iron_vein', (t, m) => { propMesh(t, M(m, mS(3.2, 3.8, 3.2)), 'rock_d', [0.95, 0.88, 0.85]); ore(t, m, hex('#c8784a'), 0.1, 4, 1.1); });
-      pf('gold_vein', (t, m) => { propMesh(t, M(m, mS(2.7, 3.6, 2.7)), 'rock_e'); ore(t, m, hex('#ffd24a'), 0.55, 5, 0.2); });
-      pf('obsidian_vein', (t, m) => { propMesh(t, M(m, mS(3.0, 3.8, 3.0)), 'rock_c', [0.45, 0.4, 0.6]); ore(t, m, hex('#a070ff'), 0.85, 4, 2.0); });
+      pf('coal_rock', (t, m) => { propMesh(t, M(m, mS(3.1, 3.6, 3.1)), 'rock_b', [0.8, 0.8, 0.82]); ore(t, m, hex('#2a2a32'), 0.08, 5, 0.4); });
+      pf('iron_vein', (t, m) => { propMesh(t, M(m, mS(3.2, 3.8, 3.2)), 'rock_d', [0.95, 0.88, 0.85]); ore(t, m, hex('#d8865a'), 0.15, 5, 1.1); });
+      pf('gold_vein', (t, m) => { propMesh(t, M(m, mS(2.7, 3.6, 2.7)), 'rock_e', [1, 0.96, 0.8]); ore(t, m, hex('#ffd24a'), 0.7, 6, 0.2); });
+      pf('obsidian_vein', (t, m) => { propMesh(t, M(m, mS(3.0, 3.8, 3.0)), 'rock_c', [0.45, 0.4, 0.6]); ore(t, m, hex('#b080ff'), 0.95, 5, 2.0); });
     }
     const chest = (name, col) => pf(name, (t, m) => { const c = hex(col); box(t, M(m, mT(0, 0, 0)), 0.8, 0.45, 0.55, c, 0.05); box(t, M(m, mT(0, 0.45, 0)), 0.84, 0.2, 0.6, sh(c, 1.25), 0.05); box(t, M(m, mT(0, 0.32, 0.29)), 0.12, 0.16, 0.06, hex('#ffd24a'), 0.4); for (const x of [-0.3, 0.3]) box(t, M(m, mT(x, 0.3, 0)), 0.06, 0.66, 0.6, hex('#3a3030')); });
     chest('chest_c', '#8a6a3f'); chest('chest_u', '#3a9a4a'); chest('chest_r', '#b03030'); chest('chest_l', '#d0a020');
@@ -338,18 +344,32 @@
     const c = hex(d.col); const s = small ? 0.6 : 1; const ms = M(m, mS(s)); const dark = hex('#3a2a20'), grip = hex('#4a3010'), steel = sh(c, 1.15);
     const glow = inst_ && inst_.aff && inst_.aff.length ? RAR(inst_.q) : null;
     const gripBox = (h) => { box(t, ms, 0.06, h, 0.06, grip, 0, h / 2); if (glow) box(t, M(ms, mT(0, h * 0.5, 0)), 0.075, h * 0.35, 0.075, glow, 0.9, 0); };
-    if (d.type === 'tool') { box(t, ms, 0.055, 0.95, 0.055, hex('#8a5a30'), 0, 0.47); if (glow) box(t, M(ms, mT(0, 0.3, 0)), 0.07, 0.25, 0.07, glow, 0.9, 0); if (d.tool === 'axe') { box(t, M(ms, mT(0.14, 0.78, 0)), 0.3, 0.26, 0.06, c, 0, 0); cyl(t, M(ms, mT(0.3, 0.78, 0), mRZ(-1.57)), 0.13, 0.02, 0.1, 4, steel, 0, 0); } else { box(t, M(ms, mT(0, 0.85, 0)), 0.6, 0.09, 0.07, c, 0, 0); cyl(t, M(ms, mT(0.3, 0.85, 0), mRZ(-1.57)), 0.05, 0, 0.14, 4, steel); cyl(t, M(ms, mT(-0.3, 0.85, 0), mRZ(1.57)), 0.05, 0, 0.14, 4, steel); } }
+    if (d.type === 'tool') {
+      const wood = hex('#8a5a30'), wrap = hex('#4a3010'); cyl(t, ms, 0.04, 0.046, 0.92, 6, wood); cyl(t, M(ms, mT(0, 0.08, 0)), 0.05, 0.05, 0.22, 6, wrap); cyl(t, M(ms, mT(0, -0.03, 0)), 0.055, 0.05, 0.06, 6, wrap); if (glow) box(t, M(ms, mT(0, 0.45, 0)), 0.07, 0.25, 0.07, glow, 0.9, 0);
+      if (d.tool === 'axe') { // bevelled head with a bright edge and a collar around the haft
+        box(t, M(ms, mT(0, 0.8, 0)), 0.12, 0.2, 0.09, sh(c, 0.8), 0, 0); box(t, M(ms, mT(0.13, 0.8, 0)), 0.16, 0.3, 0.06, c, 0, 0);
+        quad(t, ms, [0.21, 0.62, -0.03], [0.21, 0.98, -0.03], [0.34, 1.02, -0.012], [0.34, 0.58, -0.012], c, 0); quad(t, ms, [0.21, 0.62, 0.03], [0.34, 0.58, 0.012], [0.34, 1.02, 0.012], [0.21, 0.98, 0.03], c, 0);
+        box(t, M(ms, mT(0.345, 0.8, 0)), 0.02, 0.46, 0.024, steel, 0.08, 0); box(t, M(ms, mT(-0.08, 0.8, 0)), 0.06, 0.12, 0.09, sh(c, 0.7), 0, 0);
+      } else { // two-pronged pick: chunky centre block, tapering prongs, hardened tips
+        box(t, M(ms, mT(0, 0.86, 0)), 0.14, 0.14, 0.11, sh(c, 0.8), 0, 0);
+        box(t, M(ms, mT(0.2, 0.87, 0)), 0.28, 0.09, 0.07, c, 0, 0); box(t, M(ms, mT(-0.2, 0.87, 0)), 0.28, 0.09, 0.07, c, 0, 0);
+        cyl(t, M(ms, mT(0.34, 0.86, 0), mRZ(-1.57)), 0.045, 0.0, 0.18, 4, steel, 0.08); cyl(t, M(ms, mT(-0.34, 0.86, 0), mRZ(1.57)), 0.045, 0.0, 0.18, 4, steel, 0.08);
+      }
+    }
     else if (d.type === 'weapon') {
       const kind = /dagger|fang/.test(id) ? 'dagger' : /greatsword|bonecleaver/.test(id) ? 'great' : /hammer|maul/.test(id) ? 'hammer' : /spear/.test(id) ? 'spear' : /fist/.test(id) ? 'fist' : 'sword';
       const em = d.burn || d.special ? 0.35 : 0;
       if (kind === 'sword' || kind === 'dagger' || kind === 'great') {
         const L = kind === 'dagger' ? 0.55 : kind === 'great' ? 1.4 : 0.9, w = kind === 'great' ? 0.16 : kind === 'dagger' ? 0.07 : 0.1;
-        gripBox(kind === 'great' ? 0.45 : 0.28);
-        box(t, M(ms, mT(0, kind === 'great' ? 0.45 : 0.28, 0)), kind === 'great' ? 0.4 : 0.3, 0.06, 0.08, hex('#6a5a30'), 0, 0); // crossguard
-        sph(t, M(ms, mT(0, -0.02, 0)), 0.05, 5, 3, hex('#6a5a30'));
-        const y0 = kind === 'great' ? 0.5 : 0.32;
+        const gh = kind === 'great' ? 0.45 : 0.28, guard = hex('#7a6a38'), guardHi = hex('#a08a48');
+        cyl(t, ms, 0.032, 0.036, gh, 6, grip); for (let k = 1; k < 4; k++) cyl(t, M(ms, mT(0, gh * k / 4 - 0.02, 0)), 0.04, 0.04, 0.025, 6, sh(grip, 0.7)); if (glow) box(t, M(ms, mT(0, gh * 0.5, 0)), 0.075, gh * 0.35, 0.075, glow, 0.9, 0);
+        const gw = kind === 'great' ? 0.44 : kind === 'dagger' ? 0.2 : 0.32; cyl(t, M(ms, mT(gw / 2, gh, 0), mRZ(1.57)), 0.035, 0.035, gw, 6, guard); // crossguard bar
+        sph(t, M(ms, mT(gw / 2, gh, 0)), 0.045, 5, 3, guardHi); sph(t, M(ms, mT(-gw / 2, gh, 0)), 0.045, 5, 3, guardHi); // knobs
+        sph(t, M(ms, mT(0, -0.03, 0)), 0.055, 6, 4, guardHi); // pommel
+        const y0 = gh + 0.04;
         box(t, M(ms, mT(0, y0, 0)), w, L, 0.03, c, em, L / 2);
-        box(t, M(ms, mT(0, y0, 0.016)), w * 0.35, L, 0.01, steel, em, L / 2); // edge highlight
+        box(t, M(ms, mT(0, y0 + 0.05, 0)), w * 0.3, L * 0.7, 0.036, sh(c, 0.72), em, L * 0.35); // fuller groove
+        box(t, M(ms, mT(w * 0.5, y0, 0)), 0.012, L, 0.02, steel, em, L / 2); box(t, M(ms, mT(-w * 0.5, y0, 0)), 0.012, L, 0.02, steel, em, L / 2); // edges
         cyl(t, M(ms, mT(0, y0 + L, 0), mS(w / 0.1, 1, 0.3)), 0.1, 0, 0.22, 4, c, em); // tip
         if (id === 'hollow_blade') box(t, M(ms, mT(0, y0 + L * 0.5, 0)), w * 1.6, L * 0.9, 0.005, hex('#8090ff'), 1.0, 0);
       } else if (kind === 'hammer') {
@@ -489,7 +509,7 @@
       const o = world.objs.get(Y * W + X);
       if (o) { staticObject(ob, world, o, X, Y); const d2 = O[o.t]; if (d2.solid && !d2.wall && !d2.floor) { const gz = R.groundZ(world, X + .5, Y + .5); cyl(sb, M(mT(X + .5, gz + 0.012, Y + .5)), d2.tall ? 0.75 : (d2.isChest ? 0.5 : 0.55), d2.tall ? 0.75 : 0.5, 0.005, 8, [0, 0, 0], 0); } }
       // grass tufts on open grass: cheap blades that make the ground read as lush instead of flat
-      if ((tile === T.GRASS || tile === T.DARKGRASS) && !o) { const n = tile === T.GRASS ? 2 : 3; for (let k = 0; k < n; k++) { const gx = X + 0.15 + h2(X * 3 + k, Y) * 0.7, gy = Y + 0.15 + h2(X, Y * 5 + k) * 0.7; const gz = R.groundZ(world, gx, gy); const g = M(mT(gx, gz, gy), mRY(h2(X + k, Y + 11) * 6.28)); const gc = sh(own, 1.12 + (k % 2) * 0.1); blade(ob, g, 0.09, 0.25 + h2(X, Y + k) * 0.2, gc, 0, 0.1); blade(ob, M(g, mRY(1.1)), 0.08, 0.2 + h2(X + 1, Y + k) * 0.2, sh(gc, 0.9), 0, -0.08); } }
+      if ((tile === T.GRASS || tile === T.DARKGRASS) && !o) { const n = tile === T.GRASS ? 2 : 3; for (let k = 0; k < n; k++) { const gx = X + 0.12 + h2(X * 3 + k, Y) * 0.76, gy = Y + 0.12 + h2(X, Y * 5 + k) * 0.76; const gz = R.groundZ(world, gx, gy); const g = M(mT(gx, gz, gy), mRY(h2(X + k, Y + 11) * 6.28)); const hv = h2(X, Y + k); const base = sh(own, 0.82), tip = sh(own, 1.28 + (k % 2) * 0.12 + hv * 0.1); blade2(ob, g, 0.1, 0.22 + hv * 0.3, base, tip, 0, 0.08 + hv * 0.06); blade2(ob, M(g, mRY(1.3), mT(0.04, 0, 0)), 0.08, 0.16 + h2(X + 1, Y + k) * 0.2, base, sh(tip, 0.92), 0, -0.07); } }
     }
     const mk = (src) => { const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, src.arr.subarray(0, src.n * VF), gl.STATIC_DRAW); return b; };
     return { vbo: mk(t), n: t.n, wvbo: mk(w), wn: w.n, obo: mk(ob), on: ob.n, sbo: mk(sb), sn: sb.n };
@@ -555,8 +575,8 @@
     if (R.shake > 0) R.shake = Math.max(0, R.shake - dt * 18);
     if (me) { R.cam.x = me.x; R.cam.y = me.y; R.cam.z = R.groundZ(world, me.x, me.y) + (me.downed ? 0.35 : EYE) + (L.jumpZ || 0) + (L.bob || 0) - (L.land || 0); }
     R.cam.yaw = L.yaw; R.cam.pitch = L.pitch;
-    if (me && me.flash && R.kick < 0.02) R.kick = 0.08; R.kick = Math.max(0, R.kick - dt * 0.4);
-    const rollTarget = me && me.dodgeT ? (L.dodgeDir || 1) * 0.35 : 0; R.roll = G.lerp(R.roll, rollTarget, Math.min(1, dt * 12));
+    if (me && me.flash && R.kick < 0.02) R.kick = 0.035; R.kick = Math.max(0, R.kick - dt * 0.4);
+    R.roll = 0; // dodging keeps the camera upright (no roll)
     const shx = (Math.random() - .5) * R.shake * 0.01, shy = (Math.random() - .5) * R.shake * 0.01;
     const yaw = R.cam.yaw + shx, pitch = G.clamp(R.cam.pitch + shy - R.kick, -1.5, 1.5);
     const fx = Math.cos(yaw) * Math.cos(pitch), fz = Math.sin(pitch), fy = Math.sin(yaw) * Math.cos(pitch);
@@ -715,32 +735,57 @@
     const prog = me.swing ? Math.min(1, me.swing.t / me.swing.dur) : 0; const sw = Math.sin(prog * Math.PI); const anim = me.swing ? (me.swing.anim || 'slash') : null; const combo = me.swing ? (me.swing.combo || 0) : 0;
     // first-person hands match the chosen character: gauntlets for the knight, bare arms for the barbarian, sleeves for the rest; a robot look if the robot rig is in use
     const big = d && d.big; const robot = false; const pc = hex(me.col);
-    const skin = sh(pc, 1.05), sleeve = sh(pc, 0.9), wrist = sh(pc, 0.7);
+    const skin = sh(pc, 1.08), sleeve = sh(pc, 0.72), wrist = sh(pc, 0.55);
     // rest pose
     let hand = M(C, mT(0.36 + sway, -0.36 + bob + idle, 0.82), mRX(-0.15));
     if (me.charge > 0) { const c = me.charge; hand = M(C, mT(0.34 + sway, -0.22 + bob + c * 0.15 + Math.sin(nowT * 40) * 0.006 * c, 0.72), mRX(-0.15 - c * 1.2), mRZ(-0.25 * c)); }
+    // swing animations: every attack has a wind-up, a snappy strike that lands where the sim registers the hit (30% of the swing) and an eased recovery
+    const ss = (a, b, x) => { const t = G.clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }, outq = (x) => 1 - (1 - x) * (1 - x);
+    const rest = { x: 0.34 + sway, y: -0.36 + bob + idle, z: 0.78 };
+    let punchL = 0; // left-hand punch amount (fists alternate)
     if (me.swing) {
-      if (anim === 'slash') { const dir = combo === 1 ? -1 : 1; const ang = (prog - 0.5) * 2.4 * dir; hand = M(C, mT(0.36 * Math.cos(ang) - 0.05, -0.34 + bob + sw * 0.1, 0.8 + sw * 0.1), mRY(-ang * 0.9), mRX(0.15 + sw * 0.5), mRZ(ang * 0.8)); }
-      else if (anim === 'chop' || anim === 'slam') { const lift = prog < 0.35 ? prog / 0.35 : Math.max(-0.4, 1 - (prog - 0.35) / 0.65 * 1.6); hand = M(C, mT(0.32 + sway, -0.34 + bob + Math.max(0, lift) * 0.4, 0.78 + (prog > 0.35 ? (prog - 0.35) * 0.35 : 0)), mRX(0.45 - lift * 1.5), mRZ(-0.15)); }
-      else if (anim === 'thrust') { const push = prog < 0.4 ? -prog / 0.4 * 0.15 : (prog - 0.4) / 0.6; hand = M(C, mT(0.3 + sway - Math.max(0, push) * 0.2, -0.32 + bob, 0.8 + push * 0.5), mRX(-0.05 - Math.max(0, push) * 0.2), mRY(-0.2)); }
+      const kind = !it ? 'punch' : (anim === 'chop' || anim === 'slam' || (d && d.type === 'tool')) ? 'chop' : anim;
+      if (kind === 'slash') {
+        // u: -0.3 wound back, 0 rest, 1 end of the sweep, back to 0
+        const u = prog < 0.18 ? -0.3 * ss(0, 0.18, prog) : prog < 0.42 ? -0.3 + 1.3 * outq((prog - 0.18) / 0.24) : 1 - ss(0.42, 1, prog);
+        if (combo === 1) { // rising backhand: low-left to high-right
+          hand = M(C, mT(rest.x - 0.25 + u * 0.28, rest.y - 0.12 + u * 0.3, rest.z + 0.06 - u * 0.1), mRX(0.05 - u * 0.5), mRY(0.5 - u * 1.0), mRZ(-0.7 + u * 1.4));
+        } else if (combo === 2) { // overhead diagonal finisher
+          hand = M(C, mT(rest.x + 0.1 - u * 0.36, rest.y + 0.3 - u * 0.5, rest.z - 0.1 + u * 0.16), mRX(-0.9 + u * 1.6), mRY(-u * 0.5), mRZ(0.3 - u * 0.4));
+        } else { // horizontal sweep right to left
+          hand = M(C, mT(rest.x + 0.1 - u * 0.5, rest.y + 0.02 - u * 0.05, rest.z - 0.06 + u * 0.12), mRX(0.05 + Math.sin(Math.max(0, u) * Math.PI) * 0.25), mRY(0.35 - u * 1.25), mRZ(-0.25 + u * 0.95));
+        }
+      } else if (kind === 'chop') {
+        // raise over the shoulder, drive down fast, hold the bite for a beat, then ease back
+        let u; if (prog < 0.16) u = -ss(0, 0.16, prog); else if (prog < 0.32) u = -1 + 2 * outq((prog - 0.16) / 0.16); else if (prog < 0.5) u = 1 - Math.sin((prog - 0.32) / 0.18 * Math.PI) * 0.08; else u = 1 - ss(0.5, 1, prog);
+        if (u < 0) { const k = -u; hand = M(C, mT(rest.x - 0.04 * k, rest.y + 0.3 * k, rest.z - 0.2 * k), mRX(-0.15 - 0.9 * k), mRZ(-0.1 * k)); }
+        else hand = M(C, mT(rest.x - 0.12 * u, rest.y + 0.02 * u, rest.z + 0.08 * u), mRX(-0.15 + 0.8 * u), mRZ(0.1 * u));
+      } else if (kind === 'thrust') {
+        const u = prog < 0.15 ? -0.35 * ss(0, 0.15, prog) : prog < 0.34 ? -0.35 + 1.35 * outq((prog - 0.15) / 0.19) : 1 - ss(0.34, 1, prog);
+        hand = M(C, mT(rest.x - 0.16 * Math.max(0, u), rest.y - 0.02 * u, rest.z + u * 0.36), mRX(-0.15 - Math.max(0, u) * 0.15), mRY(-0.15 - u * 0.15));
+      } else { // punch: fists alternate hands
+        const u = prog < 0.12 ? -0.25 * ss(0, 0.12, prog) : prog < 0.3 ? -0.25 + 1.25 * outq((prog - 0.12) / 0.18) : 1 - ss(0.3, 1, prog);
+        if (combo % 2 === 1) punchL = u; else hand = M(C, mT(rest.x - 0.14 * Math.max(0, u), rest.y + 0.08 * Math.max(0, u), rest.z + u * 0.42), mRX(-0.15 - u * 0.6), mRY(-u * 0.35), mRZ(u * 0.25));
+      }
     }
     if (me.blocking) hand = M(C, mT(0.12, -0.2 + bob, 0.7), mRX(-0.1), mRY(-0.3));
     if (d && (d.type === 'bow' || d.type === 'staff')) { const pull = me.draw ? Math.min(1, me.draw / d.draw) : 0; hand = d.type === 'bow' ? M(C, mT(0.02, -0.22 + bob, 0.8 + pull * 0.05), mRX(-0.15), mRY(1.3), mRZ(-0.2)) : M(C, mT(0.3 + sway, -0.4 + bob + pull * 0.15, 0.75), mRX(-0.5 - pull * 0.5), mRZ(0.2)); }
-    capsuleS(dyn, M(hand, mT(0.03, -0.04, -0.34), mRX(1.47), mRY(-0.12)), 0.055, 0.3, 9, sleeve);
+    capsuleS(dyn, M(hand, mT(0.03, -0.04, -0.34), mRX(1.47), mRY(-0.12)), 0.05, 0.3, 9, sleeve);
     if (robot) { cyl(dyn, M(hand, mT(0.01, -0.02, -0.12), mRX(1.47)), 0.075, 0.075, 0.06, 9, wrist); sphS(dyn, M(hand, mS(1.15, 0.9, 1.05)), 0.085, 9, 6, skin); box(dyn, M(hand, mT(0, 0.055, 0.02)), 0.1, 0.035, 0.09, hex('#2a2a30'), 0, 0); }
-    else { cylS(dyn, M(hand, mT(0.01, -0.03, -0.13), mRX(1.47)), 0.08, 0.07, 0.07, 9, sh(sleeve, 0.75)); sphS(dyn, M(hand, mS(1.1, 0.85, 1.15)), 0.085, 9, 6, skin); capsuleS(dyn, M(hand, mT(0.07, 0.0, 0.03), mRZ(-1.0), mRX(0.4)), 0.03, 0.08, 6, skin); }
+    else { cylS(dyn, M(hand, mT(0.01, -0.03, -0.14), mRX(1.47)), 0.075, 0.068, 0.06, 9, wrist); sphS(dyn, M(hand, mS(1.15, 0.9, 1.2)), 0.09, 9, 6, skin); capsuleS(dyn, M(hand, mT(0.075, 0.01, 0.03), mRZ(-1.0), mRX(0.4)), 0.032, 0.08, 6, skin); }
     if (it) {
-      if (d.type === 'weapon' || d.type === 'tool') itemMesh(dyn, M(hand, mT(0, 0.03, 0.02), mRX(anim === 'thrust' ? 1.5 : (big ? 0.95 : 0.75)), mRZ(0.2), mS(big ? 0.62 : 0.85)), it.id, false, it);
+      if (d.type === 'tool') itemMesh(dyn, M(hand, mT(0.01, 0.0, 0.03), mRX(0.45), mRY(-2.3), mRZ(0.25), mS(0.72)), it.id, false, it); // head turned inward so its flat face reads, shaft leaning toward the crosshair
+      else if (d.type === 'weapon') itemMesh(dyn, M(hand, mT(0, 0.02, 0.03), mRX(anim === 'thrust' ? 1.45 : anim === 'slam' ? 0.6 : (big ? 0.8 : 0.7)), mRY(anim === 'thrust' ? 0 : -0.35), mRZ(-0.15), mS(big ? 0.6 : 0.8)), it.id, false, it);
       else if (d.type === 'bow') itemMesh(dyn, M(hand, mT(0, 0, 0), mRY(0.2)), it.id, false, it);
       else if (d.type === 'staff') itemMesh(dyn, M(hand, mT(0, -0.35, 0.05), mRX(0.2), mS(0.8)), it.id, false, it);
       else if (d.type === 'shield') itemMesh(dyn, M(hand, mT(0, 0.1, 0.08), mRY(0.1)), it.id, false, it);
-      else if (it.id === 'torch_hand') itemMesh(dyn, M(hand, mT(0, -0.08, 0.04), mRX(0.25), mS(0.6)), it.id, false);
+      else if (it.id === 'torch_hand') itemMesh(dyn, M(hand, mT(0, -0.06, 0.04), mRX(0.35), mRZ(-0.1), mS(0.62)), it.id, false);
       else if (d.type === 'place') itemMesh(dyn, M(hand, mT(0, 0.06, 0.08), mRY(nowT * 0.6), mS(0.3)), it.id, true);
       else itemMesh(dyn, M(hand, mT(0, 0.1, 0.05), mRY(nowT * 0.5)), it.id, true, it);
       if (d.type === 'bow' && me.draw > 0) { const lh = M(C, mT(0.28 - Math.min(1, me.draw / d.draw) * 0.28, -0.22 + bob, 0.7)); sph(dyn, lh, 0.07, 6, 4, skin); box(dyn, M(lh, mT(0, -0.04, -0.15), mRX(0.2)), 0.09, 0.09, 0.3, sleeve, 0, 0); itemMesh(dyn, M(lh, mT(0, 0.02, 0.3), mRX(1.57)), 'arrow', false); }
       if (big && !me.blocking) { const lh = M(hand, mT(-0.06, 0.16, -0.02)); sph(dyn, lh, 0.07, 7, 4, skin); capsule(dyn, M(lh, mT(-0.3, -0.1, -0.22), mRX(1.2), mRY(0.9)), 0.05, 0.3, 7, sleeve); }
     }
-    if (!it || me.blocking) { const lh = M(C, mT(-0.36 - sway, -0.38 + bob + idle, 0.8), mRX(-0.15)); capsuleS(dyn, M(lh, mT(-0.03, -0.04, -0.34), mRX(1.47), mRY(0.12)), 0.055, 0.3, 9, sleeve); if (robot) { cyl(dyn, M(lh, mT(-0.01, -0.02, -0.12), mRX(1.47)), 0.075, 0.075, 0.06, 9, wrist); sphS(dyn, M(lh, mS(1.15, 0.9, 1.05)), 0.085, 9, 6, skin); box(dyn, M(lh, mT(0, 0.055, 0.02)), 0.1, 0.035, 0.09, hex('#2a2a30'), 0, 0); } else { cylS(dyn, M(lh, mT(-0.01, -0.03, -0.13), mRX(1.47)), 0.08, 0.07, 0.07, 9, sh(sleeve, 0.75)); sphS(dyn, M(lh, mS(1.1, 0.85, 1.15)), 0.085, 9, 6, skin); capsuleS(dyn, M(lh, mT(-0.07, 0.0, 0.03), mRZ(1.0), mRX(0.4)), 0.03, 0.08, 6, skin); } if (!it && me.swing) { /* punch: left/right alternate handled by hand pose above */ } }
+    if (!it || me.blocking) { const lh = M(C, mT(-0.36 - sway + 0.14 * Math.max(0, punchL), -0.38 + bob + idle + 0.08 * Math.max(0, punchL), 0.8 + punchL * 0.42), mRX(-0.15 - punchL * 0.6), mRY(punchL * 0.35), mRZ(-punchL * 0.25)); capsuleS(dyn, M(lh, mT(-0.03, -0.04, -0.34), mRX(1.47), mRY(0.12)), 0.05, 0.3, 9, sleeve); if (robot) { cyl(dyn, M(lh, mT(-0.01, -0.02, -0.12), mRX(1.47)), 0.075, 0.075, 0.06, 9, wrist); sphS(dyn, M(lh, mS(1.15, 0.9, 1.05)), 0.085, 9, 6, skin); box(dyn, M(lh, mT(0, 0.055, 0.02)), 0.1, 0.035, 0.09, hex('#2a2a30'), 0, 0); } else { cylS(dyn, M(lh, mT(-0.01, -0.03, -0.14), mRX(1.47)), 0.075, 0.068, 0.06, 9, wrist); sphS(dyn, M(lh, mS(1.15, 0.9, 1.2)), 0.09, 9, 6, skin); capsuleS(dyn, M(lh, mT(-0.075, 0.01, 0.03), mRZ(1.0), mRX(0.4)), 0.032, 0.08, 6, skin); } if (!it && me.swing) { /* punch: left/right alternate handled by hand pose above */ } }
   }
 
   // ================= glTF character models =================
@@ -1019,15 +1064,17 @@
     for (const k in F.wobble) { F.wobble[k] -= dt; if (F.wobble[k] <= 0) delete F.wobble[k]; }
     for (const k in R.tellFlash) { R.tellFlash[k] -= dt; if (R.tellFlash[k] <= 0) delete R.tellFlash[k]; }
     // soft vignette
-    if (!post) { const g = x.createRadialGradient(R.W / 2, R.H / 2, R.H * 0.45, R.W / 2, R.H / 2, R.H * 1.0); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.35)'); x.fillStyle = g; x.fillRect(0, 0, R.W, R.H); }
+    if (!post) { if (!R.vigG || R.vigK !== R.W * 7919 + R.H) { R.vigK = R.W * 7919 + R.H; const g = x.createRadialGradient(R.W / 2, R.H / 2, R.H * 0.45, R.W / 2, R.H / 2, R.H * 1.0); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.35)'); R.vigG = g; R.hurtG = null; } x.fillStyle = R.vigG; x.fillRect(0, 0, R.W, R.H); }
     // crosshair
     const cx = R.W / 2, cy = R.H / 2; x.strokeStyle = 'rgba(255,255,255,0.9)'; x.lineWidth = 1.5; x.beginPath(); x.moveTo(cx - 8, cy); x.lineTo(cx - 3, cy); x.moveTo(cx + 3, cy); x.lineTo(cx + 8, cy); x.moveTo(cx, cy - 8); x.lineTo(cx, cy - 3); x.moveTo(cx, cy + 3); x.lineTo(cx, cy + 8); x.stroke();
     if (L.lookingAt) { x.fillStyle = '#fff'; x.font = '12px monospace'; x.textAlign = 'center'; x.fillStyle = '#000'; x.fillText(L.lookingAt, cx + 1, cy + 25); x.fillStyle = '#fff'; x.fillText(L.lookingAt, cx, cy + 24); }
     if (me && me.inv[me.held] && G.ITEMS[me.inv[me.held].id].type === 'bow') { x.fillStyle = '#fff'; x.font = '12px monospace'; x.textAlign = 'right'; x.fillText(G.Sim.count(me, 'arrow') + ' arrows', R.W - 12, R.H - 12); }
+    if (!me) R.hurtV = 0;
     if (me) {
       const hpF = me.hp / me.maxHp; if (me.flash) R.hurt = 0.35; R.hurt = Math.max(0, R.hurt - dt * 1.2);
       const v = Math.max(R.hurt, hpF < 0.3 ? (0.3 - hpF) * 2 * (0.6 + Math.sin(nowT * 6) * 0.3) : 0);
-      if (v > 0) { const g = x.createRadialGradient(cx, cy, R.H * 0.3, cx, cy, R.H * 0.8); g.addColorStop(0, 'rgba(180,0,0,0)'); g.addColorStop(1, 'rgba(180,0,0,' + Math.min(0.8, v) + ')'); x.fillStyle = g; x.fillRect(0, 0, R.W, R.H); }
+      R.hurtV = v;
+      if (v > 0 && !post) { if (!R.hurtG) { const g = x.createRadialGradient(cx, cy, R.H * 0.3, cx, cy, R.H * 0.8); g.addColorStop(0, 'rgba(180,0,0,0)'); g.addColorStop(1, 'rgba(180,0,0,1)'); R.hurtG = g; } x.globalAlpha = Math.min(0.8, v); x.fillStyle = R.hurtG; x.fillRect(0, 0, R.W, R.H); x.globalAlpha = 1; }
       if (me.downed) { x.fillStyle = 'rgba(60,0,0,0.45)'; x.fillRect(0, 0, R.W, R.H); x.fillStyle = '#ff6060'; x.font = 'bold 24px monospace'; x.textAlign = 'center'; x.fillText('YOU ARE DOWN — ' + me.bleed + 's', cx, cy - 30); x.font = '13px monospace'; x.fillStyle = '#fff'; x.fillText('a teammate can revive you (hold E)', cx, cy - 10); }
       if (me.dark && darkness > 0.8) { x.fillStyle = '#8080ff'; x.font = '13px monospace'; x.textAlign = 'center'; x.fillText('the dark bites… find light', cx, cy + 44); }
     }

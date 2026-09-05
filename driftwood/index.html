@@ -25,6 +25,7 @@
       <div class="setrow"><label><input type="checkbox" id="set-toon"> Toon outlines</label></div>
       <div class="setrow"><label><input type="checkbox" id="set-autoq"> Auto quality (lowers resolution when the frame rate drops)</label></div>
       <div class="setrow"><label><input type="checkbox" id="set-tut"> Show tutorial</label></div>
+      <div class="setrow"><label><input type="checkbox" id="set-sprint"> Sprint is a toggle (press once to run)</label></div>
     </div>
   </div>
   <div class="row" style="justify-content:flex-end"><button id="settings-done" class="primary">Done</button></div>
@@ -115,14 +116,14 @@
 
 <div id="inv" class="panel hidden">
   <div>
-    <h3>Inventory <span class="small">(click to move · right-click to use/equip · Shift-click to drop · Tab to close)</span></h3>
+    <h3>Inventory <span class="small">(click to move · right-click to use/equip · Shift-click to drop · Tab to close)</span> <button id="inv-sort" style="padding:2px 8px;font-size:11px;float:right">Sort bag</button></h3>
     <div class="grid" id="invgrid"></div>
     <h3 style="margin-top:8px">Armour</h3>
     <div id="armor"></div>
     <div class="small" id="invstats"></div>
   </div>
   <div>
-    <h3>Crafting <span class="small">(stand near the right station)</span></h3>
+    <h3>Crafting <span class="small">(stand near the right station · Shift-click crafts 5)</span></h3>
     <div id="craftlist"></div>
   </div>
 </div>

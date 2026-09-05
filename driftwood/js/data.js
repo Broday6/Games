@@ -205,14 +205,14 @@
   // solid: blocks movement. tool/tier: needed to harvest. drops: [id, min, max]. light: radius. claim: no spawns within.
   const O = {};
   const obj = (id, def) => O[id] = Object.assign({ id, solid: true, hp: 10 }, def);
-  obj('tree', { name: 'Tree', hp: 12, tool: 'axe', tier: 1, drops: [['wood', 3, 5], ['stick', 0, 2]], tall: true, colR: 0.3 });
+  obj('tree', { name: 'Tree', hp: 10, tool: 'axe', tier: 1, drops: [['wood', 3, 5], ['stick', 0, 2]], tall: true, colR: 0.3 });
   obj('birch', { name: 'Birch', hp: 16, tool: 'axe', tier: 1, drops: [['wood', 5, 8], ['stick', 1, 2]], tall: true, colR: 0.28 });
   obj('deadtree', { name: 'Dead Tree', hp: 10, tool: 'axe', tier: 1, drops: [['wood', 2, 3], ['coal', 1, 3]], tall: true, colR: 0.28 });
-  obj('rock', { name: 'Rock', hp: 14, tool: 'pick', tier: 1, drops: [['stone', 3, 5]], colR: 0.5 });
-  obj('coal_rock', { name: 'Coal Deposit', hp: 16, tool: 'pick', tier: 1, drops: [['coal', 2, 4], ['stone', 1, 2]], colR: 0.5 });
-  obj('iron_vein', { name: 'Iron Vein', hp: 24, tool: 'pick', tier: 2, drops: [['iron_ore', 2, 4], ['stone', 1, 2]], colR: 0.5 });
-  obj('gold_vein', { name: 'Gold Vein', hp: 34, tool: 'pick', tier: 3, drops: [['gold_ore', 2, 3]], colR: 0.5 });
-  obj('obsidian_vein', { name: 'Obsidian Vein', hp: 50, tool: 'pick', tier: 4, drops: [['obsidian', 2, 4]], colR: 0.5 });
+  obj('rock', { name: 'Rock', hp: 10, tool: 'pick', tier: 1, drops: [['stone', 3, 5]], colR: 0.5 });
+  obj('coal_rock', { name: 'Coal Deposit', hp: 12, tool: 'pick', tier: 1, drops: [['coal', 2, 4], ['stone', 1, 2]], colR: 0.5 });
+  obj('iron_vein', { name: 'Iron Vein', hp: 18, tool: 'pick', tier: 2, drops: [['iron_ore', 2, 4], ['stone', 1, 2]], colR: 0.5 });
+  obj('gold_vein', { name: 'Gold Vein', hp: 26, tool: 'pick', tier: 3, drops: [['gold_ore', 2, 3]], colR: 0.5 });
+  obj('obsidian_vein', { name: 'Obsidian Vein', hp: 38, tool: 'pick', tier: 4, drops: [['obsidian', 2, 4]], colR: 0.5 });
   obj('berry_bush', { name: 'Berry Bush', hp: 3, tool: null, tier: 0, drops: [['berry', 2, 4], ['fiber', 1, 2]], solid: false, regrow: 90 });
   obj('mushroom', { name: 'Mushroom', hp: 2, tool: null, tier: 0, drops: [['mushroom', 1, 3]], solid: false, regrow: 120 });
   obj('wheat', { name: 'Wild Wheat', hp: 2, tool: null, tier: 0, drops: [['wheat', 1, 3], ['fiber', 1, 2]], solid: false, regrow: 100 });

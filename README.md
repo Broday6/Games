@@ -18,15 +18,15 @@ Open `driftwood/index.html` from any static host (see *Hosting* below). No insta
 | Key | Action |
 |---|---|
 | **Mouse** | look (click the game to grab the mouse, Esc to release) |
-| **WASD** / arrows | move · **Shift** sprint (stamina) · **Space** jump |
-| **Q** | dodge roll (i-frames; extra charges from Feathers) · **Alt+1–4** pick a boon |
+| **WASD** / arrows | move · **Shift** sprint (stamina; *Settings → sprint toggle* makes one tap sprint until you stop) · **Space** jump |
+| **Q** | dodge (i-frames, camera stays upright; extra charges from Feathers) · **Alt+1–4** pick a boon |
 | **LMB** | attack / chop / mine / place the held building piece where you look |
 | **RMB** | draw bow (hold, release to fire) · raise shield (block; block in the first instant to parry) |
 | **E** | interact: open chest, use altar, deposit at the ship, open/close door · **hold E** near a downed friend to revive |
 | **F** | quick-eat the best food you carry |
-| **1–9** / wheel | hotbar · **Tab** or **I** inventory + crafting · **Enter** chat · **T** ping · **M** mute |
+| **1–9** / wheel | hotbar · **Tab** or **I** inventory + crafting (**Shift-click** a recipe crafts 5, **Sort bag** merges and orders your stacks) · **Enter** chat · **T** ping · **M** mute |
 
-**The loop:** gather → craft a workbench → tools → furnace (iron bars) → anvil (iron/gold/obsidian gear).
+**The loop:** gather → craft a workbench → tools → furnace (iron bars) → anvil (iron/gold/obsidian gear). Gathering is quick: a tree or rock takes about 5 hits with the matching tier-1 tool (10 with fists), higher tiers fewer; ore veins need a pickaxe of their tier.
 **Combat:** LMB swings chain into 3-hit combos (the finisher hits harder); **hold RMB** with a melee weapon for a charged heavy attack, with a bow to draw, with a staff to cast, with a shield to block (block in the first instant to parry).
 **Roguelike layer:** kills give XP → every level (and every chest) offers a **pick of 3 boons** (Hades-style; 35+ stackable perks). Weapons drop from chests and bosses with **rarity and random affixes** (Swift, Brutal, Vampiric, Flaming, Frozen, Lucky, Heavy, Keen, Cursed). Elites roam with tripled stats and better loot. Each night after the first rolls a **night event** (Blood Moon, Dead Fog, The Swarm, Smuggler's Night, Long Dark, Champions Rise).
 **10 bosses per run:** from night 2 the heavy wave brings a **night boss** — Bonecrusher, the Warden, the Matriarch, Frostmaw, the Lich, the Titan — each dropping a unique legendary weapon (shockwave hammer, shadow-bolt blade, fire-trail fang, executioner's cleaver, parry-wave bulwark, venom bow, freezing maul, chain-lightning staff, quaking gauntlet) and a unique armor piece. The three **altar guardians** (Gronk, the Hollow King, the Cinderwyrm) drop the gems for the ship, and the **Leviathan** guards the way out.
@@ -118,17 +118,29 @@ survive a night → gamble → guardian → ship) with the keys they actually ha
 under Controls & settings. **How to play** in the lobby shows the same steps, the controls and the loop. `docs/TUTORIAL.md` is the
 written version.
 
+### Hands, swings and items
+
+First-person hands are stubby castaway arms in your player colour. Every attack has a wind-up, a snappy strike that lands exactly
+when the sim registers the hit (30% into the swing) and an eased recovery: swords sweep (horizontal → rising backhand → overhead
+finisher across the 3-hit combo), axes and picks chop over the shoulder, daggers and spears thrust, fists alternate left/right jabs.
+Tools are held with the head turned inward so the blade reads, weapons rest blade-forward. Items are modelled with wrapped hafts,
+bevelled axe heads, two-pronged picks, cylinder crossguards with knobs and pommels, and fullered blades.
+
 ### Terrain
 
 The island has rolling hills and valleys (a slope-limited relief layer on top of the biome height, so every rise is walkable
 without jumping), smooth-shaded grass and rock with crisp beaches, KayKit trees and rocks, and ore veins with glowing crystal
-clusters. Movement follows Muck's feel (notes in `docs/MUCK_NOTES.md`): sprint is 1.8× walk, head bob is off by default (a whisper if
+clusters (bigger, brighter and collared so they read from across a clearing); grass is drawn as tapered two-tone blades. Movement follows Muck's feel (notes in `docs/MUCK_NOTES.md`): sprint is 1.8× walk, head bob is off by default (a whisper if
 enabled), the sprint field-of-view kick is 1.5°, landings dip softly, swinging barely slows you, base FOV is 80.
 
 ### Performance
 
 Rendering is one WebGL pass into an offscreen target plus a post pass (outlines, anti-aliasing, grading). **Auto quality** lowers the
-internal resolution when frames take too long and raises it again when there is headroom; the quality slider sets the ceiling.
+internal resolution when frames take too long and raises it again when there is headroom; the quality slider sets the ceiling. It re-evaluates
+only every six seconds and never drops below 60%, so the picture no longer visibly pumps between resolutions. The hurt and low-health
+vignettes are drawn in the post shader (the old per-frame canvas gradient was a real frame-time sink at low HP), the hit kick is a small
+pitch nudge and dodging no longer rolls the camera. Toon outlines fade out past ~10 m so distant grass stays green instead of turning
+into black spikes.
 Ten point lights per fragment, GPU skinning, chunked terrain with object culling. If it still stutters: lower the quality slider,
 turn off toon outlines, or close other tabs — the game is single-threaded JavaScript.
 
