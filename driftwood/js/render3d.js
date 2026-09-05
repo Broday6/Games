@@ -903,7 +903,7 @@
     const model = G.Assets.models['player_' + o.skin] || playerModelFor(null); if (!model) return;
     const ang = nowT * 0.3; const ex = Math.cos(ang) * 3.6, ey = Math.sin(ang) * 3.6, ez = 1.3; const tz = 0.85;
     // aim a little left of the character so it sits in the free space right of the lobby panel
-    const rx = Math.sin(ang), ry = -Math.cos(ang); const tx = rx * 0.95, ty = ry * 0.95;
+    const rx = -Math.sin(ang), ry = Math.cos(ang); const tx = rx * 0.95, ty = ry * 0.95;
     let fx = tx - ex, fy = ty - ey, fz = tz - ez; const fl = Math.hypot(fx, fy, fz); fx /= fl; fy /= fl; fz /= fl;
     R.cam.x = ex; R.cam.y = ey; R.cam.z = ez; R.cam.yaw = Math.atan2(fy, fx); R.cam.pitch = Math.asin(fz);
     const fov = 48 * Math.PI / 180; perspective(proj, fov, R.W / R.H, 0.05, 80); lookAt(view, ex, ez, ey, fx, fz, fy); vp = mmul(proj, view);
