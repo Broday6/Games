@@ -264,9 +264,9 @@ Reference: *Gamble With Your Friends* (TEAM GWYF, 2026) — first-person, carica
 colours, toon shading, neon casino lighting, hats and cosmetics, slapstick physics. Research notes: `GWF_RESEARCH.md`.
 
 Translation into Driftwood without touching the survival loop:
-- Characters: KayKit Adventurers (CC0) for players (five looks, chosen in the lobby), tinted Adventurers/Skeletons for humanoid
-  enemies and bosses. Capes carry the player colour; procedural hats sit on the head bone and are earned at the Dealer's Table or
-  bought with Shards.
+- Characters: players are procedural non-human 'castaway blobs' (paint-coloured capsule body, googly eyes, reactive mouth/brows,
+  stubby legs, mitten arms) with five faces and unlockable hats — the party-game avatar language of GWYF/PEAK rather than realistic
+  humans. Tinted KayKit Adventurers/Skeletons (CC0) for humanoid enemies and bosses.
 - Rendering: 3-band cel lighting + rim light, stepped point-light falloff, depth-based dark outlines, FXAA-lite, vignette and
   saturation grade in one post pass; pulsing neon pink/cyan lights on casino cabinets at night.
 - Gambling layer ("The Dealer's Table"): slots, dice duel, Wheel of Fates (skill/boon rarities with public odds), blackjack;

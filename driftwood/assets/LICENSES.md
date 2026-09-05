@@ -1,7 +1,7 @@
 # Third-party assets
 
-- `kk_knight.glb`, `kk_barbarian.glb`, `kk_mage.glb`, `kk_rogue.glb`, `kk_rogue_hooded.glb` — **KayKit Adventurers Character Pack 1.0** by Kay Lousberg (www.kaylousberg.com). **CC0 1.0**.
-  Used for the playable characters and (tinted) for goblins, the Warden, Gronk and the Titan.
+- `kk_knight.glb`, `kk_barbarian.glb`, `kk_rogue.glb`, `kk_rogue_hooded.glb` — **KayKit Adventurers Character Pack 1.0** by Kay Lousberg (www.kaylousberg.com). **CC0 1.0**.
+  Used (tinted) for goblins, the Warden, Gronk and the Titan. Players are procedural blobs.
   Source: https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0
 - `kk_skeleton_minion.glb`, `kk_skeleton_warrior.glb`, `kk_skeleton_rogue.glb`, `kk_skeleton_mage.glb` — **KayKit Skeletons Character Pack 1.0** by Kay Lousberg. **CC0 1.0**.
   Used for skeletons, Bonecrusher, the Hollow King and the Lich.

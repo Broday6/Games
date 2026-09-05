@@ -32,7 +32,7 @@
       swing: null, atkCd: 0, dodgeT: 0, dodgeCh: 1, dodgeCd: 0, dodgeDx: 0, dodgeDy: 0, draw: 0, blocking: false, blockT: 0,
       downed: false, bleed: 0, dead: false, revive: 0, flash: 0, swCd: 0, phoenixUsed: false, kills: 0, dark: 0, burn: 0,
       in: { ax: 0, ay: 0, aimx: sp.x, aimy: sp.y - 1, sprint: false, attack: false, sec: false, interact: false },
-      moving: false, anim: 0, pet: null, order: S.order++, combo: 0, comboT: 0, charge: 0, cls: cls || 'castaway', meta: meta || {}, hat: G.HAT[hat] ? hat : 'none', skin: G.SKINS && G.SKINS.some(k => k.id === skin) ? skin : 'knight', sitting: false, emote: 0, bj: null, gambles: 0, rig: {},
+      moving: false, anim: 0, pet: null, order: S.order++, combo: 0, comboT: 0, charge: 0, cls: cls || 'castaway', meta: meta || {}, hat: G.HAT[hat] ? hat : 'none', skin: G.SKINS && G.SKINS.some(k => k.id === skin) ? skin : 'happy', sitting: false, emote: 0, bj: null, gambles: 0, rig: {},
     };
     S.players[id] = p;
     const C = G.CLASSES.find(c => c.id === p.cls); if (C) { for (const [it, n] of C.items) Sim.give(p, it, n); for (const k in C.pw) p.pw[k] = (p.pw[k] || 0) + C.pw[k]; }

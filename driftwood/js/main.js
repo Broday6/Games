@@ -55,7 +55,7 @@
     if (M.mode === 'host') {
       if (!M.S) return;
       if (msg.t === 'hello') {
-        if (!M.S.players[from]) Sim.addPlayer(M.S, from, msg.name, msg.col, G.CLASSES.some(c => c.id === msg.cls) ? msg.cls : 'castaway', (msg.meta && typeof msg.meta === 'object') ? msg.meta : {}, typeof msg.hat === 'string' ? msg.hat : 'none', typeof msg.skin === 'string' ? msg.skin : 'knight');
+        if (!M.S.players[from]) Sim.addPlayer(M.S, from, msg.name, msg.col, G.CLASSES.some(c => c.id === msg.cls) ? msg.cls : 'castaway', (msg.meta && typeof msg.meta === 'object') ? msg.meta : {}, typeof msg.hat === 'string' ? msg.hat : 'none', typeof msg.skin === 'string' ? msg.skin : 'happy');
         updateLobbyPlayers();
         Net.send(from, { t: 'welcome', id: from, seed: M.S.world.seed, snap: Sim.snapshot(M.S, true) });
         if (M.started) Net.send(from, { t: 'start' });

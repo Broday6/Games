@@ -88,15 +88,16 @@ your LAN can join with your machine's IP, or over the internet via the room code
 
 ### Characters & art
 
-The look follows *Gamble With Your Friends*: chunky big-headed heroes, saturated colours, toon shading with dark outlines and
-neon light at night (research notes in `docs/GWF_RESEARCH.md`). Players pick one of five **KayKit Adventurers** (CC0) in the lobby —
-Knight, Barbarian, Mage, Rogue, Hooded Rogue — wear unlockable **hats**, and their capes take their player colour. Goblins, skeletons
-and the humanoid bosses are tinted KayKit Adventurers/Skeletons, wolves use the flat-shaded Fox rig, scout drones are Kenney's.
-The world matches them: trees, stumps, rocks and ore are KayKit Medieval Hexagon props baked into the terrain chunks by
-`tools/bakeprops.js`. The lobby shows your character live on a beach with the current hat and starting weapon, and cheers now and
-then; in game, **G** plays the cheer emote and hits trigger a flinch. Every rig is GPU-skinned by the in-house glTF loader (`js/gltf.js`) with idle / walk / run / weapon-specific attack / block / dodge /
-sit / death clips crossfaded from the simulation state; weapons attach to the `handslot.r` bone. `tools/slimglb.js` strips packs
-down to the clips we use. Swap or add models by dropping a `.glb` into `driftwood/assets/` and editing `assets/models.json`.
+The look follows *Gamble With Your Friends* and *PEAK*: non-human party-game avatars, saturated colours, toon shading with dark
+outlines and neon light at night (research notes in `docs/GWF_RESEARCH.md`). Players are **castaway blobs**: a capsule body in
+your paint colour, big googly eyes that blink and follow the camera, a mouth and brows that react (angry mid-swing, "o" when hit,
+grinning on the cheer emote), stubby waddling legs and mitten arms that hold your weapon. Pick a **face** (Happy, Wide-eyed,
+Sleepy, Grumpy, Goofy) and an unlockable **hat** in the lobby and see it live on the beach preview. Goblins, skeletons and the
+humanoid bosses are tinted KayKit Adventurers/Skeletons rigs (CC0), wolves use the flat-shaded Fox rig, scout drones are Kenney's.
+The world matches: trees, stumps, rocks and ore are KayKit Medieval Hexagon props baked into the terrain chunks by
+`tools/bakeprops.js`. In game, **G** plays the cheer emote and hits trigger a flinch. Enemy rigs are GPU-skinned by the in-house
+glTF loader (`js/gltf.js`) with idle / walk / run / weapon-specific attack / block / dodge / death clips; `tools/slimglb.js` strips
+packs down to the clips we use. Swap or add enemy models by dropping a `.glb` into `driftwood/assets/` and editing `assets/models.json`.
 
 ### The Dealer's Table (gambling)
 

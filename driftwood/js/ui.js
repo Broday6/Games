@@ -72,7 +72,7 @@
       box.appendChild(d); });
   };
   UI.saveLobby = function () { try { const saved = JSON.parse(localStorage.getItem('driftwood') || '{}'); saved.hat = UI.hat; saved.skin = UI.skin; localStorage.setItem('driftwood', JSON.stringify(saved)); } catch (e) { } };
-  UI.skin = 'knight';
+  UI.skin = 'happy';
   UI.renderSkins = function () { const box = $('skins'); if (!box) return; box.innerHTML = ''; G.SKINS.forEach(k => { const d = document.createElement('div'); d.className = 'hat' + (k.id === UI.skin ? ' sel' : ''); d.textContent = k.name; d.onclick = () => { UI.skin = k.id; UI.saveLobby(); UI.renderSkins(); }; box.appendChild(d); }); const tag = $('preview-name'); if (tag) tag.textContent = (G.SKINS.find(k => k.id === UI.skin) || {}).name || ''; };
   UI.unlockHat = function (id) { if (!G.HAT[id]) return; const m = UI.loadMeta(); if ((m.hats || []).includes(id) || ['none', 'cap', 'beanie'].includes(id)) { m.shards += 40; UI.saveMeta(m); UI.toast('Duplicate hat', 'You already own the ' + G.HAT[id].name + ' — 40 shards instead.'); return; } m.hats = (m.hats || []).concat([id]); UI.saveMeta(m); UI.toast('New hat unlocked!', G.HAT[id].name + ' — wear it from the lobby.', '#ff4fd8'); };
   UI.renderClasses = function () {

@@ -336,7 +336,7 @@
   ];
   G.HAT = {}; G.HATS.forEach(h => G.HAT[h.id] = h);
   // playable looks (KayKit Adventurers, CC0) — purely cosmetic, picked in the lobby
-  G.SKINS = [{ id: 'knight', name: 'Knight' }, { id: 'barbarian', name: 'Barbarian' }, { id: 'mage', name: 'Mage' }, { id: 'rogue', name: 'Rogue' }, { id: 'hooded', name: 'Hooded Rogue' }];
+  G.SKINS = [{ id: 'happy', name: 'Happy' }, { id: 'wide', name: 'Wide-eyed' }, { id: 'sleepy', name: 'Sleepy' }, { id: 'grumpy', name: 'Grumpy' }, { id: 'derp', name: 'Goofy' }];
   // tutorial steps: text shown to new players, key names are filled from the current binds, done() checks the client view
   G.TUTORIAL = [
     { id: 'move', txt: 'Look around with the mouse. Walk with {forward}{left}{back}{right}, sprint with {sprint}, jump with {jump}.', done: (V, me) => G.dist(me.x, me.y, V.world.spawn.x, V.world.spawn.y) > 4 },

@@ -709,9 +709,8 @@
     const it = me.inv[me.held]; const d = it ? G.ITEMS[it.id] : null;
     const prog = me.swing ? Math.min(1, me.swing.t / me.swing.dur) : 0; const sw = Math.sin(prog * Math.PI); const anim = me.swing ? (me.swing.anim || 'slash') : null; const combo = me.swing ? (me.swing.combo || 0) : 0;
     // first-person hands match the chosen character: gauntlets for the knight, bare arms for the barbarian, sleeves for the rest; a robot look if the robot rig is in use
-    const big = d && d.big; const mdl = playerModelFor(me); const robot = !!(mdl && /robot/.test(mdl.spec.file || ''));
-    const LOOK = { knight: ['#b8bfcf', '#7c8496'], barbarian: ['#e8b48a', '#8a5a30'], mage: ['#f0c8a0', '#3a3a9a'], rogue: ['#e0b890', '#5a4030'], hooded: ['#e0b890', '#3a2a5a'] }; const lk = LOOK[me.skin] || LOOK.knight;
-    const skin = robot ? hex(me.col) : hex(lk[0]), sleeve = robot ? hex('#7a8088') : hex(lk[1]), wrist = hex(me.skin === 'knight' ? '#4a5060' : '#1a1a1e');
+    const big = d && d.big; const robot = false; const pc = hex(me.col);
+    const skin = sh(pc, 1.05), sleeve = sh(pc, 0.9), wrist = sh(pc, 0.7);
     // rest pose
     let hand = M(C, mT(0.36 + sway, -0.36 + bob + idle, 0.82), mRX(-0.15));
     if (me.charge > 0) { const c = me.charge; hand = M(C, mT(0.34 + sway, -0.22 + bob + c * 0.15 + Math.sin(nowT * 40) * 0.006 * c, 0.72), mRX(-0.15 - c * 1.2), mRZ(-0.25 * c)); }
@@ -771,7 +770,7 @@
     return pose;
   }
   const playerModelFor = (p) => { const M0 = G.Assets && G.Assets.models; if (!M0) return null; return M0['player_' + (p && p.skin)] || M0.player || M0[Object.keys(M0).find(k => k.startsWith('player_'))] || null; };
-  R.hasPlayerModel = () => !!(mprog && playerModelFor(null));
+  R.hasPlayerModel = () => true;
   // queue a model draw; returns node world matrices so items can be attached
   function queueModel(model, x, y, z, face, tint, pose) {
     const spec = model.spec; const sc = model.scale; const root = M(mT(x, z - model.base * sc, y), mRY((spec.yaw || 0) - face), mS(sc));
@@ -878,14 +877,71 @@
       const ht = spec.headTop || 1.4, hr2 = (spec.headR || 1.3) * sc; hatMesh(dyn, M(n, mT(0, ht * sc, 0)), st.hat, hr2, tint || [1, 1, 1]); } }
     return rq;
   }
+  // ================= castaway blobs (players) =================
+  // Non-human avatars in the spirit of casino/climbing party games: a paint-coloured capsule body, big googly eyes, a mouth and brows
+  // that react, stubby waddling legs and mitten arms. Everything is procedural so faces, colours and hats combine freely.
+  const FACES = { happy: { eye: 0.11, pupil: 0.05, brow: 0.0, mouth: 'smile' }, sleepy: { eye: 0.1, pupil: 0.045, brow: 0.15, mouth: 'flat', lid: 0.45 }, wide: { eye: 0.13, pupil: 0.045, brow: -0.2, mouth: 'o' }, grumpy: { eye: 0.1, pupil: 0.05, brow: 0.55, mouth: 'frown' }, derp: { eye: 0.12, pupil: 0.055, brow: -0.1, mouth: 'tongue', odd: true } };
+  const blobState = {};
+  function drawBlob(t, key, x, y, gz, face, col, st, dt) {
+    const F = FACES[st.face] || FACES.happy; const bs = blobState[key] || (blobState[key] = { seed: Math.random() * 100, blink: 0, hitT: 0 });
+    bs.blink -= dt; if (bs.blink < -0.13) bs.blink = 3 + Math.random() * 3; const blink = bs.blink < 0; if (st.hit) bs.hitT = 0.25; bs.hitT = Math.max(0, bs.hitT - dt);
+    const dark = hex('#1c1a22'), white = hex('#fbfbff'), shoe = sh(col, 0.45), mouthC = hex('#3a1020');
+    const prog = st.swing ? Math.min(1, st.swing.t / st.swing.dur) : 0; const sw = Math.sin(prog * Math.PI); const ph = st.anim || 0; const mv = !!st.moving; const T = nowT + bs.seed;
+    let root = M(mT(x, gz, y), mRY(-face));
+    if (st.downed) root = M(root, mT(0, 0.3, 0), mRZ(1.45), mT(0, -0.05, 0));
+    // body motion: bob + roll when walking, lean into attacks/sprint, squash on hits, hop for the emote, sit lower
+    const bob = mv ? Math.abs(Math.sin(ph)) * 0.05 : Math.sin(T * 2) * 0.012; const roll = mv ? Math.sin(ph) * 0.08 : 0; const hop = st.emote ? Math.abs(Math.sin(T * 7)) * 0.16 : 0;
+    const lean = (st.swing ? 0.3 * sw : 0) + (st.sprinting && mv ? 0.14 : 0) + (st.charge ? -0.15 * st.charge : 0) + (st.dodge ? 0.35 : 0);
+    const sq = bs.hitT > 0 ? 0.82 + 0.18 * (1 - bs.hitT / 0.25) : (st.sitting ? 0.9 : 1 + (mv ? Math.sin(ph * 2) * 0.03 : Math.sin(T * 2) * 0.02));
+    const B = M(root, mT(0, bob + hop + (st.sitting ? -0.17 : 0), 0), mRX(roll), mRZ(-lean), mS(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq)));
+    // legs + shoes (waddle)
+    for (const sd of [-1, 1]) { const a = st.sitting ? -1.4 : (mv ? Math.sin(ph + (sd > 0 ? 0 : Math.PI)) * 0.55 : 0) + (hop ? 0.3 : 0); const L = M(root, mT(0, 0.22 + hop * 0.5, sd * 0.13), mRZ(-a), mT(0, -0.2, 0)); capsuleS(t, L, 0.07, 0.16, 8, sh(col, 0.85)); sphS(t, M(L, mT(0.03, 0.0, 0)), 0.1, 9, 5, shoe, 0, 0.6); }
+    // body
+    sphS(t, M(B, mT(0, 0.64, 0)), 0.36, 16, 10, col, 0, 1.32);
+    sphS(t, M(B, mT(0.06, 0.5, 0)), 0.3, 12, 7, sh(col, 1.08), 0, 1.0); // lighter belly
+    // arms with mitten hands; right arm is the weapon arm
+    const kind = heldKind(st.held); const ranged = kind === 'bow' || kind === 'staff';
+    for (const sd of [-1, 1]) {
+      let ang = (mv ? Math.sin(ph + (sd > 0 ? Math.PI : 0)) * 0.45 : Math.sin(T * 1.7) * 0.06) + 0.25; let out = 0.55; // hang down and a bit out
+      const right = sd < 0;
+      if (st.emote) { ang = -2.6 + Math.sin(T * 7 + sd) * 0.3; out = 0.9; }
+      else if (st.block || (ranged && (st.charge > 0 || right))) { ang = -1.5; out = 0.2; }
+      else if (right && st.charge > 0) { ang = 1.1 * st.charge; out = 0.5; }
+      else if (right && st.swing) { const an = st.swing.anim; ang = an === 'thrust' ? -1.55 : an === 'chop' || an === 'slam' ? (-2.6 + prog * 2.2) : (-1.4 - Math.cos(prog * Math.PI) * 0.9); out = an === 'slash' ? 0.2 + sw * 0.6 : 0.3; }
+      else if (right && st.held) { ang = -0.35; out = 0.45; }
+      const A = M(B, mT(0, 0.74, sd * 0.3), mRX(-sd * out), mRZ(-ang));
+      capsuleS(t, M(A, mT(0, -0.27, 0)), 0.065, 0.24, 8, sh(col, 0.92)); sphS(t, M(A, mT(0, -0.3, 0)), 0.1, 10, 6, sh(col, 1.05), 0, 0.9);
+      if (right && st.held && G.ITEMS[st.held.id]) { const d = G.ITEMS[st.held.id]; const H = M(A, mT(0.02, -0.32, 0)); const tilt = st.swing ? 0.2 : ranged ? 0.0 : 0.9; itemMesh(t, M(H, mRZ(Math.PI + tilt), mRY(ranged ? 1.57 : 0), mS(d.big ? 0.62 : 0.55)), st.held.id, false, st.held); }
+    }
+    // face: eyes (blink, look at the camera), brows (mood), mouth
+    const angry = !!(st.swing || st.charge > 0), hurt = bs.hitT > 0 || st.downed, happy = !!st.emote;
+    let lookZ = 0, lookY = 0; { const dx = R.cam.x - x, dy = R.cam.y - y; const a = Math.atan2(dy, dx) - face; lookZ = G.clamp(Math.sin(a) * 0.035, -0.035, 0.035); lookY = G.clamp((R.cam.z - gz - 0.85) * 0.03, -0.03, 0.03); }
+    for (const sd of [-1, 1]) {
+      const er = F.eye * (F.odd && sd > 0 ? 0.78 : 1); const E = M(B, mT(0.29, 0.84 + (F.odd && sd > 0 ? 0.03 : 0), sd * 0.13));
+      const shut = blink || st.downed; sphS(t, E, er, 12, 8, white, 0, shut ? 0.12 : 1);
+      if (!shut) { sphS(t, M(E, mT(er * 0.72, lookY, lookZ * (F.odd && sd > 0 ? -1 : 1))), F.pupil, 10, 6, dark); sphS(t, M(E, mT(er * 0.88, F.pupil * 0.5, lookZ + sd * 0.012)), F.pupil * 0.3, 6, 4, white, 0.4); if (F.lid) box(t, M(E, mT(0.02, er * 0.62, 0)), er * 1.1, er * 0.5, er * 2.1, col, 0, 0); }
+      const bt = (F.brow + (angry ? 0.7 : 0) - (hurt || happy ? 0.45 : 0)) * -sd; box(t, M(B, mT(0.3, 0.98 + (hurt || happy ? 0.03 : 0), sd * 0.13), mRX(bt)), 0.03, 0.025, 0.11, dark, 0, 0);
+    }
+    { const my = 0.66; if (hurt || F.mouth === 'o' && !happy) sphS(t, M(B, mT(0.33, my, 0)), 0.045, 8, 5, mouthC, 0, 1.25);
+      else if (happy || angry) { box(t, M(B, mT(0.33, my - 0.01, 0)), 0.03, 0.06, 0.16, mouthC, 0, 0); box(t, M(B, mT(0.335, my + 0.015, 0)), 0.02, 0.02, 0.13, white, 0, 0); }
+      else if (F.mouth === 'frown') { for (const k of [-1, 0, 1]) sphS(t, M(B, mT(0.33, my - 0.02 + Math.abs(k) * 0.03, k * 0.05)), 0.018, 6, 4, mouthC); }
+      else if (F.mouth === 'flat') box(t, M(B, mT(0.33, my, 0)), 0.02, 0.018, 0.12, mouthC, 0, 0);
+      else if (F.mouth === 'tongue') { for (const k of [-1, 0, 1]) sphS(t, M(B, mT(0.33, my + 0.02 - Math.abs(k) * 0.03, k * 0.05)), 0.018, 6, 4, mouthC); sphS(t, M(B, mT(0.34, my - 0.03, 0.02)), 0.035, 8, 5, hex('#ff7090'), 0, 0.6); }
+      else for (const k of [-1, 0, 1]) sphS(t, M(B, mT(0.33, my + 0.02 - Math.abs(k) * 0.03, k * 0.05)), 0.02, 6, 4, mouthC); }
+    // hat on the crown
+    if (st.hat && st.hat !== 'none') hatMesh(t, M(B, mT(0, 1.07, 0), mRY(1.5708)), st.hat, 0.31, col);
+  }
   // draws a player with the glTF model; returns true if handled
   function playerModel(p, gz, dt, isMe) {
-    const model = playerModelFor(p); if (!model || !mprog) return false; if (p.dead) return true;
+    if (p.dead) return true; const it0 = p.inv[p.held];
+    drawBlob(dyn, 'pl:' + p.id, p.x, p.y, gz, p.face, hex(p.col), { face: p.skin, anim: p.anim, moving: p.moving, sprinting: p.sprinting, swing: p.swing, charge: p.charge, block: p.blocking, dodge: p.dodgeT > 0, downed: p.downed, sitting: p.sitting, emote: p.emote > 0, hit: !!p.flash, held: it0, hat: p.hat }, dt);
+    return true;
+    const model = playerModelFor(p); if (!model || !mprog) return false;
     const it = p.inv[p.held];
     charModel(model, 'pl:' + p.id, p.x, p.y, gz, p.face, hex(p.col), { downed: p.downed, swing: p.swing, moving: p.moving, sprinting: p.sprinting, wind: p.charge > 0, windF: p.charge, flash: p.flash, held: it, hat: p.hat, block: p.blocking, dodge: p.dodgeT > 0, sitting: p.sitting, emote: p.emote > 0, hit: !!p.flash }, dt);
     return true;
   }
-  R.playerTop = () => { const m = playerModelFor(null); return m ? (m.spec.height || 1.2) + 0.28 : 1.5; };
+  R.playerTop = () => 1.55;
   // enemy drawn with a glTF model when assets/models.json has an entry for its type; returns true if handled
   function enemyModel(e, m, V, dt, corpse) {
     const model = mprog && G.Assets.models[e.t]; if (!model) return false; const d = G.ENEMIES[e.t]; const spec = model.spec;
@@ -900,7 +956,6 @@
   // ================= lobby preview =================
   R.preview = function (o, dt) {
     if (!gl || !mprog) return; nowT += dt; R.dt = dt;
-    const model = G.Assets.models['player_' + o.skin] || playerModelFor(null); if (!model) return;
     const ang = nowT * 0.3; const ex = Math.cos(ang) * 3.6, ey = Math.sin(ang) * 3.6, ez = 1.3; const tz = 0.85;
     // aim a little left of the character so it sits in the free space right of the lobby panel
     const rx = -Math.sin(ang), ry = Math.cos(ang); const tx = rx * 0.95, ty = ry * 0.95;
@@ -922,7 +977,7 @@
     else { sph(dyn, M(mT(-1.8, 1.4, 1.2)), 0.8, 7, 4, hex('#3e8e2e'), 0, 0.85); cyl(dyn, mT(-1.8, 0, 1.2), 0.16, 0.12, 1.4, 6, hex('#7a4a20')); }
     inst(dyn, PF.casino, M(mT(5.2, 0, -1.2), mRY(-2.0)));
     const C = G.CLASSES.find(c => c.id === o.cls); const held = C && C.items && C.items.length ? { id: C.items[0][0], n: 1 } : null;
-    charModel(model, 'preview', 0, 0, 0, ang, hex(o.col), { held, hat: o.hat, emote: (nowT % 9) < 2.2, moving: false }, dt);
+    drawBlob(dyn, 'preview', 0, 0, 0, ang, hex(o.col), { face: o.skin, held, hat: o.hat, emote: (nowT % 9) < 2.2, moving: false, anim: 0 }, dt);
     gl.bindBuffer(gl.ARRAY_BUFFER, dynBuf); gl.bufferData(gl.ARRAY_BUFFER, dyn.arr.subarray(0, dyn.n * VF), gl.DYNAMIC_DRAW); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, dyn.n);
     drawModels(); gl.useProgram(prog);
     if (post) drawPost();
