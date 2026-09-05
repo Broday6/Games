@@ -3,7 +3,7 @@
   'use strict';
 
   G.TS = 16;                 // tile size in px (internal resolution)
-  G.WORLD = 192;             // world is WORLD x WORLD tiles
+  G.WORLD = 256;             // world is WORLD x WORLD tiles
   G.DAY_LEN = 240;           // seconds per full day
   G.DUSK_AT = 160;
   G.NIGHT_AT = 180;

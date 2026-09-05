@@ -18,7 +18,10 @@ input:focus, textarea:focus { outline: none; border-color: var(--acc); }
 .panel { background: var(--panel); border: 2px solid var(--line); border-radius: 6px; padding: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.6); }
 
 /* lobby */
-#lobby { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, #1c2a40 0%, #0d0c14 70%); z-index: 50; overflow: auto; }
+#lobby { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-start; padding-left: 4vw; z-index: 10; pointer-events: auto; overflow: auto; }
+#lobby .panel { max-width: 640px; }
+#preview-tag { position: absolute; right: 6vw; bottom: 8vh; color: #fff; font-size: 13px; text-shadow: 0 2px 6px #000; text-align: center; pointer-events: none; }
+#preview-tag b { display: block; font-size: 20px; color: var(--acc); }
 #lobby .panel { width: min(560px, 94vw); }
 #lobby h1 { margin: 0 0 4px; font-size: 40px; letter-spacing: 6px; color: var(--acc); text-shadow: 3px 3px 0 #5a3a00; }
 #lobby .sub { color: var(--dim); margin-bottom: 16px; font-size: 13px; }

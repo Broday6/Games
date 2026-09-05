@@ -326,7 +326,7 @@
  },
  "goblin": {
   "file": "kk_rogue_hooded.glb",
-  "height": 1.05,
+  "height": 0.9,
   "yaw": 1.5708,
   "hand": "handslot.r",
   "handRot": [
@@ -390,7 +390,7 @@
  },
  "goblin_archer": {
   "file": "kk_rogue.glb",
-  "height": 1.05,
+  "height": 0.9,
   "yaw": 1.5708,
   "hand": "handslot.r",
   "handRot": [
@@ -454,7 +454,7 @@
  },
  "skeleton": {
   "file": "kk_skeleton_minion.glb",
-  "height": 1.3,
+  "height": 1.1,
   "yaw": 1.5708,
   "hand": "handslot.r",
   "handRot": [
@@ -516,7 +516,7 @@
  },
  "bonecrusher": {
   "file": "kk_skeleton_warrior.glb",
-  "height": 2.6,
+  "height": 2.1,
   "yaw": 1.5708,
   "hand": "handslot.r",
   "handRot": [
@@ -529,7 +529,7 @@
    0,
    0
   ],
-  "itemScale": 1.7,
+  "itemScale": 1.44,
   "head": "head",
   "headTop": 1.07,
   "headR": 0.56,
@@ -578,7 +578,7 @@
  },
  "lich": {
   "file": "kk_skeleton_mage.glb",
-  "height": 2.1,
+  "height": 1.8,
   "yaw": 1.5708,
   "hand": "handslot.r",
   "handRot": [
@@ -591,7 +591,7 @@
    0,
    0
   ],
-  "itemScale": 1.5,
+  "itemScale": 1.27,
   "head": "head",
   "headTop": 1.07,
   "headR": 0.56,
@@ -640,7 +640,7 @@
  },
  "hollow": {
   "file": "kk_skeleton_rogue.glb",
-  "height": 2.3,
+  "height": 1.9,
   "yaw": 1.5708,
   "hand": "handslot.r",
   "handRot": [
@@ -653,7 +653,7 @@
    0,
    0
   ],
-  "itemScale": 1.5,
+  "itemScale": 1.27,
   "head": "head",
   "headTop": 1.07,
   "headR": 0.56,
@@ -704,7 +704,7 @@
  },
  "warden": {
   "file": "kk_knight.glb",
-  "height": 2.2,
+  "height": 1.85,
   "yaw": 1.5708,
   "hand": "handslot.r",
   "handRot": [
@@ -717,7 +717,7 @@
    0,
    0
   ],
-  "itemScale": 1.5,
+  "itemScale": 1.27,
   "head": "head",
   "headTop": 1.07,
   "headR": 0.56,
@@ -768,7 +768,7 @@
  },
  "gronk": {
   "file": "kk_barbarian.glb",
-  "height": 2.7,
+  "height": 2.2,
   "yaw": 1.5708,
   "hand": "handslot.r",
   "handRot": [
@@ -781,7 +781,7 @@
    0,
    0
   ],
-  "itemScale": 1.9,
+  "itemScale": 1.61,
   "head": "head",
   "headTop": 1.07,
   "headR": 0.56,
@@ -832,7 +832,7 @@
  },
  "titan": {
   "file": "kk_barbarian.glb",
-  "height": 3.6,
+  "height": 2.9,
   "yaw": 1.5708,
   "hand": "handslot.r",
   "handRot": [
@@ -845,7 +845,7 @@
    0,
    0
   ],
-  "itemScale": 2.2,
+  "itemScale": 1.87,
   "head": "head",
   "headTop": 1.07,
   "headR": 0.56,
@@ -895,7 +895,7 @@
  },
  "wolf": {
   "file": "fox.glb",
-  "height": 0.95,
+  "height": 0.75,
   "yaw": 1.5708,
   "tint": "fox_material",
   "flat": true,
@@ -907,7 +907,7 @@
  },
  "wolf_pet": {
   "file": "fox.glb",
-  "height": 0.95,
+  "height": 0.75,
   "yaw": 1.5708,
   "tint": "fox_material",
   "flat": true,
@@ -919,7 +919,7 @@
  },
  "frostmaw": {
   "file": "fox.glb",
-  "height": 2.1,
+  "height": 1.7,
   "yaw": 1.5708,
   "tint": "fox_material",
   "flat": true,
@@ -931,7 +931,7 @@
  },
  "bat": {
   "file": "kenney_drone.glb",
-  "height": 0.55,
+  "height": 0.45,
   "yaw": 1.5708,
   "tint": "colormap",
   "hover": 0.85,

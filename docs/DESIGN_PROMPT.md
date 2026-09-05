@@ -272,4 +272,5 @@ Translation into Driftwood without touching the survival loop:
 - Gambling layer ("The Dealer's Table"): slots, dice duel, Wheel of Fates (skill/boon rarities with public odds), blackjack;
   wins pay coins and boons, jackpots unlock hats, busts hex; four one-use odds riggers (sketchy items). Host-authoritative.
 - Onboarding: a tutorial checklist bound to the player's actual keys, and a How-to-play panel.
-- Feel: bigger island (192²), natural objects keep a walkable gap, round trunk collision so you slide past trees.
+- Feel: bigger island (256², main landmass detection so spawn/altars share one connected coast), natural objects keep a walkable gap, round trunk collision so you slide past trees; enemies drawn ~20% smaller than before while their hit radii stay the same.
+- World props: KayKit Medieval Hexagon trees/rocks baked to coloured triangles so the environment shares the characters' palette; lobby character preview; cheer emote; hit flinch.

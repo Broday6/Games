@@ -103,7 +103,7 @@
   function drawPost() {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND); gl.useProgram(postProg);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, post.col); gl.uniform1i(postProg.u.uCol, 0); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, post.dep); gl.uniform1i(postProg.u.uDepth, 1); gl.activeTexture(gl.TEXTURE0);
-    const S = G.Input && G.Input.settings ? G.Input.settings : {}; gl.uniform2f(postProg.u.uInvRes, 1 / R.W, 1 / R.H); gl.uniform1f(postProg.u.uNear, 0.05); gl.uniform1f(postProg.u.uFar, 80); gl.uniform1f(postProg.u.uOutline, S.toon === false ? 0 : (R.W > 1400 ? 1.8 : 1.3)); gl.uniform1f(postProg.u.uSat, 1.18); gl.uniform1f(postProg.u.uDebug, R.debugEdges ? 1 : 0);
+    const S = G.Input && G.Input.settings ? G.Input.settings : {}; gl.uniform2f(postProg.u.uInvRes, 1 / R.W, 1 / R.H); gl.uniform1f(postProg.u.uNear, 0.05); gl.uniform1f(postProg.u.uFar, 80); gl.uniform1f(postProg.u.uOutline, S.toon === false ? 0 : (R.W > 1400 ? 1.8 : 1.3)); gl.uniform1f(postProg.u.uSat, 1.15); gl.uniform1f(postProg.u.uDebug, R.debugEdges ? 1 : 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf); gl.enableVertexAttribArray(postProg.a.aP); gl.vertexAttribPointer(postProg.a.aP, 2, gl.FLOAT, false, 0, 0); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     // unbind the target textures or next frame's draws into the FBO would form a feedback loop and be dropped
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, null); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, null);
@@ -272,6 +272,8 @@
 
   // ================= prefabs (world objects, local space, base at y=0) =================
   const PF = {};
+  // baked glTF props (js/props.js): flat-coloured triangle lists, optionally tinted
+  function propMesh(t, m, name, tint) { const P = G.PROPS && G.PROPS[name]; if (!P) return false; const v = P.v; grow(t, v.length / 9); for (let i = 0; i < v.length; i += 9) { const c = tint ? [v[i + 6] * tint[0], v[i + 7] * tint[1], v[i + 8] * tint[2]] : [v[i + 6], v[i + 7], v[i + 8]]; vert(t, xf(m, v[i], v[i + 1], v[i + 2]), xfn(m, v[i + 3], v[i + 4], v[i + 5]), c, 0); } return true; }
   function pf(name, fn) { const t = { arr: new Float32Array(VF * 3 * 400), n: 0 }; fn(t, m4()); PF[name] = t.arr.slice(0, t.n * VF); }
   function buildPrefabs() {
     const wood = hex('#7a4a22'), leaf = hex('#3f8f38'), leaf2 = hex('#2f6f2a'), stone = hex('#7d7f83'), dark = hex('#3a3040');
@@ -290,6 +292,16 @@
     pf('cactus', (t, m) => { const c = hex('#3a9a4a'); cyl(t, m, 0.16, 0.14, 1.1, 6, c); cyl(t, M(m, mT(0.28, 0.55, 0), mRZ(-1.3)), 0.09, 0.09, 0.3, 5, c); cyl(t, M(m, mT(0.42, 0.55, 0)), 0.09, 0.08, 0.35, 5, c); cyl(t, M(m, mT(-0.25, 0.4, 0), mRZ(1.3)), 0.08, 0.08, 0.28, 5, c); cyl(t, M(m, mT(-0.4, 0.4, 0)), 0.08, 0.07, 0.3, 5, c); box(t, M(m, mT(0, 1.15, 0)), 0.12, 0.12, 0.12, hex('#e05a9a')); });
     pf('grass_tuft', (t, m) => { for (let i = 0; i < 6; i++) { const g = M(m, mT((h2(i, 5) - .5) * 0.6, 0, (h2(i, 6) - .5) * 0.6), mRY(h2(i, 7) * 6)); blade(t, g, 0.08, 0.35 + h2(i, 8) * 0.25, i % 2 ? hex('#7ab84a') : hex('#5c9a45'), 0, 0.12); } });
     pf('stub', (t, m) => { cyl(t, m, 0.14, 0.12, 0.2, 6, wood); });
+    if (G.PROPS && G.PROPS.tree_a) { // KayKit nature props replace the procedural trees and rocks when baked
+      const ore = (t, m, col, em, n, seedK) => { for (let i = 0; i < n; i++) { const a = seedK + i * 1.9; box(t, M(m, mT(Math.cos(a) * 0.28, 0.12 + (i % 2) * 0.14, Math.sin(a) * 0.28), mRY(a)), 0.14, 0.14, 0.14, col, em, 0); } };
+      pf('tree', (t, m) => propMesh(t, M(m, mS(2.35)), 'tree_a', [0.7, 0.78, 0.78])); pf('tree2', (t, m) => propMesh(t, M(m, mRY(2.1), mS(2.25)), 'tree_b', [0.7, 0.78, 0.78]));
+      pf('birch', (t, m) => propMesh(t, M(m, mRY(0.8), mS(2.4)), 'tree_b', [0.8, 0.86, 0.84]));
+      pf('rock', (t, m) => propMesh(t, M(m, mS(2.9, 3.4, 2.9)), 'rock_c')); pf('stub', (t, m) => propMesh(t, M(m, mS(2.35)), 'stump_a'));
+      pf('coal_rock', (t, m) => { propMesh(t, M(m, mS(3.1, 3.6, 3.1)), 'rock_b', [0.8, 0.8, 0.82]); ore(t, m, hex('#1a1a1e'), 0, 3, 0.4); });
+      pf('iron_vein', (t, m) => { propMesh(t, M(m, mS(3.2, 3.8, 3.2)), 'rock_d', [0.95, 0.88, 0.85]); ore(t, m, hex('#b06a40'), 0, 4, 1.1); });
+      pf('gold_vein', (t, m) => { propMesh(t, M(m, mS(2.7, 3.6, 2.7)), 'rock_e'); ore(t, m, hex('#ffd24a'), 0.35, 4, 0.2); });
+      pf('obsidian_vein', (t, m) => { propMesh(t, M(m, mS(3.0, 3.8, 3.0)), 'rock_c', [0.45, 0.4, 0.6]); ore(t, m, hex('#a070ff'), 0.7, 3, 2.0); });
+    }
     const chest = (name, col) => pf(name, (t, m) => { const c = hex(col); box(t, M(m, mT(0, 0, 0)), 0.8, 0.45, 0.55, c, 0.05); box(t, M(m, mT(0, 0.45, 0)), 0.84, 0.2, 0.6, sh(c, 1.25), 0.05); box(t, M(m, mT(0, 0.32, 0.29)), 0.12, 0.16, 0.06, hex('#ffd24a'), 0.4); for (const x of [-0.3, 0.3]) box(t, M(m, mT(x, 0.3, 0)), 0.06, 0.66, 0.6, hex('#3a3030')); });
     chest('chest_c', '#8a6a3f'); chest('chest_u', '#3a9a4a'); chest('chest_r', '#b03030'); chest('chest_l', '#d0a020');
     const altar = (name, col) => pf(name, (t, m) => { box(t, m, 1.5, 0.25, 1.5, hex('#5a5a60')); box(t, M(m, mT(0, 0.25, 0)), 1.0, 0.25, 1.0, hex('#6a6a70')); cyl(t, M(m, mT(0, 0.5, 0)), 0.22, 0.18, 1.1, 6, hex('#7a7a80')); for (let i = 0; i < 4; i++) cyl(t, M(m, mT(Math.cos(i * 1.57) * 0.6, 0.5, Math.sin(i * 1.57) * 0.6)), 0.08, 0.06, 0.5, 4, hex('#6a6a70')); const g = M(m, mT(0, 2.0, 0), mRY(0.7)); cyl(t, g, 0.28, 0, 0.4, 4, hex(col), 0.9); cyl(t, M(g, mRX(Math.PI), mT(0, 0, 0)), 0.28, 0, 0.4, 4, hex(col), 0.9); });
@@ -419,7 +431,7 @@
     if (enemyModel(e, m, V, R.dt || 0.016, corpse)) return;
     const d = G.ENEMIES[e.t]; const col = hex(d.col); const anim = nowT * 8 + e.id; const moving = /chase|charge|lunge|circle|pounce/.test(e.st);
     const isWind = /wind$/.test(e.st); const wob = isWind ? 1 + Math.sin(nowT * 25) * 0.05 : 1;
-    const fm = M(m, mS(wob)); const FL = !!e.flash; const C = (c) => FL ? [1, 1, 1] : c;
+    const fm = M(m, mS(wob * (d.boss ? 0.85 : 0.78))); const FL = !!e.flash; const C = (c) => FL ? [1, 1, 1] : c;
     const striking = e.st === 'cool' && (e.tm || 0) > 0.6; const sw = isWind ? null : (striking ? 0.5 : null);
     switch (e.t) {
       case 'slime': case 'slime_small': { const r = e.t === 'slime' ? 0.45 : 0.25; const b = Math.abs(Math.sin(nowT * 5 + e.id)); sphS(t, M(fm, mT(0, r * 0.7 + b * 0.15, 0), mS(1 + b * 0.1, 0.7 + b * 0.25, 1 + b * 0.1)), r, 12, 7, C(col), FL ? 1 : 0.15); for (const z of [-0.3, 0.3]) { sphS(t, M(fm, mT(r * 0.75, r * 0.85, z * r)), r * 0.2, 7, 4, [1, 1, 1]); sphS(t, M(fm, mT(r * 0.9, r * 0.85, z * r)), r * 0.1, 5, 3, hex('#14121a')); } break; }
@@ -479,7 +491,7 @@
   }
   function staticObject(t, world, o, X, Y) {
     const d = O[o.t]; const gz = R.groundZ(world, X + .5, Y + .5); const rot = h2(X + 3, Y + 7) * 6.283;
-    let name = o.t; if (o.stub) name = 'stub'; else if (d.door && !o.closed) name = 'door_open';
+    let name = o.t; if (o.stub) name = 'stub'; else if (d.door && !o.closed) name = 'door_open'; else if (name === 'tree' && PF.tree2 && h2(X + 5, Y + 1) > 0.5) name = 'tree2';
     const p = PF[name]; if (!p) return;
     const scale = d.tall ? 0.9 + h2(X, Y + 9) * 0.35 : 1;
     const m = M(mT(X + .5, gz - 0.02, Y + .5), mRY((d.built || d.altar || d.boat || d.isChest) ? 0 : rot), mS(scale));
@@ -712,7 +724,7 @@
     if (d && (d.type === 'bow' || d.type === 'staff')) { const pull = me.draw ? Math.min(1, me.draw / d.draw) : 0; hand = d.type === 'bow' ? M(C, mT(0.02, -0.22 + bob, 0.8 + pull * 0.05), mRX(-0.15), mRY(1.3), mRZ(-0.2)) : M(C, mT(0.3 + sway, -0.4 + bob + pull * 0.15, 0.75), mRX(-0.5 - pull * 0.5), mRZ(0.2)); }
     capsuleS(dyn, M(hand, mT(0.03, -0.04, -0.34), mRX(1.47), mRY(-0.12)), 0.055, 0.3, 9, sleeve);
     if (robot) { cyl(dyn, M(hand, mT(0.01, -0.02, -0.12), mRX(1.47)), 0.075, 0.075, 0.06, 9, wrist); sphS(dyn, M(hand, mS(1.15, 0.9, 1.05)), 0.085, 9, 6, skin); box(dyn, M(hand, mT(0, 0.055, 0.02)), 0.1, 0.035, 0.09, hex('#2a2a30'), 0, 0); }
-    else sphS(dyn, M(hand, mT(0, 0, 0)), 0.085, 9, 6, skin);
+    else { cylS(dyn, M(hand, mT(0.01, -0.03, -0.13), mRX(1.47)), 0.08, 0.07, 0.07, 9, sh(sleeve, 0.75)); sphS(dyn, M(hand, mS(1.1, 0.85, 1.15)), 0.085, 9, 6, skin); capsuleS(dyn, M(hand, mT(0.07, 0.0, 0.03), mRZ(-1.0), mRX(0.4)), 0.03, 0.08, 6, skin); }
     if (it) {
       if (d.type === 'weapon' || d.type === 'tool') itemMesh(dyn, M(hand, mT(0, 0.03, 0.02), mRX(anim === 'thrust' ? 1.5 : (big ? 0.95 : 0.75)), mRZ(0.2), mS(big ? 0.62 : 0.85)), it.id, false, it);
       else if (d.type === 'bow') itemMesh(dyn, M(hand, mT(0, 0, 0), mRY(0.2)), it.id, false, it);
@@ -724,7 +736,7 @@
       if (d.type === 'bow' && me.draw > 0) { const lh = M(C, mT(0.28 - Math.min(1, me.draw / d.draw) * 0.28, -0.22 + bob, 0.7)); sph(dyn, lh, 0.07, 6, 4, skin); box(dyn, M(lh, mT(0, -0.04, -0.15), mRX(0.2)), 0.09, 0.09, 0.3, sleeve, 0, 0); itemMesh(dyn, M(lh, mT(0, 0.02, 0.3), mRX(1.57)), 'arrow', false); }
       if (big && !me.blocking) { const lh = M(hand, mT(-0.06, 0.16, -0.02)); sph(dyn, lh, 0.07, 7, 4, skin); capsule(dyn, M(lh, mT(-0.3, -0.1, -0.22), mRX(1.2), mRY(0.9)), 0.05, 0.3, 7, sleeve); }
     }
-    if (!it || me.blocking) { const lh = M(C, mT(-0.36 - sway, -0.38 + bob + idle, 0.8), mRX(-0.15)); capsuleS(dyn, M(lh, mT(-0.03, -0.04, -0.34), mRX(1.47), mRY(0.12)), 0.055, 0.3, 9, sleeve); if (robot) { cyl(dyn, M(lh, mT(-0.01, -0.02, -0.12), mRX(1.47)), 0.075, 0.075, 0.06, 9, wrist); sphS(dyn, M(lh, mS(1.15, 0.9, 1.05)), 0.085, 9, 6, skin); box(dyn, M(lh, mT(0, 0.055, 0.02)), 0.1, 0.035, 0.09, hex('#2a2a30'), 0, 0); } else sphS(dyn, lh, 0.085, 9, 6, skin); if (!it && me.swing) { /* punch: left/right alternate handled by hand pose above */ } }
+    if (!it || me.blocking) { const lh = M(C, mT(-0.36 - sway, -0.38 + bob + idle, 0.8), mRX(-0.15)); capsuleS(dyn, M(lh, mT(-0.03, -0.04, -0.34), mRX(1.47), mRY(0.12)), 0.055, 0.3, 9, sleeve); if (robot) { cyl(dyn, M(lh, mT(-0.01, -0.02, -0.12), mRX(1.47)), 0.075, 0.075, 0.06, 9, wrist); sphS(dyn, M(lh, mS(1.15, 0.9, 1.05)), 0.085, 9, 6, skin); box(dyn, M(lh, mT(0, 0.055, 0.02)), 0.1, 0.035, 0.09, hex('#2a2a30'), 0, 0); } else { cylS(dyn, M(lh, mT(-0.01, -0.03, -0.13), mRX(1.47)), 0.08, 0.07, 0.07, 9, sh(sleeve, 0.75)); sphS(dyn, M(lh, mS(1.1, 0.85, 1.15)), 0.085, 9, 6, skin); capsuleS(dyn, M(lh, mT(-0.07, 0.0, 0.03), mRZ(1.0), mRX(0.4)), 0.03, 0.08, 6, skin); } if (!it && me.swing) { /* punch: left/right alternate handled by hand pose above */ } }
   }
 
   // ================= glTF character models =================
@@ -843,6 +855,8 @@
     else if (st.swing) { want = pickAttack(); const atk = model.anims[clips[want]]; if (atk) tOverride = Math.min(atk.dur - 0.001, (st.swing.t / st.swing.dur) * atk.dur); }
     else if (st.wind) { want = clips.wind ? 'wind' : 'attack'; const atk = model.anims[clips[want]]; if (atk && !clips.wind) tOverride = Math.min(atk.dur - 0.001, (st.windF || 0) * 0.4 * atk.dur); }
     else if (st.strikeF !== undefined) { want = 'attack'; const atk = model.anims[clips.attack]; if (atk) tOverride = Math.min(atk.dur - 0.001, (0.4 + 0.6 * st.strikeF) * atk.dur); }
+    else if (st.emote && clips.cheer) want = 'cheer';
+    else if (st.hit && clips.hit) want = 'hit';
     else if (st.block && clips.block) want = 'block';
     else if (st.dodge && clips.dodge) want = 'dodge';
     else if (st.sitting && clips.sit) want = 'sit';
@@ -868,7 +882,7 @@
   function playerModel(p, gz, dt, isMe) {
     const model = playerModelFor(p); if (!model || !mprog) return false; if (p.dead) return true;
     const it = p.inv[p.held];
-    charModel(model, 'pl:' + p.id, p.x, p.y, gz, p.face, hex(p.col), { downed: p.downed, swing: p.swing, moving: p.moving, sprinting: p.sprinting, wind: p.charge > 0, windF: p.charge, flash: p.flash, held: it, hat: p.hat, block: p.blocking, dodge: p.dodgeT > 0, sitting: p.sitting }, dt);
+    charModel(model, 'pl:' + p.id, p.x, p.y, gz, p.face, hex(p.col), { downed: p.downed, swing: p.swing, moving: p.moving, sprinting: p.sprinting, wind: p.charge > 0, windF: p.charge, flash: p.flash, held: it, hat: p.hat, block: p.blocking, dodge: p.dodgeT > 0, sitting: p.sitting, emote: p.emote > 0, hit: !!p.flash }, dt);
     return true;
   }
   R.playerTop = () => { const m = playerModelFor(null); return m ? (m.spec.height || 1.2) + 0.28 : 1.5; };
@@ -876,13 +890,44 @@
   function enemyModel(e, m, V, dt, corpse) {
     const model = mprog && G.Assets.models[e.t]; if (!model) return false; const d = G.ENEMIES[e.t]; const spec = model.spec;
     const isWind = /wind$/.test(e.st); const moving = /chase|charge|lunge|circle|pounce|flee|retreat/.test(e.st); const striking = e.st === 'cool' && (e.tm || 0) > 0.6;
-    const st = { moving, sprinting: /charge|lunge|pounce/.test(e.st), wind: isWind, windF: isWind ? 1 - G.clamp((e.tm || 0) / (d.windup || 0.6), 0, 1) : 0, flash: !!e.flash, seed: e.id, held: spec.held ? { id: spec.held, n: 1 } : null, kind: spec.kind };
+    const st = { moving, sprinting: /charge|lunge|pounce/.test(e.st), wind: isWind, windF: isWind ? 1 - G.clamp((e.tm || 0) / (d.windup || 0.6), 0, 1) : 0, flash: !!e.flash, hit: !!e.flash && !isWind, seed: e.id, held: spec.held ? { id: spec.held, n: 1 } : null, kind: spec.kind };
     if (striking) st.strikeF = G.clamp((1.5 - e.tm) / 0.4, 0, 1);
     let gz = m[13]; if (corpse) { if (spec.clips.death) { st.downed = true; gz = corpse.gz - corpse.sink * 0.6; } else st.rootM = M(mT(e.x, corpse.gz - corpse.sink, e.y), mRY((spec.yaw || 0) - e.face), mRX(corpse.k * 1.5), mS(1, 1 - corpse.k * 0.15, 1)); }
     charModel(model, 'en:' + e.id, e.x, e.y, gz, e.face, spec.noTint ? null : hex(d.col), st, dt);
     if (e.elite) { cyl(dyn, M(m, mT(0, 0.02, 0)), e.r * 1.5, e.r * 1.5, 0.03, 12, hex('#c060ff'), 1.0); for (let k = 0; k < 3; k++) { const a = nowT * 2 + k * 2.09; sph(dyn, M(m, mT(Math.cos(a) * e.r * 1.4, 0.6 + Math.sin(nowT * 4 + k) * 0.2, Math.sin(a) * e.r * 1.4)), 0.07, 5, 3, hex('#c060ff'), 1.0); } }
     return true;
   }
+  // ================= lobby preview =================
+  R.preview = function (o, dt) {
+    if (!gl || !mprog) return; nowT += dt; R.dt = dt;
+    const model = G.Assets.models['player_' + o.skin] || playerModelFor(null); if (!model) return;
+    const ang = nowT * 0.3; const ex = Math.cos(ang) * 3.6, ey = Math.sin(ang) * 3.6, ez = 1.3; const tz = 0.85;
+    // aim a little left of the character so it sits in the free space right of the lobby panel
+    const rx = Math.sin(ang), ry = -Math.cos(ang); const tx = rx * 0.95, ty = ry * 0.95;
+    let fx = tx - ex, fy = ty - ey, fz = tz - ez; const fl = Math.hypot(fx, fy, fz); fx /= fl; fy /= fl; fz /= fl;
+    R.cam.x = ex; R.cam.y = ey; R.cam.z = ez; R.cam.yaw = Math.atan2(fy, fx); R.cam.pitch = Math.asin(fz);
+    const fov = 48 * Math.PI / 180; perspective(proj, fov, R.W / R.H, 0.05, 80); lookAt(view, ex, ez, ey, fx, fz, fy); vp = mmul(proj, view);
+    sunDir = [0.45, 0.55, 0.7]; { const l = Math.hypot(...sunDir); sunDir = sunDir.map(v => v / l); } moonDir = [0, 1, 0]; sunCol = [0.9, 0.84, 0.72]; ambient = [0.6, 0.6, 0.63]; fog = [0.74, 0.83, 0.93]; R.fogNear = 40;
+    lights = [{ x: 1.6, y: -1.2, z: 0.9, r: 4, c: [1, 0.5, 0.9] }]; const lp = new Float32Array(64), lc = new Float32Array(48); lp.set([1.6, 0.9, -1.2, 4]); lc.set([1, 0.5, 0.9]); lightPacked.lp = lp; lightPacked.lc = lc;
+    if (post) gl.bindFramebuffer(gl.FRAMEBUFFER, post.fbo);
+    gl.clearColor(fog[0], fog[1], fog[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.depthMask(false); gl.useProgram(skyProg); gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf); gl.enableVertexAttribArray(skyProg.a.aP); gl.vertexAttribPointer(skyProg.a.aP, 2, gl.FLOAT, false, 0, 0);
+    gl.uniform3fv(skyProg.u.uRight, camBasis.r); gl.uniform3fv(skyProg.u.uUp, camBasis.u); gl.uniform3fv(skyProg.u.uFwd, camBasis.f); gl.uniform3f(skyProg.u.uSunDir, sunDir[0], sunDir[1], sunDir[2]); gl.uniform3f(skyProg.u.uMoonDir, 0, 1, 0);
+    gl.uniform1f(skyProg.u.uTanH, Math.tan(fov / 2)); gl.uniform1f(skyProg.u.uAspect, R.W / R.H); gl.uniform1f(skyProg.u.uDusk, 0.2); gl.uniform1f(skyProg.u.uNight, 0); gl.uniform1f(skyProg.u.uTime, nowT); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); gl.depthMask(true);
+    gl.useProgram(prog); gl.uniformMatrix4fv(prog.u.uVP, false, vp); gl.uniform3f(prog.u.uCam, ex, ez, ey); gl.uniform3fv(prog.u.uAmb, ambient); gl.uniform1f(prog.u.uTime, nowT); gl.uniform1f(prog.u.uWater, 0); gl.uniform1f(prog.u.uFogNear, 40);
+    gl.uniform3f(prog.u.uSunDir, sunDir[0], sunDir[1], sunDir[2]); gl.uniform3fv(prog.u.uSunCol, sunCol); gl.uniform4fv(prog.u.uLights, lp); gl.uniform3fv(prog.u.uLightCol, lc); gl.uniform1i(prog.u.uNL, 1); gl.uniform3fv(prog.u.uFog, fog); gl.uniform1f(prog.u.uAlpha, 1); gl.disable(gl.BLEND);
+    dyn.n = 0; shad.n = 0; glow.n = 0; trail.n = 0;
+    cyl(dyn, mT(0, -0.05, 0), 6.2, 6.6, 0.06, 28, hex('#e6d39c')); cyl(dyn, mT(0, -0.2, 0), 14, 14, 0.16, 28, hex('#3a86c8')); cyl(dyn, mT(0, -0.06, 0), 6.6, 7.4, 0.02, 28, hex('#5fb0e8')); cyl(dyn, mT(0, -0.04, 0), 2.2, 2.4, 0.03, 24, hex('#7fc850'));
+    if (G.PROPS) { propMesh(dyn, M(mT(-4.6, 0, 2.6), mRY(0.5), mS(2.3)), 'tree_a'); propMesh(dyn, M(mT(4.4, 0, 3.8), mRY(2.5), mS(2.2)), 'tree_b'); propMesh(dyn, M(mT(3.2, 0, -4.2), mRY(1.1), mS(2.3)), 'tree_a'); propMesh(dyn, M(mT(4.6, 0, -1.6), mS(2.8, 3.2, 2.8)), 'rock_c'); propMesh(dyn, M(mT(-4.3, 0, -1.9), mRY(1.2), mS(2.2)), 'barrel'); propMesh(dyn, M(mT(-4.8, 0, -0.9), mRY(0.3), mS(2.2)), 'crate'); propMesh(dyn, M(mT(-4.2, 0, -3.6), mRY(0.9), mS(2.4)), 'tent'); propMesh(dyn, M(mT(0.6, 0, 5.4), mRY(0.2), mS(2.2)), 'lumber'); }
+    else { sph(dyn, M(mT(-1.8, 1.4, 1.2)), 0.8, 7, 4, hex('#3e8e2e'), 0, 0.85); cyl(dyn, mT(-1.8, 0, 1.2), 0.16, 0.12, 1.4, 6, hex('#7a4a20')); }
+    inst(dyn, PF.casino, M(mT(5.2, 0, -1.2), mRY(-2.0)));
+    const C = G.CLASSES.find(c => c.id === o.cls); const held = C && C.items && C.items.length ? { id: C.items[0][0], n: 1 } : null;
+    charModel(model, 'preview', 0, 0, 0, ang, hex(o.col), { held, hat: o.hat, emote: (nowT % 9) < 2.2, moving: false }, dt);
+    gl.bindBuffer(gl.ARRAY_BUFFER, dynBuf); gl.bufferData(gl.ARRAY_BUFFER, dyn.arr.subarray(0, dyn.n * VF), gl.DYNAMIC_DRAW); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, dyn.n);
+    drawModels(); gl.useProgram(prog);
+    if (post) drawPost();
+    if (ox) ox.clearRect(0, 0, R.W, R.H);
+  };
   // ================= 2D overlay =================
   function drawOverlay(V, me, dt, L, darkness) {
     const F = R.fx; const x = ox; x.clearRect(0, 0, R.W, R.H);

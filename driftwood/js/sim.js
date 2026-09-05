@@ -32,7 +32,7 @@
       swing: null, atkCd: 0, dodgeT: 0, dodgeCh: 1, dodgeCd: 0, dodgeDx: 0, dodgeDy: 0, draw: 0, blocking: false, blockT: 0,
       downed: false, bleed: 0, dead: false, revive: 0, flash: 0, swCd: 0, phoenixUsed: false, kills: 0, dark: 0, burn: 0,
       in: { ax: 0, ay: 0, aimx: sp.x, aimy: sp.y - 1, sprint: false, attack: false, sec: false, interact: false },
-      moving: false, anim: 0, pet: null, order: S.order++, combo: 0, comboT: 0, charge: 0, cls: cls || 'castaway', meta: meta || {}, hat: G.HAT[hat] ? hat : 'none', skin: G.SKINS && G.SKINS.some(k => k.id === skin) ? skin : 'knight', sitting: false, bj: null, gambles: 0, rig: {},
+      moving: false, anim: 0, pet: null, order: S.order++, combo: 0, comboT: 0, charge: 0, cls: cls || 'castaway', meta: meta || {}, hat: G.HAT[hat] ? hat : 'none', skin: G.SKINS && G.SKINS.some(k => k.id === skin) ? skin : 'knight', sitting: false, emote: 0, bj: null, gambles: 0, rig: {},
     };
     S.players[id] = p;
     const C = G.CLASSES.find(c => c.id === p.cls); if (C) { for (const [it, n] of C.items) Sim.give(p, it, n); for (const k in C.pw) p.pw[k] = (p.pw[k] || 0) + C.pw[k]; }
@@ -331,6 +331,7 @@
       case 'sail': if (S.boat.done && S.phase === 'run') Sim.startSiege(S); break;
       case 'gamble': Sim.gamble(S, p, a); break;
       case 'sit': p.sitting = !!a.v; break;
+      case 'emote': if (!p.swing && p.emote <= 0) { p.emote = 2.2; Sim.ev(S, { t: 'sfx', n: 'pw', x: p.x, y: p.y }); } break;
       case 'bj': Sim.blackjack(S, p, a); break;
     }
   };
@@ -555,7 +556,8 @@
     else p.stam = Math.min(100, p.stam + st.stamRegen * dt * (p.swing ? 0.3 : 1));
     if (p.blocking) spd *= 0.5; if (p.draw > 0) spd *= 0.6; if (p.swing) spd *= 0.75; if (p.charge > 0) spd *= 0.55;
     if (p.dodgeT > 0) { p.dodgeT -= dt; G.moveCircle(w, p, p.dodgeDx * 11 * dt, p.dodgeDy * 11 * dt, 0.3, false); }
-    else if (p.moving) { G.moveCircle(w, p, ax * spd * dt, ay * spd * dt, 0.3, false); p.sitting = false; }
+    else if (p.moving) { G.moveCircle(w, p, ax * spd * dt, ay * spd * dt, 0.3, false); p.sitting = false; p.emote = 0; }
+    if (p.emote > 0) p.emote -= dt;
     if (p.dodgeCh < st.dodges) { p.dodgeCd += dt; if (p.dodgeCd >= 1.6) { p.dodgeCd = 0; p.dodgeCh++; } } else p.dodgeCd = 0;
     if (p.moving) p.anim += dt * (sprinting ? 12 : 8);
     p.face = G.angleTo(p.x, p.y, p.in.aimx, p.in.aimy);
@@ -734,7 +736,7 @@
     const players = {};
     for (const id in S.players) {
       const p = S.players[id];
-      players[id] = { id: p.id, name: p.name, col: p.col, hat: p.hat, skin: p.skin, sitting: p.sitting ? 1 : 0, rig: p.rig, x: +p.x.toFixed(2), y: +p.y.toFixed(2), face: +p.face.toFixed(2), hp: Math.round(p.hp * 10) / 10, maxHp: p.maxHp, stam: Math.round(p.stam), hunger: Math.round(p.hunger), inv: p.inv, held: p.held, armor: p.armor, coins: p.coins, pw: p.pw, buffs: p.buffs.map(b => ({ id: b.id, t: Math.round(b.t) })), swing: p.swing ? { t: +p.swing.t.toFixed(2), dur: p.swing.dur, ang: +p.swing.ang.toFixed(2), arc: p.swing.arc, reach: p.swing.reach, combo: p.swing.combo || 0, anim: p.swing.anim || 'slash', heavy: p.swing.heavy ? 1 : 0 } : null, charge: +p.charge.toFixed(2), dodgeT: p.dodgeT > 0 ? 1 : 0, dodgeCh: p.dodgeCh, blocking: p.blocking ? 1 : 0, draw: +p.draw.toFixed(2), downed: p.downed ? 1 : 0, bleed: Math.round(p.bleed), revive: +p.revive.toFixed(1), dead: p.dead ? 1 : 0, flash: p.flash > 0 ? 1 : 0, moving: p.moving ? 1 : 0, anim: +p.anim.toFixed(2), kills: p.kills, dark: p.dark > 2.5 ? 1 : 0, xp: p.xp, lvl: p.lvl, xpNext: G.XP_FOR(p.lvl), offer: p.offers.length ? p.offers[0] : null, offerT: Math.round(p.offerT), slow: p.slow > 0 ? 1 : 0, burn: p.burn > 0 ? 1 : 0, swCd: Math.round(p.swCd) };
+      players[id] = { id: p.id, name: p.name, col: p.col, hat: p.hat, skin: p.skin, sitting: p.sitting ? 1 : 0, emote: p.emote > 0 ? +p.emote.toFixed(1) : 0, rig: p.rig, x: +p.x.toFixed(2), y: +p.y.toFixed(2), face: +p.face.toFixed(2), hp: Math.round(p.hp * 10) / 10, maxHp: p.maxHp, stam: Math.round(p.stam), hunger: Math.round(p.hunger), inv: p.inv, held: p.held, armor: p.armor, coins: p.coins, pw: p.pw, buffs: p.buffs.map(b => ({ id: b.id, t: Math.round(b.t) })), swing: p.swing ? { t: +p.swing.t.toFixed(2), dur: p.swing.dur, ang: +p.swing.ang.toFixed(2), arc: p.swing.arc, reach: p.swing.reach, combo: p.swing.combo || 0, anim: p.swing.anim || 'slash', heavy: p.swing.heavy ? 1 : 0 } : null, charge: +p.charge.toFixed(2), dodgeT: p.dodgeT > 0 ? 1 : 0, dodgeCh: p.dodgeCh, blocking: p.blocking ? 1 : 0, draw: +p.draw.toFixed(2), downed: p.downed ? 1 : 0, bleed: Math.round(p.bleed), revive: +p.revive.toFixed(1), dead: p.dead ? 1 : 0, flash: p.flash > 0 ? 1 : 0, moving: p.moving ? 1 : 0, anim: +p.anim.toFixed(2), kills: p.kills, dark: p.dark > 2.5 ? 1 : 0, xp: p.xp, lvl: p.lvl, xpNext: G.XP_FOR(p.lvl), offer: p.offers.length ? p.offers[0] : null, offerT: Math.round(p.offerT), slow: p.slow > 0 ? 1 : 0, burn: p.burn > 0 ? 1 : 0, swCd: Math.round(p.swCd) };
     }
     const enemies = S.enemies.filter(e => !e.dead).map(e => [e.id, G.EN_IDX[e.t], +e.x.toFixed(2), +e.y.toFixed(2), Math.round(e.hp), e.maxHp, e.st, +e.face.toFixed(2), e.flash > 0 ? 1 : 0, e.r, e.stun > 0 ? 1 : 0, e.hidden ? 1 : 0, e.owner ? 1 : 0, e.burn > 0 ? 1 : 0, +(e.tm || 0).toFixed(2), e.elite ? 1 : 0]);
     const projs = S.projs.map(p => [p.id, p.type, +p.x.toFixed(2), +p.y.toFixed(2), +Math.atan2(p.vy, p.vx).toFixed(2)]);

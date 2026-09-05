@@ -61,13 +61,20 @@
       }
     }
 
-    // --- spawn point: southmost sand tile near center column in meadow ---
+    // --- main landmass: label connected land (4-neighbours); everything important goes on the largest piece ---
+    const comp = new Int32Array(W * W).fill(-1); const compSize = []; { const q = new Int32Array(W * W);
+      for (let s0 = 0; s0 < W * W; s0++) { if (comp[s0] >= 0 || tiles[s0] <= T.WATER) continue; const id = compSize.length; let head = 0, tail = 0; q[tail++] = s0; comp[s0] = id; let n = 0;
+        while (head < tail) { const i = q[head++]; n++; const x = i % W, y = (i - x) / W; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= W || ny >= W) continue; const j = ny * W + nx; if (comp[j] < 0 && tiles[j] > T.WATER) { comp[j] = id; q[tail++] = j; } } }
+        compSize.push(n); } }
+    let main = 0; compSize.forEach((n, i) => { if (n > compSize[main]) main = i; });
+    const onMain = (i) => comp[i] === main;
+    // --- spawn point: southmost sand tile of the main landmass near the centre column ---
     let spawn = null;
-    for (let y = W - 2; y > cy && !spawn; y--) {
-      for (let ox = 0; ox < 40 && !spawn; ox++) for (const s of [1, -1]) {
-        const x = Math.round(cx + ox * s);
+    for (let y = W - 2; y > 6 && !spawn; y--) {
+      for (let ox = 0; ox < W / 2 - 4 && !spawn; ox++) for (const s of [1, -1]) {
+        const x = Math.round(cx + ox * s); if (x < 2 || x >= W - 2) continue;
         const i = y * W + x;
-        if (tiles[i] === T.SAND && tiles[i - W] !== T.DEEP && tiles[i - W] !== T.WATER && tiles[i - 2 * W] > T.SAND) { spawn = { x: x + 0.5, y: y + 0.5 }; break; }
+        if (tiles[i] === T.SAND && onMain(i) && tiles[i - W] !== T.DEEP && tiles[i - W] !== T.WATER && tiles[i - 2 * W] > T.SAND && onMain(i - 2 * W)) { spawn = { x: x + 0.5, y: y + 0.5 }; break; }
       }
     }
     if (!spawn) spawn = { x: cx, y: cy + 20 };
@@ -128,7 +135,7 @@
       let best = -1, bi = -1;
       for (let y = 6; y < W - 6; y += 2) for (let x = 6; x < W - 6; x += 2) {
         const i = y * W + x;
-        if (biome[i] !== b || tiles[i] <= T.SAND || tiles[i] === T.LAVA) continue;
+        if (biome[i] !== b || tiles[i] <= T.SAND || tiles[i] === T.LAVA || !onMain(i)) continue;
         const score = height[i] + rng() * 0.05 - (b === G.BIOME.MEADOW ? 0 : 0) ;
         if (score > best && dToSpawn(x, y) > 25) { best = score; bi = i; }
       }

@@ -1,8 +1,8 @@
 // DRIFTWOOD — first-person keyboard & mouse input (pointer lock) with rebindable keys and settings
 (function (G) {
   'use strict';
-  const DEFAULT_BINDS = { forward: 'w', back: 's', left: 'a', right: 'd', sprint: 'Shift', jump: ' ', dodge: 'q', interact: 'e', eat: 'f', ping: 't', inventory: 'Tab', chat: 'Enter', mute: 'm', menu: 'Escape' };
-  const BIND_NAMES = { forward: 'Move forward', back: 'Move back', left: 'Strafe left', right: 'Strafe right', sprint: 'Sprint', jump: 'Jump', dodge: 'Dodge roll', interact: 'Interact / revive', eat: 'Quick eat', ping: 'Ping', inventory: 'Inventory & crafting', chat: 'Chat', mute: 'Mute', menu: 'Menu' };
+  const DEFAULT_BINDS = { forward: 'w', back: 's', left: 'a', right: 'd', sprint: 'Shift', jump: ' ', dodge: 'q', interact: 'e', eat: 'f', ping: 't', emote: 'g', inventory: 'Tab', chat: 'Enter', mute: 'm', menu: 'Escape' };
+  const BIND_NAMES = { forward: 'Move forward', back: 'Move back', left: 'Strafe left', right: 'Strafe right', sprint: 'Sprint', jump: 'Jump', dodge: 'Dodge roll', interact: 'Interact / revive', eat: 'Quick eat', emote: 'Emote (cheer)', ping: 'Ping', inventory: 'Inventory & crafting', chat: 'Chat', mute: 'Mute', menu: 'Menu' };
   const DEFAULT_SETTINGS = { sens: 1.0, fov: 74, invertY: false, quality: 0.75, shake: true, bob: true, toon: true };
   const In = { keys: {}, mouse: { l: false, r: false }, yaw: -Math.PI / 2, pitch: 0, onAction: null, onKey: null, locked: false, ptrLocked: false, wantLock: false, canvas: null, aim: { x: 0, y: 0 }, binds: null, settings: null, BIND_NAMES, DEFAULT_BINDS, capture: null };
   G.Input = In;

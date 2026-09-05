@@ -92,7 +92,9 @@ The look follows *Gamble With Your Friends*: chunky big-headed heroes, saturated
 neon light at night (research notes in `docs/GWF_RESEARCH.md`). Players pick one of five **KayKit Adventurers** (CC0) in the lobby —
 Knight, Barbarian, Mage, Rogue, Hooded Rogue — wear unlockable **hats**, and their capes take their player colour. Goblins, skeletons
 and the humanoid bosses are tinted KayKit Adventurers/Skeletons, wolves use the flat-shaded Fox rig, scout drones are Kenney's.
-Every rig is GPU-skinned by the in-house glTF loader (`js/gltf.js`) with idle / walk / run / weapon-specific attack / block / dodge /
+The world matches them: trees, stumps, rocks and ore are KayKit Medieval Hexagon props baked into the terrain chunks by
+`tools/bakeprops.js`. The lobby shows your character live on a beach with the current hat and starting weapon, and cheers now and
+then; in game, **G** plays the cheer emote and hits trigger a flinch. Every rig is GPU-skinned by the in-house glTF loader (`js/gltf.js`) with idle / walk / run / weapon-specific attack / block / dodge /
 sit / death clips crossfaded from the simulation state; weapons attach to the `handslot.r` bone. `tools/slimglb.js` strips packs
 down to the clips we use. Swap or add models by dropping a `.glb` into `driftwood/assets/` and editing `assets/models.json`.
 

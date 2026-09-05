@@ -8,6 +8,9 @@
   Source: https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Skeletons-1.0
   All KayKit files are slimmed with `tools/slimglb.js` (kept animations only, pack weapons removed, keys resampled to 15 fps).
   Support Kay on Patreon: http://patreon.com/kaylousberg
+- `js/props.js` (baked) — trees, stumps, rocks, water plants, barrel, crate, lumber, stone and tent from the **KayKit Medieval Hexagon Pack 1.0**
+  by Kay Lousberg. **CC0 1.0**. Baked to flat-coloured triangles with `tools/bakeprops.js` (vertex colours sampled from the pack's palette texture).
+  Source: https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0
 - `fox.glb` — "Fox" by PixelMannen (model), tomkranis (rigging & animation), glTF conversion by @AsoboStudio and @scurest.
   **CC BY 4.0** (https://creativecommons.org/licenses/by/4.0/). Used flat-shaded and tinted for wolves and Frostmaw.
   Source: https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Fox

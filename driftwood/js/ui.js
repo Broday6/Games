@@ -54,6 +54,7 @@
       if (k === B.inventory && G.Main.started) { UI.toggleInv(); return true; }
       if (k === 'Escape' || k === B.menu) { if (UI.casOpen) { UI.casino(false); return true; } if (UI.open) { UI.toggleInv(false); return true; } if (!$('confirm').classList.contains('hidden')) { $('confirm').classList.add('hidden'); return true; } if (G.Main.started && k !== 'Escape') { G.Input.unlock(); UI.setResume(true); return true; } }
       if (k === B.mute) { const m = G.Audio.toggleMute(); UI.toast(m ? 'Muted' : 'Sound on', ''); return true; }
+      if (k === B.emote && G.Main.started) { G.Main.act({ a: 'emote' }); return true; }
       if (UI.lastOffer && k >= '1' && k <= '4' && e.altKey) { G.Main.act({ a: 'pick', i: +k - 1 }); return true; }
       return false;
     };
@@ -72,7 +73,7 @@
   };
   UI.saveLobby = function () { try { const saved = JSON.parse(localStorage.getItem('driftwood') || '{}'); saved.hat = UI.hat; saved.skin = UI.skin; localStorage.setItem('driftwood', JSON.stringify(saved)); } catch (e) { } };
   UI.skin = 'knight';
-  UI.renderSkins = function () { const box = $('skins'); if (!box) return; box.innerHTML = ''; G.SKINS.forEach(k => { const d = document.createElement('div'); d.className = 'hat' + (k.id === UI.skin ? ' sel' : ''); d.textContent = k.name; d.onclick = () => { UI.skin = k.id; UI.saveLobby(); UI.renderSkins(); }; box.appendChild(d); }); };
+  UI.renderSkins = function () { const box = $('skins'); if (!box) return; box.innerHTML = ''; G.SKINS.forEach(k => { const d = document.createElement('div'); d.className = 'hat' + (k.id === UI.skin ? ' sel' : ''); d.textContent = k.name; d.onclick = () => { UI.skin = k.id; UI.saveLobby(); UI.renderSkins(); }; box.appendChild(d); }); const tag = $('preview-name'); if (tag) tag.textContent = (G.SKINS.find(k => k.id === UI.skin) || {}).name || ''; };
   UI.unlockHat = function (id) { if (!G.HAT[id]) return; const m = UI.loadMeta(); if ((m.hats || []).includes(id) || ['none', 'cap', 'beanie'].includes(id)) { m.shards += 40; UI.saveMeta(m); UI.toast('Duplicate hat', 'You already own the ' + G.HAT[id].name + ' — 40 shards instead.'); return; } m.hats = (m.hats || []).concat([id]); UI.saveMeta(m); UI.toast('New hat unlocked!', G.HAT[id].name + ' — wear it from the lobby.', '#ff4fd8'); };
   UI.renderClasses = function () {
     const meta = UI.loadMeta(); const box = $('classes'); box.innerHTML = '';
@@ -182,7 +183,7 @@
     $('tut-body').innerHTML = T.map((t, i) => '<div class="tstep' + (i < UI.tutStep ? ' done' : i === UI.tutStep ? ' cur' : '') + '">' + (i < UI.tutStep ? '✓ ' : (i + 1) + '. ') + (i === UI.tutStep ? fillKeys(t.txt) : (i < UI.tutStep ? t.txt.split('.')[0] : '…')) + '</div>').join('');
   };
   UI.renderHowto = function () { const b = G.Input.binds || {}; $('howto-body').innerHTML = '<ol>' + G.TUTORIAL.map(t => '<li>' + fillKeys(t.txt) + '</li>').join('') + '</ol>' +
-    '<h3>Controls</h3><div class="small">Look: mouse · Move: <b>' + [b.forward, b.left, b.back, b.right].map(keyName).join('') + '</b> · Sprint: <b>' + keyName(b.sprint) + '</b> · Jump: <b>' + keyName(b.jump) + '</b> · Dodge: <b>' + keyName(b.dodge) + '</b> · Attack: <b>LMB</b> (3-hit combos) · Heavy / draw bow / cast / block: <b>hold RMB</b> · Interact / revive: <b>' + keyName(b.interact) + '</b> · Eat: <b>' + keyName(b.eat) + '</b> · Inventory & crafting: <b>' + keyName(b.inventory) + '</b> · Hotbar: <b>1–9</b> · Chat: <b>Enter</b> · Ping: <b>' + keyName(b.ping) + '</b>. Rebind everything under Controls & settings.</div>' +
+    '<h3>Controls</h3><div class="small">Look: mouse · Move: <b>' + [b.forward, b.left, b.back, b.right].map(keyName).join('') + '</b> · Sprint: <b>' + keyName(b.sprint) + '</b> · Jump: <b>' + keyName(b.jump) + '</b> · Dodge: <b>' + keyName(b.dodge) + '</b> · Attack: <b>LMB</b> (3-hit combos) · Heavy / draw bow / cast / block: <b>hold RMB</b> · Interact / revive: <b>' + keyName(b.interact) + '</b> · Eat: <b>' + keyName(b.eat) + '</b> · Inventory & crafting: <b>' + keyName(b.inventory) + '</b> · Hotbar: <b>1–9</b> · Chat: <b>Enter</b> · Ping: <b>' + keyName(b.ping) + '</b> · Emote: <b>' + keyName(b.emote) + '</b>. Rebind everything under Controls & settings.</div>' +
     '<h3>The loop</h3><div class="small">Days are for gathering and crafting, nights bring waves and — from night 2 — a night boss. Every level and chest offers a pick-of-3 <b>boon</b>. Three altar guardians drop the gems that repair the ship; sailing summons the Leviathan. Lose or win, you earn <b>Shards</b> for permanent Camp upgrades and hats.</div>' +
     '<h3>Multiplayer</h3><div class="small">One player hosts and shares the 5-letter room code; friends join from the lobby. Everything is shared: the island, the fire, the loot. Downed friends can be revived by holding <b>' + keyName(b.interact) + '</b> next to them.</div>' +
     '<h3>The Dealer\'s Table</h3><div class="small">Bet coins on slots, a dice duel, the Wheel of Fates or blackjack. Wins pay coins and <b>boons</b> (the same skills as chests), jackpots unlock <b>hats</b>, busts <b>hex</b> you. Sketchy items rig the next game in your favour.</div>'; };

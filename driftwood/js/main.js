@@ -198,7 +198,7 @@
   function loop() {
     requestAnimationFrame(loop);
     const now = performance.now() / 1000; let dt = Math.min(0.1, now - last); if (M.started) R.autoQuality((now - last) * 1000); last = now;
-    if (!M.started) { if (M.mode === 'client' && M.snapCur && Net.count() && now - M.lastIn > 1) { M.lastIn = now; Net.send('host', { t: 'ping', k: performance.now() }); } return; }
+    if (!M.started) { if (M.mode === 'client' && M.snapCur && Net.count() && now - M.lastIn > 1) { M.lastIn = now; Net.send('host', { t: 'ping', k: performance.now() }); } if (R.preview && G.Assets.ready && !document.getElementById('lobby').classList.contains('hidden')) R.preview({ skin: UI.skin, hat: UI.hat, col: UI.color || '#5aa0ff', cls: UI.cls }, dt); return; }
     let mePos = M.mode === 'host' ? M.S.players.host : (M.pred || { x: 0, y: 0 });
     if (M.mode === 'host') {
       const S = M.S; if (!UI.paused) M.acc += dt; else M.acc = 0;
