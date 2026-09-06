@@ -3,7 +3,7 @@
   'use strict';
   const DEFAULT_BINDS = { forward: 'w', back: 's', left: 'a', right: 'd', sprint: 'Shift', jump: ' ', dodge: 'q', interact: 'e', eat: 'f', ping: 't', emote: 'g', inventory: 'Tab', chat: 'Enter', mute: 'm', menu: 'Escape' };
   const BIND_NAMES = { forward: 'Move forward', back: 'Move back', left: 'Strafe left', right: 'Strafe right', sprint: 'Sprint', jump: 'Jump', dodge: 'Dodge roll', interact: 'Interact / revive', eat: 'Quick eat', emote: 'Emote (cheer)', ping: 'Ping', inventory: 'Inventory & crafting', chat: 'Chat', mute: 'Mute', menu: 'Menu' };
-  const DEFAULT_SETTINGS = { sens: 1.0, fov: 80, invertY: false, quality: 1, shake: true, bob: false, toon: true, sprintToggle: false, v: 2 };
+  const DEFAULT_SETTINGS = { sens: 1.0, fov: 80, invertY: false, quality: 1, shake: true, bob: false, toon: true, sprintToggle: false, v: 2, volume: 0.5, fps: false, uiScale: 'auto', reduceMotion: false };
   const In = { keys: {}, mouse: { l: false, r: false }, yaw: -Math.PI / 2, pitch: 0, onAction: null, onKey: null, locked: false, ptrLocked: false, wantLock: false, canvas: null, aim: { x: 0, y: 0 }, binds: null, settings: null, BIND_NAMES, DEFAULT_BINDS, capture: null };
   G.Input = In;
   const load = (k, def) => { try { return Object.assign({}, def, JSON.parse(localStorage.getItem(k) || '{}')); } catch (e) { return Object.assign({}, def); } };
@@ -42,7 +42,7 @@
     window.addEventListener('keyup', (e) => { In.keys[norm(e)] = false; });
     window.addEventListener('blur', () => { In.keys = {}; In.mouse.l = false; In.mouse.r = false; });
     canvas.addEventListener('mousemove', (e) => {
-      if (!In.ptrLocked) return; const s = 0.0022 * (In.settings.sens || 1);
+      if (!In.ptrLocked) return; const s = 0.0022 * (In.settings.sens || 1) * (Math.tan((In.settings.fov || 80) * Math.PI / 360) / Math.tan(40 * Math.PI / 180)); // same on-screen aim speed at any FOV
       In.yaw += e.movementX * s; In.pitch = G.clamp(In.pitch - e.movementY * s * (In.settings.invertY ? -1 : 1), -1.45, 1.45);
     });
     canvas.addEventListener('mousedown', (e) => {

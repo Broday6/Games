@@ -11,7 +11,8 @@ function createWindow() {
     title: 'Driftwood', backgroundColor: '#0b1020', autoHideMenuBar: true, show: false,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
   });
-  Menu.setApplicationMenu(null);
+  Menu.setApplicationMenu(Menu.buildFromTemplate([{ role: 'editMenu' }])); // hidden menu bar, but copy/paste shortcuts keep working in the room-code fields
+  win.webContents.executeJavaScript('window.__ELECTRON = true;').catch(() => { });
   win.loadFile(path.join(__dirname, 'game.html'));
   win.once('ready-to-show', () => { win.show(); });
   // test hook: DRIFTWOOD_SHOT=/path.png makes the app screenshot itself after a few seconds and quit (used by CI smoke tests)

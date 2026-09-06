@@ -278,7 +278,7 @@
   pw('glass', 'Glass Cannon', 3, '+100% attack, max HP halved', '#ff80ff');
   pw('lastword', 'Last Word', 2, 'when downed, explode for massive damage', '#ff4040');
   G.POWERUPS = P; G.PW = {}; P.forEach(p => G.PW[p.id] = p);
-  G.RARITY_COL = ['#c8c8c8', '#50e050', '#ff5050', '#ffd24a'];
+  G.RARITY_COL = ['#c8c8c8', '#50e050', '#4f8cff', '#ffd24a']; // common · uncommon · rare (blue, never the damage red) · legendary
   G.RARITY_NAME = ['Common', 'Uncommon', 'Rare', 'Legendary'];
 
   // ---- enemies ----

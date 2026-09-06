@@ -178,14 +178,14 @@
   G.objAt = (w, x, y) => w.objs.get(G.idx(x, y));
 
   // Is the tile blocked for a walker? (water needs a floor; solid objects block; doors open for players)
-  G.blocked = function (w, x, y, forEnemy) {
+  G.blocked = function (w, x, y, forEnemy, skipRound) {
     if (!G.inWorld(x, y)) return true;
     const i = G.idx(x, y), t = w.tiles[i], o = w.objs.get(i);
     if (t === T.DEEP) return true;
     if (o) {
       const d = G.OBJS[o.t];
       if (d.door) return forEnemy ? true : !!o.closed;
-      if (d.solid) { if (d.colR === undefined || o.stub) return true; const dx = x - (Math.floor(x) + 0.5), dy = y - (Math.floor(y) + 0.5); return dx * dx + dy * dy < d.colR * d.colR; }
+      if (d.solid) { if (d.colR === undefined || o.stub) return true; if (skipRound) return false; const dx = x - (Math.floor(x) + 0.5), dy = y - (Math.floor(y) + 0.5); return dx * dx + dy * dy < d.colR * d.colR; }
     }
     return false;
   };
@@ -196,21 +196,24 @@
   };
 
   // circle move with axis separation; returns true if fully moved
+  const OFF = [-1, -1, 1, -1, -1, 1, 1, 1, 0, -1, 0, 1, -1, 0, 1, 0];
   G.moveCircle = function (w, e, dx, dy, r, forEnemy) {
     let moved = true;
-    const test = (x, y) => {
-      for (const [ox, oy] of [[-r, -r], [r, -r], [-r, r], [r, r], [0, -r], [0, r], [-r, 0], [r, 0]])
-        if (G.blocked(w, x + ox, y + oy, forEnemy)) return true;
-      return false;
-    };
+    // tile blockers (water, walls, doors) are sampled around the circle; round colliders (trees, rocks) are handled analytically below so you slide around them instead of catching on sample points
+    const test = (x, y) => { for (let k = 0; k < 16; k += 2) if (G.blocked(w, x + OFF[k] * r, y + OFF[k + 1] * r, forEnemy, true)) return true; return false; };
     if (dx !== 0) { const nx = e.x + dx; if (!test(nx, e.y)) e.x = nx; else moved = false; }
     if (dy !== 0) { const ny = e.y + dy; if (!test(e.x, ny)) e.y = ny; else moved = false; }
+    for (let pass = 0; pass < 2; pass++) { const tx0 = Math.floor(e.x), ty0 = Math.floor(e.y); let pushed = false;
+      for (let ty = ty0 - 1; ty <= ty0 + 1; ty++) for (let tx = tx0 - 1; tx <= tx0 + 1; tx++) { if (tx < 0 || ty < 0 || tx >= G.WORLD || ty >= G.WORLD) continue; const o = w.objs.get(ty * G.WORLD + tx); if (!o || o.stub) continue; const d = G.OBJS[o.t]; if (!d.solid || d.colR === undefined || d.door) continue;
+        const cx = tx + 0.5, cy = ty + 0.5; let ddx = e.x - cx, ddy = e.y - cy; let dist = Math.hypot(ddx, ddy); const min = r + d.colR; if (dist >= min) continue; if (dist < 1e-4) { ddx = 1; ddy = 0; dist = 1; } const px = ddx / dist * (min - dist), py = ddy / dist * (min - dist);
+        if (!test(e.x + px, e.y + py)) { e.x += px; e.y += py; } else moved = false; pushed = true; }
+      if (!pushed) break; }
     return moved;
   };
 
   // apply object change on the world and record it for network delta
   G.setObj = function (w, i, o) {
-    if (o) w.objs.set(i, o); else w.objs.delete(i);
+    if (o) w.objs.set(i, o); else w.objs.delete(i); w.objVer = (w.objVer || 0) + 1;
     w.changes.set(i, o ? G.clone(o) : null);
     (w.dirty || (w.dirty = [])).push(i);
   };

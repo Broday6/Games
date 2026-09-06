@@ -168,7 +168,9 @@
   Sim.damagePlayer = function (S, p, dmg, src, opts) {
     opts = opts || {};
     if (p.dead || p.downed) return;
-    if (p.dodgeT > 0.05) { Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: 'dodge', c: '#ffffff' }); return; }
+    if (p.dodgeT > 0.05) { Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: 'dodge', c: '#ffffff', to: p.id }); return; }
+    const meleeMob = src && src.hp !== undefined && !opts.env && !opts.ranged && !opts.aoe && !(G.ENEMIES[src.t] && G.ENEMIES[src.t].boss);
+    if (meleeMob && p.iframe > 0) return; // brief immunity after a melee hit so a pack cannot chain you from full to downed in half a second
     const st = Sim.stats(p);
     if (p.blocking) {
       const it = Sim.heldItem(p); const sh = it && I[it.id].type === 'shield' ? I[it.id] : null;
@@ -177,7 +179,7 @@
       if (sh && facing && p.stam > 0) {
         if (p.blockT < 0.18 && src && src.hp !== undefined) { src.stun = Math.max(src.stun || 0, 1.2); Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: 'PARRY', c: '#80e0ff' }); Sim.ev(S, { t: 'sfx', n: 'parry', x: p.x, y: p.y }); if (sh.special === 'parrywave') { Sim.ev(S, { t: 'boom', x: p.x, y: p.y, r: 3.5, c: '#a0c0ff' }); for (const e of S.enemies) if (!e.dead && !e.owner && G.dist(e.x, e.y, p.x, p.y) < 3.5 + e.r) { Sim.hitEnemy(S, e, dmg * 3, p, { aoe: true, kb: 10 }); e.stun = Math.max(e.stun, 1); } } }
         dmg *= (1 - sh.block); p.stam = Math.max(0, p.stam - 15);
-        Sim.ev(S, { t: 'sfx', n: 'block', x: p.x, y: p.y });
+        Sim.ev(S, { t: 'sfx', n: 'block', x: p.x, y: p.y }); Sim.ev(S, { t: 'block', to: p.id }); Sim.ev(S, { t: 'hit', x: p.x + Math.cos(p.face) * 0.6, y: p.y + Math.sin(p.face) * 0.6, c: '#ffffff', n: 6 });
       }
     }
     dmg *= st.dmgTaken;
@@ -186,17 +188,18 @@
     if (!opts.env) dmg = Math.min(dmg, p.maxHp * 0.6);
     dmg = Math.max(0.5, dmg);
     if (st.thorns > 0 && src && src.hp !== undefined && !opts.ranged) Sim.hitEnemy(S, src, dmg * st.thorns, p, { noFx: true });
-    p.hp -= dmg; p.flash = 0.15;
+    p.hp -= dmg; p.flash = 0.15; if (meleeMob) p.iframe = 0.35;
     Sim.ev(S, { t: 'dmg', x: p.x, y: p.y - 0.6, v: Math.round(dmg), c: '#ff6060' });
     Sim.ev(S, { t: 'sfx', n: 'hurt', x: p.x, y: p.y });
-    Sim.ev(S, { t: 'shake', v: Math.min(6, dmg / 6), id: p.id });
+    Sim.ev(S, { t: 'shake', v: G.clamp(2 + dmg / 4, 2, 10), id: p.id });
+    if (src && src.x !== undefined) Sim.ev(S, { t: 'hurtdir', to: p.id, a: G.angleTo(p.x, p.y, src.x, src.y) });
     if (p.hp <= 0) {
       if ((p.pw.secondwind || 0) > 0 && p.swCd <= 0) { p.hp = 1; p.swCd = 60; Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 1, s: 'SECOND WIND', c: '#ffe0a0' }); return; }
       if (st.phoenix && !p.phoenixUsed) { p.phoenixUsed = true; p.hp = p.maxHp * 0.6; Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 1, s: 'REBORN', c: '#ff9030' }); Sim.ev(S, { t: 'sfx', n: 'revive', x: p.x, y: p.y }); return; }
       p.hp = 0; p.downed = true; p.bleed = 30; p.revive = 0; p.blocking = false; p.swing = null;
       if (p.pw.lastword) { Sim.ev(S, { t: 'boom', x: p.x, y: p.y, r: 4, c: '#ff4040' }); Sim.ev(S, { t: 'sfx', n: 'boom', x: p.x, y: p.y }); Sim.ev(S, { t: 'shake', v: 8 }); for (const e of S.enemies) if (!e.dead && !e.owner && G.dist(e.x, e.y, p.x, p.y) < 4 + e.r) Sim.hitEnemy(S, e, 120 * p.pw.lastword, p, { aoe: true, kb: 8 }); }
       const others = Object.values(S.players).filter(q => q !== p && !q.dead && !q.downed);
-      Sim.ev(S, { t: 'chat', sys: true, msg: p.name + ' is down!' + (others.length ? ' Revive them (hold E)!' : '') });
+      Sim.ev(S, { t: 'chat', sys: true, msg: p.name + ' is down!' + (others.length ? ' Get to them and hold interact to revive!' : '') });
       Sim.ev(S, { t: 'sfx', n: 'down', x: p.x, y: p.y });
       if (!others.length) Sim.killPlayer(S, p);
     }
@@ -247,7 +250,7 @@
     if (e.dead) return;
     e.dead = true; S.stats.kills++;
     const d = G.ENEMIES[e.t];
-    Sim.ev(S, { t: 'die', x: e.x, y: e.y, c: d.col, r: e.r, k: e.t, f: +e.face.toFixed(2), el: e.elite ? 1 : 0 });
+    Sim.ev(S, { t: 'die', x: e.x, y: e.y, c: d.col, r: e.r, k: e.t, f: +e.face.toFixed(2), el: e.elite ? 1 : 0, by: by && by.id });
     Sim.ev(S, { t: 'sfx', n: d.boss ? 'bossdie' : 'die', x: e.x, y: e.y });
     if (by && by.kills !== undefined) by.kills++;
     { const xp = Math.round((d.coins || 1) * 3 * (e.elite ? 2 : 1) * (d.boss ? 2 : 1)) + 2; for (const id in S.players) { const q = S.players[id]; if (q.dead) continue; Sim.giveXp(S, q, Math.round(xp * Sim.stats(q).xpMul)); } }
@@ -432,7 +435,7 @@
     else if (slot >= HOTBAR) { const t = p.held; const A = p.inv[slot]; p.inv[slot] = p.inv[t]; p.inv[t] = A; }
   };
   Sim.craft = function (S, p, ri) {
-    const r = G.RECIPES[ri]; if (!r || !Sim.canCraft(S, p, r)) return;
+    const r = G.RECIPES[ri]; if (!r) return; if (!Sim.canCraft(S, p, r)) { if (r.station && !Sim.nearStation(S, p, r.station, 3.5)) Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: 'needs a ' + (I[r.station] ? I[r.station].name : r.station) + ' nearby', c: '#ff9090', to: p.id, small: true }); return; }
     for (const k in r.needs) Sim.take(p, k, r.needs[k]);
     const left = Sim.give(p, r.out, r.n); if (left > 0) Sim.spawnDrop(S, r.out, left, p.x, p.y);
     Sim.ev(S, { t: 'sfx', n: 'craft', x: p.x, y: p.y }); Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: '+' + I[r.out].name, c: '#c0ffc0' });
@@ -559,8 +562,11 @@
     if (sprinting) { spd *= 1.8; p.stam -= st.sprintCost * dt; }
     else p.stam = Math.min(100, p.stam + st.stamRegen * dt * (p.swing ? 0.3 : 1));
     if (p.blocking) spd *= 0.5; if (p.draw > 0) spd *= 0.6; if (p.swing) spd *= 0.9; if (p.charge > 0) spd *= 0.55;
-    if (p.dodgeT > 0) { p.dodgeT -= dt; G.moveCircle(w, p, p.dodgeDx * 11 * dt, p.dodgeDy * 11 * dt, 0.3, false); }
-    else if (p.moving) { G.moveCircle(w, p, ax * spd * dt, ay * spd * dt, 0.3, false); p.sitting = false; p.emote = 0; }
+    // a touch of acceleration/deceleration (full speed in ~0.1 s) gives movement weight without feeling floaty; the client mirrors this in predict()
+    const kv = 1 - Math.exp(-(p.moving ? 28 : 40) * dt); p.vx += ((p.moving ? ax * spd : 0) - p.vx) * kv; p.vy += ((p.moving ? ay * spd : 0) - p.vy) * kv;
+    if (p.dodgeT > 0) { p.dodgeT -= dt; G.moveCircle(w, p, p.dodgeDx * 11 * dt, p.dodgeDy * 11 * dt, 0.3, false); p.vx = p.vy = 0; }
+    else if (Math.hypot(p.vx, p.vy) > 0.02) { G.moveCircle(w, p, p.vx * dt, p.vy * dt, 0.3, false); if (p.moving) { p.sitting = false; p.emote = 0; } }
+    if (p.iframe > 0) p.iframe -= dt;
     if (p.emote > 0) p.emote -= dt;
     if (p.dodgeCh < st.dodges) { p.dodgeCd += dt; if (p.dodgeCd >= 1.6) { p.dodgeCd = 0; p.dodgeCh++; } } else p.dodgeCd = 0;
     if (p.moving) p.anim += dt * (sprinting ? 12 : 8);
@@ -730,7 +736,7 @@
     if (S.phase === 'run' && S.time >= G.DUSK_AT && S.nevDay !== S.day) Sim.pickNightEvent(S);
     if (S.tutHold && S.elapsed > 480) S.tutHold = false;
     if (S.tutHold) tdt = 0;
-    if (S.phase === 'run') { S.time += tdt; if (S.time >= G.DAY_LEN) { S.time -= G.DAY_LEN; S.day++; S.waves = {}; S.nev = 'clear'; Sim.ev(S, { t: 'nev', id: 'clear' }); Sim.ev(S, { t: 'chat', sys: true, msg: 'Day ' + S.day + ' dawns.' }); for (const id in S.players) { const p = S.players[id]; if (p.dead) { p.dead = false; p.downed = false; p.hp = p.maxHp * 0.5; p.hunger = 60; p.x = S.world.spawn.x; p.y = S.world.spawn.y; p.inv = new Array(INV).fill(null); Sim.ev(S, { t: 'chat', sys: true, msg: p.name + ' washed back ashore.' }); } } } }
+    if (S.phase === 'run') { S.time += tdt; if (S.time >= G.DAY_LEN) { S.time -= G.DAY_LEN; S.day++; S.waves = {}; S.nev = 'clear'; Sim.ev(S, { t: 'nev', id: 'clear' }); Sim.ev(S, { t: 'daybreak', day: S.day }); Sim.ev(S, { t: 'chat', sys: true, msg: 'Day ' + S.day + ' dawns.' }); for (const id in S.players) { const p = S.players[id]; if (p.dead) { p.dead = false; p.downed = false; p.hp = p.maxHp * 0.5; p.hunger = 60; p.x = S.world.spawn.x; p.y = S.world.spawn.y; p.inv = new Array(INV).fill(null); Sim.ev(S, { t: 'chat', sys: true, msg: p.name + ' washed back ashore.' }); } } } }
     else if (S.phase === 'siege') { S.time = Math.min(S.time + tdt, G.DAY_LEN - 1); S.siegeT -= dt; if (S.siegeT <= 0) { S.phase = 'final'; G.Enemies.spawnLeviathan(S); } }
     for (const id in S.players) updatePlayer(S, S.players[id], dt);
     G.Enemies.update(S, dt);
@@ -744,7 +750,7 @@
     const players = {};
     for (const id in S.players) {
       const p = S.players[id];
-      players[id] = { id: p.id, name: p.name, col: p.col, hat: p.hat, skin: p.skin, sitting: p.sitting ? 1 : 0, emote: p.emote > 0 ? +p.emote.toFixed(1) : 0, rig: p.rig, x: +p.x.toFixed(2), y: +p.y.toFixed(2), face: +p.face.toFixed(2), hp: Math.round(p.hp * 10) / 10, maxHp: p.maxHp, stam: Math.round(p.stam), hunger: Math.round(p.hunger), inv: p.inv, held: p.held, armor: p.armor, coins: p.coins, pw: p.pw, buffs: p.buffs.map(b => ({ id: b.id, t: Math.round(b.t) })), swing: p.swing ? { t: +p.swing.t.toFixed(2), dur: p.swing.dur, ang: +p.swing.ang.toFixed(2), arc: p.swing.arc, reach: p.swing.reach, combo: p.swing.combo || 0, anim: p.swing.anim || 'slash', heavy: p.swing.heavy ? 1 : 0 } : null, charge: +p.charge.toFixed(2), dodgeT: p.dodgeT > 0 ? 1 : 0, dodgeCh: p.dodgeCh, blocking: p.blocking ? 1 : 0, draw: +p.draw.toFixed(2), downed: p.downed ? 1 : 0, bleed: Math.round(p.bleed), revive: +p.revive.toFixed(1), dead: p.dead ? 1 : 0, flash: p.flash > 0 ? 1 : 0, moving: p.moving ? 1 : 0, anim: +p.anim.toFixed(2), kills: p.kills, dark: p.dark > 2.5 ? 1 : 0, xp: p.xp, lvl: p.lvl, xpNext: G.XP_FOR(p.lvl), offer: p.offers.length ? p.offers[0] : null, offerT: Math.round(p.offerT), slow: p.slow > 0 ? 1 : 0, burn: p.burn > 0 ? 1 : 0, swCd: Math.round(p.swCd) };
+      players[id] = { id: p.id, name: p.name, col: p.col, hat: p.hat, skin: p.skin, sitting: p.sitting ? 1 : 0, gambles: p.gambles || 0, emote: p.emote > 0 ? +p.emote.toFixed(1) : 0, rig: p.rig, x: +p.x.toFixed(2), y: +p.y.toFixed(2), face: +p.face.toFixed(2), hp: Math.round(p.hp * 10) / 10, maxHp: p.maxHp, stam: Math.round(p.stam), hunger: Math.round(p.hunger), inv: p.inv, held: p.held, armor: p.armor, coins: p.coins, pw: p.pw, buffs: p.buffs.map(b => ({ id: b.id, t: Math.round(b.t) })), swing: p.swing ? { t: +p.swing.t.toFixed(2), dur: p.swing.dur, ang: +p.swing.ang.toFixed(2), arc: p.swing.arc, reach: p.swing.reach, combo: p.swing.combo || 0, anim: p.swing.anim || 'slash', heavy: p.swing.heavy ? 1 : 0 } : null, charge: +p.charge.toFixed(2), dodgeT: p.dodgeT > 0 ? 1 : 0, dodgeCh: p.dodgeCh, blocking: p.blocking ? 1 : 0, draw: +p.draw.toFixed(2), downed: p.downed ? 1 : 0, bleed: Math.round(p.bleed), revive: +p.revive.toFixed(1), dead: p.dead ? 1 : 0, flash: p.flash > 0 ? 1 : 0, moving: p.moving ? 1 : 0, anim: +p.anim.toFixed(2), kills: p.kills, dark: p.dark > 2.5 ? 1 : 0, xp: p.xp, lvl: p.lvl, xpNext: G.XP_FOR(p.lvl), offer: p.offers.length ? p.offers[0] : null, offerT: Math.round(p.offerT), slow: p.slow > 0 ? 1 : 0, burn: p.burn > 0 ? 1 : 0, swCd: Math.round(p.swCd) };
     }
     const enemies = S.enemies.filter(e => !e.dead).map(e => [e.id, G.EN_IDX[e.t], +e.x.toFixed(2), +e.y.toFixed(2), Math.round(e.hp), e.maxHp, e.st, +e.face.toFixed(2), e.flash > 0 ? 1 : 0, e.r, e.stun > 0 ? 1 : 0, e.hidden ? 1 : 0, e.owner ? 1 : 0, e.burn > 0 ? 1 : 0, +(e.tm || 0).toFixed(2), e.elite ? 1 : 0]);
     const projs = S.projs.map(p => [p.id, p.type, +p.x.toFixed(2), +p.y.toFixed(2), +Math.atan2(p.vy, p.vx).toFixed(2)]);

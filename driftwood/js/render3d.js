@@ -3,7 +3,7 @@
 (function (G) {
   'use strict';
   const T = G.T, O = G.OBJS, W = G.WORLD;
-  const R = { cam: { x: 0, y: 0, z: 1, yaw: -Math.PI / 2, pitch: 0 }, shake: 0, hitstop: 0, fx: { parts: [], floats: [], booms: [], zaps: [], slashes: [], targets: [], pings: [], wobble: {}, corpses: [] }, banner: null, kick: 0, roll: 0, tellFlash: {}, W: 640, H: 360, hurt: 0 };
+  const R = { cam: { x: 0, y: 0, z: 1, yaw: -Math.PI / 2, pitch: 0 }, shake: 0, hitstop: 0, fx: { parts: [], floats: [], booms: [], zaps: [], slashes: [], targets: [], pings: [], wobble: {}, corpses: [], hud: [], hurts: [], hitT: {} }, banner: null, kick: 0, roll: 0, tellFlash: {}, W: 640, H: 360, hurt: 0 };
   G.Render = R;
   let gl, cv, ov, ox, mini, minx, miniBase = null, prog, skyProg, skyBuf;
   const CH = 16, WATER_Y = 0.0, HSCALE = 6.5, EYE = 1.0;
@@ -65,13 +65,13 @@
       float d = distance(wp.xyz, uCam); vFog = clamp((d - uFogNear) / (uFogNear < 10.0 ? 12.0 : 40.0), 0.0, 1.0); }`;
   const MFS = `precision mediump float;
     uniform vec3 uFog; uniform float uAlpha; uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uAmb; uniform vec4 uLights[16]; uniform vec3 uLightCol[16]; uniform int uNL; uniform highp vec3 uCam;
-    uniform vec4 uColor; uniform sampler2D uTex; uniform float uHasTex; uniform float uEm;
+    uniform vec4 uColor; uniform sampler2D uTex; uniform float uHasTex; uniform float uEm; uniform float uFlash;
     varying vec3 vNrm; varying vec3 vPos; varying vec2 vUV; varying float vFog;
     void main(){ vec3 n = normalize(vNrm); if(!gl_FrontFacing) n = -n;
       vec3 L = uAmb * (0.7 + 0.3 * n.y); float nd = max(0.0, dot(n, uSunDir)); float band = smoothstep(0.02, 0.34, nd) * 0.5 + smoothstep(0.42, 0.78, nd) * 0.5; L += uSunCol * band;
       for(int i=0;i<10;i++){ if(i>=uNL) break; vec3 d = uLights[i].xyz - vPos; float dist = length(d); float a = clamp(1.0 - dist/uLights[i].w, 0.0, 1.0); float att = floor(a * a * 6.0 + 0.5) / 6.0; L += uLightCol[i] * att * 1.9 * max(0.3, dot(n, d/dist)); }
       L = min(L, vec3(1.55));
-      vec3 base = uColor.rgb; if(uHasTex > 0.5) base *= texture2D(uTex, vUV).rgb;
+      vec3 base = uColor.rgb; if(uHasTex > 0.5) base *= texture2D(uTex, vUV).rgb; base = mix(base, vec3(1.0), uFlash);
       vec3 vd = normalize(uCam - vPos); float rim = pow(1.0 - max(dot(n, vd), 0.0), 3.0) * 0.09;
       vec3 c = base * max(L, vec3(uEm)) + base * rim * (uSunCol * 0.5 + uAmb * 0.5); c = mix(c, uFog, vFog); gl_FragColor = vec4(c, uAlpha); }`;
   let mprog = null; const modelReqs = []; const animStates = {};
@@ -93,7 +93,7 @@
       if(uHurt > 0.001) c = mix(c, vec3(0.62, 0.02, 0.02), uHurt * smoothstep(0.35, 1.05, length((uv - 0.5) * vec2(1.25, 1.0)) * 1.6));
       gl_FragColor = vec4(c, 1.0); }`;
   function setupPost() {
-    post = null; const ext = gl.getExtension('WEBGL_depth_texture') || gl.getExtension('WEBKIT_WEBGL_depth_texture'); if (!ext) { document.body.classList.add('nopost'); return; }
+    if (post) { gl.deleteTexture(post.col); gl.deleteTexture(post.dep); gl.deleteFramebuffer(post.fbo); } post = null; const ext = gl.getExtension('WEBGL_depth_texture') || gl.getExtension('WEBKIT_WEBGL_depth_texture'); if (!ext) { document.body.classList.add('nopost'); return; }
     try { postProg = postProg || program(SKY_VS, POST_FS, ['aP'], ['uCol', 'uDepth', 'uInvRes', 'uNear', 'uFar', 'uOutline', 'uSat', 'uDebug', 'uHurt']); } catch (e) { console.warn('post shader failed', e); document.body.classList.add('nopost'); return; }
     const mk = () => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); return t; };
     const col = mk(); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, R.W, R.H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
@@ -139,7 +139,7 @@
   R.init = function (canvas, overlay, minimap) {
     cv = canvas; ov = overlay; ox = ov.getContext('2d'); mini = minimap; minx = mini.getContext('2d');
     gl = cv.getContext('webgl', { antialias: true, alpha: false, powerPreference: 'high-performance' }) || cv.getContext('experimental-webgl');
-    if (!gl) { alert('WebGL is required to play DRIFTWOOD.'); return; }
+    if (!gl) { R.ok = false; return; } R.ok = true;
     prog = program(VS, FS, ['aPos', 'aNrm', 'aCol', 'aEm'], ['uVP', 'uTime', 'uWater', 'uCam', 'uFog', 'uAlpha', 'uSunDir', 'uSunCol', 'uAmb', 'uLights', 'uLightCol', 'uNL', 'uFogNear']);
     skyProg = program(SKY_VS, SKY_FS, ['aP'], ['uRight', 'uUp', 'uFwd', 'uSunDir', 'uMoonDir', 'uTanH', 'uAspect', 'uDusk', 'uNight', 'uTime']);
     try { const mv = gl.getParameter(gl.MAX_VERTEX_UNIFORM_VECTORS) || 128; MAXJ = mv >= 512 ? 48 : mv >= 256 ? 32 : 16; mprog = program(MVS_SRC(MAXJ), MFS, ['aPos', 'aNrm', 'aUV', 'aJ', 'aW'], ['uVP', 'uModel', 'uCam', 'uFogNear', 'uFog', 'uAlpha', 'uSunDir', 'uSunCol', 'uAmb', 'uLights', 'uLightCol', 'uNL', 'uColor', 'uTex', 'uHasTex', 'uEm', 'uSkin', 'uJoints']); } catch (e) { console.warn('model shader failed', e); mprog = null; }
@@ -147,13 +147,26 @@
     gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     dynBuf = gl.createBuffer();
     buildPrefabs();
-    R.resize(); window.addEventListener('resize', R.resize);
+    R.resize(); let rsT = null; window.addEventListener('resize', () => { clearTimeout(rsT); rsT = setTimeout(R.resize, 120); });
+    // GPU context loss: stop drawing, then rebuild every GL object when the browser hands the context back
+    cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); R.lost = true; if (R.onLost) R.onLost(true); });
+    cv.addEventListener('webglcontextrestored', () => { try { R.restore(); R.lost = false; if (R.onLost) R.onLost(false); } catch (err) { console.error('context restore failed', err); } });
+  };
+  R.restore = function () {
+    prog = program(VS, FS, ['aPos', 'aNrm', 'aCol', 'aEm'], ['uVP', 'uTime', 'uWater', 'uCam', 'uFog', 'uAlpha', 'uSunDir', 'uSunCol', 'uAmb', 'uLights', 'uLightCol', 'uNL', 'uFogNear']);
+    skyProg = program(SKY_VS, SKY_FS, ['aP'], ['uRight', 'uUp', 'uFwd', 'uSunDir', 'uMoonDir', 'uTanH', 'uAspect', 'uDusk', 'uNight', 'uTime']);
+    if (mprog) mprog = program(MVS_SRC(MAXJ), MFS, ['aPos', 'aNrm', 'aUV', 'aJ', 'aW'], ['uVP', 'uModel', 'uCam', 'uFogNear', 'uFog', 'uAlpha', 'uSunDir', 'uSunCol', 'uAmb', 'uLights', 'uLightCol', 'uNL', 'uColor', 'uTex', 'uHasTex', 'uEm', 'uFlash', 'uJ', 'uSkin']);
+    postProg = null; skyBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW); dynBuf = gl.createBuffer(); shadBuf = trailBuf = glowBuf = null;
+    for (const k in chunks) delete chunks[k]; buildQ.length = 0; cold = true; miniBase = null;
+    for (const k in G.Assets.models) { const m = G.Assets.models[k]; if (!m) continue; for (const pr of (m.prims || [])) pr.gl = null; m.texCache = null; }
+    gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); post = null; R.resize();
   };
   R.reinitPost = () => { if (gl) setupPost(); };
   // adaptive quality: qScale drifts down when frames are slow and back up when there is headroom (settings.quality is the base)
   R.qScale = 1; let ftAvg = 16, ftT = 0;
   R.autoQuality = function (dtMs) {
     const S = G.Input && G.Input.settings; if (!S || S.autoq === false) return; ftAvg += (Math.min(100, dtMs) - ftAvg) * 0.03; ftT += dtMs;
+    R.fps = Math.round(1000 / Math.max(1, ftAvg));
     if (ftT < 6000) return; ftT = 0; // slow, hysteretic: only step when clearly over/under budget so the resolution never visibly pumps
     if (ftAvg > 28 && R.qScale > 0.6) { R.qScale = Math.max(0.6, R.qScale - (ftAvg > 45 ? 0.2 : 0.1)); R.resize(); }
     else if (ftAvg < 10 && R.qScale < 1.34) { R.qScale = Math.min(1.34, R.qScale + 0.05); R.resize(); }
@@ -276,7 +289,7 @@
     const n = prefab.length / VF; grow(t, n);
     for (let i = 0; i < n; i++) { const o = i * VF; const p = xf(m, prefab[o], prefab[o + 1], prefab[o + 2]); const nn = xfn(m, prefab[o + 3], prefab[o + 4], prefab[o + 5]); vert(t, p, nn, [prefab[o + 6], prefab[o + 7], prefab[o + 8]], prefab[o + 9]); }
   }
-  const hex = (c) => { const n = parseInt(c.slice(1), 16); return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]; };
+  const hexCache = new Map(); const hex = (c) => { let v = hexCache.get(c); if (!v) { const n = parseInt(c.slice(1), 16); v = [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]; hexCache.set(c, v); } return v; }; // colours come from a fixed table: parse once, never mutate the result
   const sh = (c, k) => c.map(v => G.clamp(v * k, 0, 1));
   const h2 = (x, y) => { let h = (x * 374761393 + y * 668265263) | 0; h = (h ^ (h >> 13)) * 1274126177; return ((h ^ (h >> 16)) >>> 0) / 4294967296; };
 
@@ -455,8 +468,8 @@
     if (enemyModel(e, m, V, R.dt || 0.016, corpse)) return;
     const d = G.ENEMIES[e.t]; const col = hex(d.col); const anim = nowT * 8 + e.id; const moving = /chase|charge|lunge|circle|pounce/.test(e.st);
     const isWind = /wind$/.test(e.st); const wob = isWind ? 1 + Math.sin(nowT * 25) * 0.05 : 1;
-    const fm = M(m, mS(wob * (d.boss ? 0.85 : 0.78))); const FL = !!e.flash; const C = (c) => FL ? [1, 1, 1] : c;
-    const striking = e.st === 'cool' && (e.tm || 0) > 0.6; const sw = isWind ? null : (striking ? 0.5 : null);
+    const FL = !!e.flash; const sq = FL ? 1 : 0; const fm = M(m, mS(wob * (d.boss ? 0.85 : 0.78) * (1 + 0.08 * sq), wob * (d.boss ? 0.85 : 0.78) * (1 - 0.1 * sq), wob * (d.boss ? 0.85 : 0.78) * (1 + 0.08 * sq))); const C = (c) => FL ? [1, 1, 1] : c;
+    const striking = e.st === 'strike' || (e.st === 'cool' && (e.tm || 0) > 0.7); const sw = isWind ? null : (striking ? 0.5 : null);
     switch (e.t) {
       case 'slime': case 'slime_small': { const r = e.t === 'slime' ? 0.45 : 0.25; const b = Math.abs(Math.sin(nowT * 5 + e.id)); sphS(t, M(fm, mT(0, r * 0.7 + b * 0.15, 0), mS(1 + b * 0.1, 0.7 + b * 0.25, 1 + b * 0.1)), r, 12, 7, C(col), FL ? 1 : 0.15); for (const z of [-0.3, 0.3]) { sphS(t, M(fm, mT(r * 0.75, r * 0.85, z * r)), r * 0.2, 7, 4, [1, 1, 1]); sphS(t, M(fm, mT(r * 0.9, r * 0.85, z * r)), r * 0.1, 5, 3, hex('#14121a')); } break; }
       case 'goblin': humanoid(t, fm, { h: 0.9, body: hex('#7aa040'), skin: hex('#8ab850'), legcol: hex('#4a5a20'), anim, moving, ears: true, angry: true, held: 'sword_wood', swing: sw, wind: isWind, flash: FL }); break;
@@ -494,25 +507,35 @@
       c = [c[0] + (warm[0] - c[0]) * k, c[1] + (warm[1] - c[1]) * k, c[2] + (warm[2] - c[2]) * k]; return sh(c, 0.9 + r * 0.08 + (n2 - 0.5) * 0.2); }
     return sh(c, 0.92 + r * 0.16); }
   function cornerCol(world, X, Y) { const a = tileCol(world, X - 1, Y - 1), b = tileCol(world, X, Y - 1), c = tileCol(world, X - 1, Y), d = tileCol(world, X, Y); return [(a[0] + b[0] + c[0] + d[0]) / 4, (a[1] + b[1] + c[1] + d[1]) / 4, (a[2] + b[2] + c[2] + d[2]) / 4]; }
-  function buildChunk(world, cxI, cyI) {
-    const t = { arr: new Float32Array(CH * CH * 6 * VF), n: 0 }, w = { arr: new Float32Array(CH * CH * 6 * VF), n: 0 }, ob = { arr: new Float32Array(VF * 3 * 6000), n: 0 }, sb = { arr: new Float32Array(VF * 3 * 1200), n: 0 };
-    const I = m4();
+  function buildChunk(world, cxI, cyI, reuse) {
+    const t = { arr: new Float32Array(reuse ? 0 : CH * CH * 6 * VF), n: 0 }, w = { arr: new Float32Array(reuse ? 0 : CH * CH * 6 * VF), n: 0 }, ob = { arr: new Float32Array(VF * 3 * 6000), n: 0 }, sb = { arr: new Float32Array(VF * 3 * 1200), n: 0 };
+    const I = m4(); const x0 = cxI * CH, y0 = cyI * CH, GW = CH + 3;
+    // corner heights and tile colours are sampled once into small grids: the per-tile version re-derived each from 16-64 hAt calls
+    const HG = new Float32Array(GW * GW), CG = new Array((CH + 2) * (CH + 2));
+    if (!reuse) { for (let gy = 0; gy < GW; gy++) for (let gx = 0; gx < GW; gx++) HG[gy * GW + gx] = cornerH(world, x0 + gx - 1, y0 + gy - 1); }
+    for (let gy = 0; gy < CH + 2; gy++) for (let gx = 0; gx < CH + 2; gx++) CG[gy * (CH + 2) + gx] = tileCol(world, x0 + gx - 1, y0 + gy - 1);
+    const cH = (X, Y) => HG[(Y - y0 + 1) * GW + (X - x0 + 1)];
+    const cN = (X, Y) => { const dx = (cH(X + 1, Y) - cH(X - 1, Y)) * 0.5, dy = (cH(X, Y + 1) - cH(X, Y - 1)) * 0.5; const l = Math.hypot(dx, 1, dy); return [-dx / l, 1 / l, -dy / l]; };
+    const tC = (X, Y) => CG[(Y - y0 + 1) * (CH + 2) + (X - x0 + 1)];
+    const cC = (X, Y) => { const a = tC(X - 1, Y - 1), b = tC(X, Y - 1), c = tC(X - 1, Y), d = tC(X, Y); return [(a[0] + b[0] + c[0] + d[0]) / 4, (a[1] + b[1] + c[1] + d[1]) / 4, (a[2] + b[2] + c[2] + d[2]) / 4]; };
     for (let ty = 0; ty < CH; ty++) for (let tx = 0; tx < CH; tx++) {
       const X = cxI * CH + tx, Y = cyI * CH + ty; if (X >= W || Y >= W) continue;
       const tile = world.tiles[Y * W + X];
-      const h00 = cornerH(world, X, Y), h10 = cornerH(world, X + 1, Y), h01 = cornerH(world, X, Y + 1), h11 = cornerH(world, X + 1, Y + 1);
+      const h00 = reuse ? 0 : cH(X, Y), h10 = reuse ? 0 : cH(X + 1, Y), h01 = reuse ? 0 : cH(X, Y + 1), h11 = reuse ? 0 : cH(X + 1, Y + 1);
       const em = tile === T.LAVA ? 1.0 : 0;
-      const own = tileCol(world, X, Y);
+      const own = tC(X, Y);
       // corners blend neighbours, but keep hard edges against water/lava/sand so beaches and shores stay crisp
       const blend = (cc) => tile <= T.SAND || tile === T.LAVA ? own : [own[0] * 0.45 + cc[0] * 0.55, own[1] * 0.45 + cc[1] * 0.55, own[2] * 0.45 + cc[2] * 0.55];
-      const c00 = blend(cornerCol(world, X, Y)), c10 = blend(cornerCol(world, X + 1, Y)), c01 = blend(cornerCol(world, X, Y + 1)), c11 = blend(cornerCol(world, X + 1, Y + 1));
+      const c00 = blend(cC(X, Y)), c10 = blend(cC(X + 1, Y)), c01 = blend(cC(X, Y + 1)), c11 = blend(cC(X + 1, Y + 1));
       const a = [X, h00, Y], b = [X + 1, h10, Y], c = [X + 1, h11, Y + 1], d = [X, h01, Y + 1];
-      const n00 = cornerN(world, X, Y), n10 = cornerN(world, X + 1, Y), n01 = cornerN(world, X, Y + 1), n11 = cornerN(world, X + 1, Y + 1);
+      const n00 = reuse ? null : cN(X, Y), n10 = reuse ? null : cN(X + 1, Y), n01 = reuse ? null : cN(X, Y + 1), n11 = reuse ? null : cN(X + 1, Y + 1);
       const smooth = tile > T.SAND && tile !== T.LAVA; // beaches and lava keep crisp facets, grass and rock roll smoothly over hills
       const put = (p, n, col) => vert(t, p, n, col, em);
+      if (!reuse) { // terrain + water (skipped when only the objects on this chunk changed)
       if (!smooth) { if ((X + Y) % 2) { tri3(t, I, a, c, b, c00, c11, c10, em); tri3(t, I, a, d, c, sh(c00, 0.97), sh(c01, 0.97), sh(c11, 0.97), em); } else { tri3(t, I, a, d, b, c00, c01, c10, em); tri3(t, I, b, d, c, sh(c10, 0.97), sh(c01, 0.97), sh(c11, 0.97), em); } }
       else { grow(t, 6); if ((X + Y) % 2) { put(a, n00, c00); put(c, n11, c11); put(b, n10, c10); put(a, n00, c00); put(d, n01, c01); put(c, n11, c11); } else { put(a, n00, c00); put(d, n01, c01); put(b, n10, c10); put(b, n10, c10); put(d, n01, c01); put(c, n11, c11); } }
       if (tile <= T.WATER) { const wc = tile === T.DEEP ? [0.12, 0.3, 0.6] : [0.22, 0.5, 0.8]; quad(w, I, [X, WATER_Y, Y], [X, WATER_Y, Y + 1], [X + 1, WATER_Y, Y + 1], [X + 1, WATER_Y, Y], wc, 0.05, [X + .5, -100, Y + .5]); }
+      }
       const o = world.objs.get(Y * W + X);
       if (o) { staticObject(ob, world, o, X, Y); const d2 = O[o.t]; if (d2.solid && !d2.wall && !d2.floor) { const gz = R.groundZ(world, X + .5, Y + .5); cyl(sb, M(mT(X + .5, gz + 0.012, Y + .5)), d2.tall ? 0.75 : (d2.isChest ? 0.5 : 0.55), d2.tall ? 0.75 : 0.5, 0.005, 8, [0, 0, 0], 0); } }
       // grass tufts on open grass: cheap blades that make the ground read as lush instead of flat
@@ -522,6 +545,7 @@
         else if (dh > 0.955) { const px = X + 0.2 + h2(X, Y + 31) * 0.6, py = Y + 0.2 + h2(X + 31, Y) * 0.6, pz = R.groundZ(world, px, py); box(ob, M(mT(px, pz, py), mRY(h2(X, Y + 41) * 3)), 0.16, 0.08, 0.12, hex('#8a8e96'), 0, 0.03); box(ob, M(mT(px + 0.12, pz, py + 0.08), mRY(h2(X, Y + 43) * 3)), 0.09, 0.05, 0.08, hex('#a0a4ac'), 0, 0.02); } }
     }
     const mk = (src) => { const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, src.arr.subarray(0, src.n * VF), gl.STATIC_DRAW); return b; };
+    if (reuse) { gl.deleteBuffer(reuse.obo); gl.deleteBuffer(reuse.sbo); return { vbo: reuse.vbo, n: reuse.n, wvbo: reuse.wvbo, wn: reuse.wn, obo: mk(ob), on: ob.n, sbo: mk(sb), sn: sb.n }; }
     return { vbo: mk(t), n: t.n, wvbo: mk(w), wn: w.n, obo: mk(ob), on: ob.n, sbo: mk(sb), sn: sb.n };
   }
   function staticObject(t, world, o, X, Y) {
@@ -534,16 +558,29 @@
     if (d.tall || name === 'berry_bush') { // no two trees the same green: tint the foliage per instance, leave the trunk alone
       const k = 0.86 + h2(X + 13, Y + 17) * 0.26, kb = 0.92 + h2(X + 19, Y + 23) * 0.16; for (let i = n0; i < t.n; i++) { const o = i * VF; if (t.arr[o + 7] > t.arr[o + 6] * 1.2) { t.arr[o + 6] *= k * kb; t.arr[o + 7] *= k; t.arr[o + 8] *= k * (2 - kb); } } }
   }
-  function chunk(world, cxI, cyI) { const k = cxI + ',' + cyI; return chunks[k] || (chunks[k] = buildChunk(world, cxI, cyI)); }
+  // chunk streaming: a chunk that is not built yet (or whose objects changed) is queued and built nearest-first within a per-frame time budget,
+  // so crossing a chunk border no longer stalls a frame for 100+ ms; the first frame of a fresh world builds everything in view at once
+  const buildQ = []; let cold = true;
+  function chunk(world, cxI, cyI) { const k = cxI + ',' + cyI; const c = chunks[k]; if (c && !c.objDirty) return c; if (!(c && c.queued) && !buildQ.some(q => q.k === k)) buildQ.push({ k, cxI, cyI }); if (c) c.queued = true; return c || null; }
+  function pumpChunks(world) {
+    if (!buildQ.length) return; const t0 = performance.now(); const budget = cold ? 1e9 : 5;
+    const cx = R.cam.x / CH - 0.5, cy = R.cam.y / CH - 0.5; buildQ.sort((a, b) => ((a.cxI - cx) ** 2 + (a.cyI - cy) ** 2) - ((b.cxI - cx) ** 2 + (b.cyI - cy) ** 2));
+    while (buildQ.length) { const q = buildQ[0]; if (Math.abs(q.cxI - cx) > 4.5 || Math.abs(q.cyI - cy) > 4.5) { buildQ.shift(); continue; } // scrolled out of range before it was built
+      const old = chunks[q.k]; chunks[q.k] = buildChunk(world, q.cxI, q.cyI, old && old.objDirty ? old : undefined); buildQ.shift(); if (performance.now() - t0 > budget) break; }
+    cold = false;
+  }
   function dropChunk(k) { const c = chunks[k]; if (!c) return; gl.deleteBuffer(c.vbo); gl.deleteBuffer(c.wvbo); gl.deleteBuffer(c.obo); gl.deleteBuffer(c.sbo); delete chunks[k]; }
-  R.dirtyTile = (i) => { const X = i % W, Y = Math.floor(i / W); for (const [ox, oy] of [[0, 0], [1, 0], [0, 1], [1, 1], [-1, 0], [0, -1]]) dropChunk(Math.floor((X + ox) / CH) + ',' + Math.floor((Y + oy) / CH)); };
-  R.resetWorld = () => { for (const k in chunks) dropChunk(k); miniBase = null; };
+  function objDirty(k) { const c = chunks[k]; if (c) c.objDirty = true; }
+  const forTile = (i, f) => { const X = i % W, Y = Math.floor(i / W); for (const [ox, oy] of [[0, 0], [1, 0], [0, 1], [1, 1], [-1, 0], [0, -1]]) f(Math.floor((X + ox) / CH) + ',' + Math.floor((Y + oy) / CH)); };
+  R.dirtyTile = (i) => objDirty(Math.floor((i % W) / CH) + ',' + Math.floor(Math.floor(i / W) / CH)); // an object changed: rebuild just the objects/grass/shadows of its own chunk (object geometry never crosses chunk buffers)
+  R.dirtyTerrain = (i) => forTile(i, dropChunk); // a tile changed (floor placed): full rebuild
+  R.resetWorld = () => { for (const k in chunks) dropChunk(k); buildQ.length = 0; cold = true; miniBase = null; };
   // the client/host mutate world.objs directly; detect changes cheaply by hashing object state per chunk each frame
   const chunkSig = {};
   function checkChunkDirty(world, cxI, cyI) {
     let sig = 0; const x0 = cxI * CH, y0 = cyI * CH;
     for (let ty = 0; ty < CH; ty++) for (let tx = 0; tx < CH; tx++) { const X = x0 + tx, Y = y0 + ty; if (X >= W || Y >= W) continue; const o = world.objs.get(Y * W + X); if (o) sig = (sig * 31 + (G.OBJ_IDX[o.t] + 1) * 7 + (o.stub ? 3 : 0) + (o.closed ? 5 : 0) + tx * 13 + ty * 17) | 0; }
-    const k = cxI + ',' + cyI; if (chunkSig[k] !== undefined && chunkSig[k] !== sig) dropChunk(k); chunkSig[k] = sig;
+    const k = cxI + ',' + cyI; if (chunkSig[k] !== undefined && chunkSig[k] !== sig) objDirty(k); chunkSig[k] = sig;
   }
 
   function bindAttribs(p) {
@@ -555,13 +592,23 @@
   }
 
   // ================= events -> fx =================
+  function hudFloat(s, c, big) { const F = R.fx; if (F.hud.length && F.hud[F.hud.length - 1].s === s && F.hud[F.hud.length - 1].t < 0.25) return; F.hud.push({ s, c: c || '#fff', t: 0, big }); if (F.hud.length > 6) F.hud.shift(); }
   R.event = function (ev, me) {
     const F = R.fx;
     switch (ev.t) {
-      case 'dmg': F.floats.push({ x: ev.x + (Math.random() - .5) * 0.4, y: ev.y + 0.6, z: 1.5, s: String(ev.v), c: ev.c, t: 0, big: ev.crit }); break;
-      case 'txt': if (!ev.to || ev.to === me) F.floats.push({ x: ev.x, y: ev.y + 0.8, z: 1.6, s: ev.s, c: ev.c, t: 0, small: ev.small }); break;
+      case 'dmg': { const mine = R.mePos && G.dist(ev.x, ev.y + 0.6, R.mePos.x, R.mePos.y) < 1.1; if (mine) { hudFloat('-' + ev.v, ev.c, true); break; }
+        F.floats.push({ x: ev.x + (Math.random() - .5) * 0.4, y: ev.y + 0.6, z: 1.5, s: String(ev.v), c: ev.c, t: 0, big: ev.crit }); if (ev.crit) R.hitCrit = 0.2;
+        if (R.lastEnemies) for (const e of R.lastEnemies) if (G.dist(e.x, e.y - e.r - 0.3, ev.x, ev.y) < 0.9) { F.hitT[e.id] = 0.14; break; } break; } // clients latch the white flash off the damage event (the snapshot's flash bit is too coarse)
+      case 'txt': { if (ev.to && ev.to !== me) break; const mine = (ev.to === me) || (R.mePos && G.dist(ev.x, ev.y + 0.8, R.mePos.x, R.mePos.y) < 1.3);
+        if (/^LEVEL /.test(ev.s) && mine) { R.banner = { txt: ev.s, sub: 'choose a boon — Alt+1…4', t: 0, col: '#80ffd0' }; break; }
+        if (ev.s === 'PARRY' && mine) { R.flashWhite = 0.14; R.shake = Math.max(R.shake, 4); }
+        if (mine) hudFloat(ev.s, ev.c, false); else F.floats.push({ x: ev.x, y: ev.y + 0.8, z: 1.6, s: ev.s, c: ev.c, t: 0, small: ev.small }); break; }
+      case 'hurtdir': if (ev.to === me) F.hurts.push({ a: ev.a, t: 0 }); break;
+      case 'daybreak': R.banner = { txt: 'DAY ' + ev.day, sub: 'the island stirs — gather, build, prepare', t: 0, col: '#ffd24a' }; break;
+      case 'nightfall': R.banner = { txt: 'NIGHT FALLS', sub: 'stay in the light — day ' + ev.day, t: 0, col: '#8090ff' }; break;
+      case 'sfx': if (ev.n === 'bow' && R.mePos && G.dist(ev.x, ev.y, R.mePos.x, R.mePos.y) < 0.8) R.kick = Math.max(R.kick, 0.03); break;
       case 'hit': for (let i = 0; i < ev.n; i++) F.parts.push({ x: ev.x, y: ev.y, z: 0.8, vx: (Math.random() - .5) * 4, vy: (Math.random() - .5) * 4, vz: Math.random() * 3, c: hex(ev.c), t: 0, life: 0.4 + Math.random() * 0.3, g: 9 }); break;
-      case 'die': if (ev.k) F.corpses.push({ k: ev.k, x: ev.x, y: ev.y, face: ev.f || 0, r: ev.r, el: ev.el, id: Math.random() * 1000 | 0, age: 0 }); for (let i = 0; i < 18; i++) F.parts.push({ x: ev.x, y: ev.y, z: 0.6, vx: (Math.random() - .5) * 6, vy: (Math.random() - .5) * 6, vz: Math.random() * 5, c: i % 3 ? hex(ev.c) : [1, 1, 1], t: 0, life: 0.5 + Math.random() * 0.5, g: 10, sz: 0.14 }); break;
+      case 'die': if (ev.by && ev.by === me) R.killMark = 0.3; if (ev.k) F.corpses.push({ k: ev.k, x: ev.x, y: ev.y, face: ev.f || 0, r: ev.r, el: ev.el, id: Math.random() * 1000 | 0, age: 0 }); for (let i = 0; i < 18; i++) F.parts.push({ x: ev.x, y: ev.y, z: 0.6, vx: (Math.random() - .5) * 6, vy: (Math.random() - .5) * 6, vz: Math.random() * 5, c: i % 3 ? hex(ev.c) : [1, 1, 1], t: 0, life: 0.5 + Math.random() * 0.5, g: 10, sz: 0.14 }); break;
       case 'boom': F.booms.push({ x: ev.x, y: ev.y, r: ev.r, t: 0, c: ev.c || '#ffb040' }); for (let i = 0; i < 16; i++) F.parts.push({ x: ev.x, y: ev.y, z: 0.5, vx: (Math.random() - .5) * 8, vy: (Math.random() - .5) * 8, vz: Math.random() * 4, c: hex(ev.c || '#ffb040'), t: 0, life: 0.45, g: 4, sz: 0.16, e: 1 }); break;
       case 'zap': F.zaps.push({ x1: ev.x1, y1: ev.y1, x2: ev.x2, y2: ev.y2, t: 0 }); break;
       case 'slash': F.slashes.push({ x: ev.x, y: ev.y, a: ev.a, r: ev.r, t: 0 }); break;
@@ -570,7 +617,8 @@
       case 'dust': for (let i = 0; i < 6; i++) F.parts.push({ x: ev.x, y: ev.y, z: 0.1, vx: (Math.random() - .5) * 2, vy: (Math.random() - .5) * 2, vz: 1, c: [0.8, 0.75, 0.6], t: 0, life: 0.35, g: 2 }); break;
       case 'fire': F.parts.push({ x: ev.x + (Math.random() - .5) * 0.4, y: ev.y + (Math.random() - .5) * 0.4, z: 0.6, vx: 0, vy: 0, vz: 1.5, c: Math.random() < 0.5 ? [1, 0.42, 0.1] : [1, 0.82, 0.25], t: 0, life: 0.4, g: -3, e: 1 }); break;
       case 'shake': if ((!ev.id || ev.id === me) && (!G.Input.settings || G.Input.settings.shake)) R.shake = Math.max(R.shake, ev.v); break;
-      case 'hitstop': if (ev.to === me) { R.hitstop = 0.06; R.dip = 0.012; } break;
+      case 'block': if (ev.to === me) { R.kick = Math.max(R.kick, 0.02); R.flashWhite = Math.max(R.flashWhite || 0, 0.06); } break;
+      case 'hitstop': if (ev.to === me) { R.hitstop = 0.06; R.dip = 0.012; R.hitMark = 0.16; } break;
       case 'wobble': F.wobble[ev.i] = 0.25; break;
       case 'tell': R.tellFlash[ev.id] = 0.3; break;
       case 'bossin': R.banner = { txt: G.ENEMIES[ev.k].name, sub: 'NIGHT BOSS', t: 0 }; break;
@@ -583,16 +631,19 @@
     R.dt = dt;
     if (!gl) return; L.dt = dt;
     const me = V.players[V.me]; const world = V.world; nowT = V.now;
+    R.mePos = me ? { x: me.x, y: me.y } : null; R.lastEnemies = V.enemies; for (const k in R.fx.hitT) { R.fx.hitT[k] -= dt; if (R.fx.hitT[k] <= 0) delete R.fx.hitT[k]; }
+    R.hitMark = Math.max(0, (R.hitMark || 0) - dt); R.killMark = Math.max(0, (R.killMark || 0) - dt); R.hitCrit = Math.max(0, (R.hitCrit || 0) - dt); R.flashWhite = Math.max(0, (R.flashWhite || 0) - dt);
+    R.mvS = G.lerp(R.mvS || 0, L.moving ? 1 : 0, Math.min(1, dt * 8));
     if (R.hitstop > 0) R.hitstop -= dt;
-    if (R.shake > 0) R.shake = Math.max(0, R.shake - dt * 18);
+    if (R.shake > 0) R.shake = Math.max(0, R.shake - dt * 10);
     if (me) { R.cam.x = me.x; R.cam.y = me.y; R.cam.z = R.groundZ(world, me.x, me.y) + (me.downed ? 0.35 : EYE) + (L.jumpZ || 0) + (L.bob || 0) - (L.land || 0); }
     R.cam.yaw = L.yaw; R.cam.pitch = L.pitch;
     if (me && me.flash && R.kick < 0.02) R.kick = 0.035; R.kick = Math.max(0, R.kick - dt * 0.4);
     R.roll = 0; // dodging keeps the camera upright (no roll)
-    const shx = (Math.random() - .5) * R.shake * 0.01, shy = (Math.random() - .5) * R.shake * 0.01;
+    const shx = Math.sin(nowT * 41) * R.shake * 0.007, shy = Math.cos(nowT * 31 + 1) * R.shake * 0.007; // smooth 2-D wobble reads as a punch, not jitter
     R.dip = Math.max(0, (R.dip || 0) - dt * 0.09); const yaw = R.cam.yaw + shx, pitch = G.clamp(R.cam.pitch + shy - R.kick - R.dip, -1.5, 1.5);
     const fx = Math.cos(yaw) * Math.cos(pitch), fz = Math.sin(pitch), fy = Math.sin(yaw) * Math.cos(pitch);
-    const baseFov = (G.Input && G.Input.settings ? G.Input.settings.fov : 80); R.fovCur = G.lerp(R.fovCur || baseFov, baseFov + (L.sprinting ? 1.5 : 0), Math.min(1, dt * 8)); const fov = R.fovCur * Math.PI / 180;
+    const baseFov = (G.Input && G.Input.settings ? G.Input.settings.fov : 80); R.fovCur = G.lerp(R.fovCur || baseFov, baseFov + (L.sprinting ? 4 : 0), Math.min(1, dt * 6)); const fov = R.fovCur * Math.PI / 180;
     perspective(proj, fov, R.W / R.H, 0.05, 80);
     lookAt(view, R.cam.x, R.cam.z, R.cam.y, fx, fz, fy);
     if (Math.abs(R.roll) > 0.001) { const rz = mRZ(R.roll); view = mmul(rz, view); const b2 = camBasis; const r = b2.r, u = b2.u; const c = Math.cos(R.roll), sn = Math.sin(R.roll); camBasis = { r: [r[0] * c + u[0] * sn, r[1] * c + u[1] * sn, r[2] * c + u[2] * sn], u: [u[0] * c - r[0] * sn, u[1] * c - r[1] * sn, u[2] * c - r[2] * sn], f: b2.f }; }
@@ -621,19 +672,12 @@
     for (const p of V.puddles) lights.push({ x: p.x, y: p.y, z: R.groundZ(world, p.x, p.y) + 0.2, r: 2.2, c: [1, 0.4, 0.1] });
     for (const e of V.enemies) if (e.t === 'crawler' || e.t === 'cinder') lights.push({ x: e.x, y: e.y, z: R.groundZ(world, e.x, e.y) + 0.5, r: e.t === 'cinder' ? 6 : 3, c: [1, 0.45, 0.15] });
     lights.sort((a, b) => G.dist(a.x, a.y, R.cam.x, R.cam.y) - G.dist(b.x, b.y, R.cam.x, R.cam.y)); lights = lights.slice(0, 10);
-    const lp = new Float32Array(64), lc = new Float32Array(48); lightPacked.lp = lp; lightPacked.lc = lc;
+    const lp = lightPacked.lp, lc = lightPacked.lc; lp.fill(0); lc.fill(0);
     lights.forEach((l, i) => { const flick = 1 + Math.sin(nowT * 9 + l.x * 7 + l.y * 3) * 0.07; lp[i * 4] = l.x; lp[i * 4 + 1] = l.z; lp[i * 4 + 2] = l.y; lp[i * 4 + 3] = l.r * flick; lc[i * 3] = l.c[0]; lc[i * 3 + 1] = l.c[1]; lc[i * 3 + 2] = l.c[2]; });
 
     // ---- sky ----
     if (post) gl.bindFramebuffer(gl.FRAMEBUFFER, post.fbo);
     gl.clearColor(fog[0], fog[1], fog[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    gl.depthMask(false); gl.useProgram(skyProg);
-    gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf); gl.enableVertexAttribArray(skyProg.a.aP); gl.vertexAttribPointer(skyProg.a.aP, 2, gl.FLOAT, false, 0, 0);
-    gl.uniform3fv(skyProg.u.uRight, camBasis.r); gl.uniform3fv(skyProg.u.uUp, camBasis.u); gl.uniform3fv(skyProg.u.uFwd, camBasis.f);
-    gl.uniform3f(skyProg.u.uSunDir, sunDir[0], sunDir[1], sunDir[2]); gl.uniform3f(skyProg.u.uMoonDir, moonDir[0], moonDir[1], moonDir[2]);
-    gl.uniform1f(skyProg.u.uTanH, Math.tan(fov / 2)); gl.uniform1f(skyProg.u.uAspect, R.W / R.H); gl.uniform1f(skyProg.u.uDusk, dusk); gl.uniform1f(skyProg.u.uNight, night); gl.uniform1f(skyProg.u.uTime, nowT);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    gl.depthMask(true);
     // ---- world ----
     gl.useProgram(prog);
     gl.uniformMatrix4fv(prog.u.uVP, false, vp); gl.uniform3f(prog.u.uCam, R.cam.x, R.cam.z, R.cam.y); gl.uniform3fv(prog.u.uAmb, ambient); gl.uniform1f(prog.u.uTime, nowT); gl.uniform1f(prog.u.uWater, 0); gl.uniform1f(prog.u.uFogNear, R.fogNear || 26);
@@ -641,21 +685,31 @@
     gl.uniform4fv(prog.u.uLights, lp); gl.uniform3fv(prog.u.uLightCol, lc); gl.uniform1i(prog.u.uNL, lights.length);
     gl.uniform3fv(prog.u.uFog, fog); gl.uniform1f(prog.u.uAlpha, 1);
     gl.disable(gl.BLEND);
-    const ccx = Math.floor(R.cam.x / CH), ccy = Math.floor(R.cam.y / CH); const vis = [];
+    const ccx = Math.floor(R.cam.x / CH), ccy = Math.floor(R.cam.y / CH); const vis = []; const scanObjs = world.objVer !== R.seenObjVer; R.seenObjVer = world.objVer; // objects only get re-hashed on frames where something in the world changed
     for (let cy = ccy - 3; cy <= ccy + 3; cy++) for (let cX = ccx - 3; cX <= ccx + 3; cX++) {
       if (cX < 0 || cy < 0 || cX * CH >= W || cy * CH >= W) continue;
       // frustum-ish cull: skip chunks fully behind the camera
       const dx = (cX + .5) * CH - R.cam.x, dy = (cy + .5) * CH - R.cam.y; if (dx * Math.cos(yaw) + dy * Math.sin(yaw) < -CH * 1.2) continue;
-      checkChunkDirty(world, cX, cy);
-      const c = chunk(world, cX, cy); vis.push(c);
+      if (scanObjs) checkChunkDirty(world, cX, cy);
+      const c = chunk(world, cX, cy); if (!c) continue; vis.push(c);
       gl.bindBuffer(gl.ARRAY_BUFFER, c.vbo); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, c.n);
       if (c.on && Math.abs(cX - ccx) <= 2 && Math.abs(cy - ccy) <= 2) { gl.bindBuffer(gl.ARRAY_BUFFER, c.obo); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, c.on); }
     }
+    pumpChunks(world);
     // ---- dynamic ----
     dyn.n = 0; buildDynamic(V, me, L);
     gl.bindBuffer(gl.ARRAY_BUFFER, dynBuf); gl.bufferData(gl.ARRAY_BUFFER, dyn.arr.subarray(0, dyn.n * VF), gl.DYNAMIC_DRAW); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, dyn.n);
     // ---- glTF character models ----
     drawModels(); gl.useProgram(prog);
+    // ---- sky (after the opaque world so the depth test culls it behind terrain) ----
+    gl.depthMask(false); gl.useProgram(skyProg);
+    gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf); gl.enableVertexAttribArray(skyProg.a.aP); gl.vertexAttribPointer(skyProg.a.aP, 2, gl.FLOAT, false, 0, 0);
+    gl.uniform3fv(skyProg.u.uRight, camBasis.r); gl.uniform3fv(skyProg.u.uUp, camBasis.u); gl.uniform3fv(skyProg.u.uFwd, camBasis.f);
+    gl.uniform3f(skyProg.u.uSunDir, sunDir[0], sunDir[1], sunDir[2]); gl.uniform3f(skyProg.u.uMoonDir, moonDir[0], moonDir[1], moonDir[2]);
+    gl.uniform1f(skyProg.u.uTanH, Math.tan(fov / 2)); gl.uniform1f(skyProg.u.uAspect, R.W / R.H); gl.uniform1f(skyProg.u.uDusk, dusk); gl.uniform1f(skyProg.u.uNight, night); gl.uniform1f(skyProg.u.uTime, nowT);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.depthMask(true);
+    gl.useProgram(prog);
     // ---- water ----
     gl.enable(gl.BLEND); gl.depthMask(false); gl.uniform1f(prog.u.uWater, 1); gl.uniform1f(prog.u.uAlpha, 0.75);
     for (const c of vis) { if (!c.wn) continue; gl.bindBuffer(gl.ARRAY_BUFFER, c.wvbo); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, c.wn); }
@@ -701,11 +755,12 @@
       if (e.hidden) continue; const gz = R.groundZ(world, e.x, e.y); const zoff = e.t === 'leviathan' ? -0.6 : 0;
       if (e.t !== 'leviathan' && e.t !== 'tentacle') shadowDisc(e.x, e.y, gz, e.r * (e.t === 'bat' ? 0.6 : 1.1));
       creature(t, M(mT(e.x, gz + zoff, e.y), mRY(e.face)), e, V);
+      if (F.hitT[e.id] > 0) e.flash = 1;
       if (e.burn) F.parts.push({ x: e.x + (Math.random() - .5) * 0.6, y: e.y + (Math.random() - .5) * 0.6, z: gz + 0.5, vx: 0, vy: 0, vz: 1.5, c: [1, 0.42, 0.1], t: 0, life: 0.3, g: -3, e: 1 });
       if (/charge|lunge|pounce/.test(e.st)) for (let i = 0; i < 2; i++) F.parts.push({ x: e.x, y: e.y, z: gz + 0.1, vx: (Math.random() - .5) * 2, vy: (Math.random() - .5) * 2, vz: 1, c: [0.8, 0.75, 0.6], t: 0, life: 0.3, g: 0 });
     }
     // corpses (death tumble)
-    for (let i = F.corpses.length - 1; i >= 0; i--) { const c = F.corpses[i]; c.age += L.dt; if (c.age > 1.6) { F.corpses.splice(i, 1); continue; } const gz = R.groundZ(world, c.x, c.y); const k = Math.min(1, c.age * 2.2); const sink = c.age > 0.9 ? (c.age - 0.9) * 1.4 : 0; creature(t, M(mT(c.x, gz - sink, c.y), mRY(c.face), mRX(k * 1.5), mS(1, 1 - k * 0.15, 1)), { t: c.k, id: c.id, x: c.x, y: c.y, st: 'idle', face: c.face, flash: c.age < 0.1, r: c.r, elite: c.el, tm: 0 }, V, { gz, sink, k }); }
+    for (let i = F.corpses.length - 1; i >= 0; i--) { const c = F.corpses[i]; c.age += L.dt; const hold = G.ENEMIES[c.k] && G.ENEMIES[c.k].boss ? 5 : 2.6; if (c.age > hold) { F.corpses.splice(i, 1); continue; } const gz = R.groundZ(world, c.x, c.y); const k = Math.min(1, c.age * 2.2); const sink = c.age > hold - 0.8 ? (c.age - (hold - 0.8)) * 1.6 : 0; creature(t, M(mT(c.x, gz - sink, c.y), mRY(c.face), mRX(k * 1.5), mS(1, 1 - k * 0.15, 1)), { t: c.k, id: c.id, x: c.x, y: c.y, st: 'idle', face: c.face, flash: c.age < 0.1, r: c.r, elite: c.el, tm: 0 }, V, { gz, sink, k }); }
     // other players
     for (const id in V.players) {
       const p = V.players[id]; if (p.dead || p === me) continue; const gz = R.groundZ(world, p.x, p.y);
@@ -733,8 +788,8 @@
     for (const p of V.puddles) { const gz = R.groundZ(world, p.x, p.y); cyl(t, M(mT(p.x, gz + 0.03, p.y)), p.r, p.r * 0.9, 0.04, 8, [1, 0.4, 0.1], 1.0); }
     for (const p of F.parts) { const sz = p.sz || 0.08; box(t, M(mT(p.x, p.z, p.y), mRY(p.t * 5)), sz, sz, sz, p.c, p.e ? 1 : 0.35, 0); }
     const cx0 = Math.floor(R.cam.x), cy0 = Math.floor(R.cam.y);
-    for (let ty = cy0 - 14; ty <= cy0 + 14; ty++) for (let tx = cx0 - 14; tx <= cx0 + 14; tx++) { if (tx < 0 || ty < 0 || tx >= W || ty >= W) continue; const o = world.objs.get(ty * W + tx); if (!o) continue; if (o.t === 'campfire' && Math.random() < 0.3) F.parts.push({ x: tx + .5 + (Math.random() - .5) * 0.3, y: ty + .5 + (Math.random() - .5) * 0.3, z: R.groundZ(world, tx + .5, ty + .5) + 0.6, vx: 0, vy: 0, vz: 1.4, c: Math.random() < 0.5 ? [1, 0.42, 0.1] : [1, 0.82, 0.25], t: 0, life: 0.5, g: -2, e: 1, sz: 0.1 }); else if (o.t === 'torch' && Math.random() < 0.15) F.parts.push({ x: tx + .5, y: ty + .5, z: R.groundZ(world, tx + .5, ty + .5) + 1.0, vx: 0, vy: 0, vz: 1.2, c: [1, 0.7, 0.2], t: 0, life: 0.35, g: -2, e: 1, sz: 0.06 }); }
-    if (L.ghost) { const g = L.ghost; const gz = R.groundZ(world, g.tx + .5, g.ty + .5); const col = g.ok ? [0.4, 1, 0.4] : [1, 0.35, 0.35]; box(t, M(mT(g.tx + .5, gz + 0.02, g.ty + .5)), 0.96, 0.03, 0.96, col, 1.0); const p = PF[g.obj]; if (p) { const tmp = { arr: new Float32Array(p.length), n: 0 }; inst(tmp, p, M(mT(g.tx + .5, gz, g.ty + .5))); for (let i = 0; i < tmp.n; i++) { const o = i * VF; tmp.arr[o + 6] = (tmp.arr[o + 6] + col[0]) / 2; tmp.arr[o + 7] = (tmp.arr[o + 7] + col[1]) / 2; tmp.arr[o + 8] = (tmp.arr[o + 8] + col[2]) / 2; tmp.arr[o + 9] = 0.6; } grow(t, tmp.n); t.arr.set(tmp.arr.subarray(0, tmp.n * VF), t.n * VF); t.n += tmp.n; } }
+    for (let ty = cy0 - 14; ty <= cy0 + 14; ty++) for (let tx = cx0 - 14; tx <= cx0 + 14; tx++) { if (tx < 0 || ty < 0 || tx >= W || ty >= W) continue; const o = world.objs.get(ty * W + tx); if (!o) continue; if (o.t === 'campfire' && Math.random() < 18 * L.dt) F.parts.push({ x: tx + .5 + (Math.random() - .5) * 0.3, y: ty + .5 + (Math.random() - .5) * 0.3, z: R.groundZ(world, tx + .5, ty + .5) + 0.6, vx: 0, vy: 0, vz: 1.4, c: Math.random() < 0.5 ? [1, 0.42, 0.1] : [1, 0.82, 0.25], t: 0, life: 0.5, g: -2, e: 1, sz: 0.1 }); else if (o.t === 'torch' && Math.random() < 9 * L.dt) F.parts.push({ x: tx + .5, y: ty + .5, z: R.groundZ(world, tx + .5, ty + .5) + 1.0, vx: 0, vy: 0, vz: 1.2, c: [1, 0.7, 0.2], t: 0, life: 0.35, g: -2, e: 1, sz: 0.06 }); }
+    if (L.ghost) { const g = L.ghost; const gz = R.groundZ(world, g.tx + .5, g.ty + .5); const col = g.ok ? [0.4, 1, 0.4] : [1, 0.35, 0.35]; box(t, M(mT(g.tx + .5, gz + 0.02, g.ty + .5)), 0.96, 0.03, 0.96, col, 1.0); const p = PF[g.obj]; if (p) { const n0 = t.n; inst(t, p, M(mT(g.tx + .5, gz, g.ty + .5))); for (let i = n0; i < t.n; i++) { const o = i * VF; t.arr[o + 6] = (t.arr[o + 6] + col[0]) / 2; t.arr[o + 7] = (t.arr[o + 7] + col[1]) / 2; t.arr[o + 8] = (t.arr[o + 8] + col[2]) / 2; t.arr[o + 9] = 0.6; } } }
     for (const p of F.pings) { const gz = R.groundZ(world, p.x, p.y); cyl(t, M(mT(p.x, gz, p.y)), 0.12, 0.05, 8, 5, hex(p.col), 1.0); }
   }
 
@@ -742,7 +797,9 @@
     const b = camBasis; const C = m4();
     C[0] = b.r[0]; C[1] = b.r[1]; C[2] = b.r[2]; C[4] = b.u[0]; C[5] = b.u[1]; C[6] = b.u[2]; C[8] = b.f[0]; C[9] = b.f[1]; C[10] = b.f[2];
     C[12] = R.cam.x; C[13] = R.cam.z; C[14] = R.cam.y;
-    const bob = (L.bob || 0) * 0.5, sway = Math.sin((L.walkT || 0) * 0.5) * 0.006, idle = Math.sin(nowT * 1.5) * 0.004;
+    const mv = R.mvS || 0, spr = L.sprinting ? 1.35 : 1; // hands sway with the stride (independent of the head-bob setting: the horizon never moves)
+    const bob = (L.bob || 0) * 0.5 + Math.sin((L.walkT || 0) * 2) * 0.013 * mv * spr, sway = Math.sin((L.walkT || 0) * 0.5) * 0.006 + Math.sin(L.walkT || 0) * 0.028 * mv * spr, idle = Math.sin(nowT * 1.5) * 0.004;
+    if (R.lastHeld !== me.held) { if (R.lastHeld !== undefined) { R.swapT = 0.24; if (G.Audio) G.Audio.play('equip'); } R.lastHeld = me.held; } R.swapT = Math.max(0, (R.swapT || 0) - R.dt); const swapK = R.swapT > 0.12 ? (0.24 - R.swapT) / 0.12 : R.swapT / 0.12; // lower the hand, swap, raise
     const it = me.inv[me.held]; const d = it ? G.ITEMS[it.id] : null;
     let prog = me.swing ? Math.min(1, me.swing.t / me.swing.dur) : 0; if (me.swing && R.hitstop > 0 && R.frozenProg != null) prog = R.frozenProg; else R.frozenProg = me.swing ? prog : null; // hitstop: the hand freezes on the frame of impact
     const sw = Math.sin(prog * Math.PI); const anim = me.swing ? (me.swing.anim || 'slash') : null; const combo = me.swing ? (me.swing.combo || 0) : 0;
@@ -750,11 +807,11 @@
     const big = d && d.big; const robot = false; const pc = hex(me.col);
     const skin = sh(pc, 1.08), sleeve = sh(pc, 0.72), wrist = sh(pc, 0.55);
     // rest pose
-    let hand = M(C, mT(0.36 + sway, -0.36 + bob + idle, 0.82), mRX(-0.15));
+    let hand = M(C, mT(0.36 + sway, -0.36 + bob + idle - swapK * 0.42, 0.82), mRX(-0.15 + swapK * 0.9), mRZ(-mv * 0.03 * Math.sin(L.walkT || 0)));
     if (me.charge > 0) { const c = me.charge; hand = M(C, mT(0.34 + sway, -0.22 + bob + c * 0.15 + Math.sin(nowT * 40) * 0.006 * c, 0.72), mRX(-0.15 - c * 1.2), mRZ(-0.25 * c)); }
     // swing animations: every attack has a wind-up, a snappy strike that lands where the sim registers the hit (30% of the swing) and an eased recovery
     const ss = (a, b, x) => { const t = G.clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }, outq = (x) => 1 - (1 - x) * (1 - x);
-    const rest = { x: 0.34 + sway, y: -0.36 + bob + idle, z: 0.78 };
+    const rest = { x: 0.34 + sway, y: -0.36 + bob + idle - swapK * 0.42, z: 0.78 };
     let punchL = 0; // left-hand punch amount (fists alternate)
     if (me.swing) {
       const kind = (!it || !(d.type === 'weapon' || d.type === 'tool' || d.type === 'staff')) ? 'punch' : (anim === 'chop' || anim === 'slam' || d.type === 'tool') ? 'chop' : anim;
@@ -861,7 +918,7 @@
           const b = primBuffers(pr); const mat = model.materials[pr.mat] || { color: [0.8, 0.8, 0.8, 1], tex: -1, name: '' };
           const tinted = rq.tint && ((spec.tint && mat.name === spec.tint) || spec.tint === '*' || flatNode); const tk = spec.tintMode === 'mul' && !flatNode ? 1.6 : 1;
           const col = tinted ? [rq.tint[0] * tk, rq.tint[1] * tk, rq.tint[2] * tk, 1] : mat.color;
-          gl.uniform4fv(mprog.u.uColor, rq.flash ? [1, 1, 1, 1] : col);
+          gl.uniform4fv(mprog.u.uColor, col); gl.uniform1f(mprog.u.uFlash, rq.flash ? 0.85 : 0);
           const tex = mat.tex >= 0 && !spec.flat && !flatNode ? modelTexture(model, mat.tex) : null; gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1f(mprog.u.uHasTex, tex ? 1 : 0);
           if (nd.skin >= 0 && pr.joints && b.jmap) { // GPU skin: palette of world*ibm for the joints this part uses
             const skin = model.skins[nd.skin]; let jm = skinJM.get(nd.skin); if (!jm) { jm = new Float32Array(skin.joints.length * 16); for (let j = 0; j < skin.joints.length; j++) { G.GLTF.mul(jmTmp, rq.worlds[skin.joints[j]], skin.ibm.subarray(j * 16, j * 16 + 16)); jm.set(jmTmp, j * 16); } skinJM.set(nd.skin, jm); }
@@ -1010,10 +1067,11 @@
   // enemy drawn with a glTF model when assets/models.json has an entry for its type; returns true if handled
   function enemyModel(e, m, V, dt, corpse) {
     const model = mprog && G.Assets.models[e.t]; if (!model) return false; const d = G.ENEMIES[e.t]; const spec = model.spec;
-    const isWind = /wind$/.test(e.st); const moving = /chase|charge|lunge|circle|pounce|flee|retreat/.test(e.st); const striking = e.st === 'cool' && (e.tm || 0) > 0.6;
+    const isWind = /wind$/.test(e.st); const moving = /chase|charge|lunge|circle|pounce|flee|retreat/.test(e.st); const striking = e.st === 'strike' || (e.st === 'cool' && (e.tm || 0) > 0.7);
     const st = { moving, sprinting: /charge|lunge|pounce/.test(e.st), wind: isWind, windF: isWind ? 1 - G.clamp((e.tm || 0) / (d.windup || 0.6), 0, 1) : 0, flash: !!e.flash, hit: !!e.flash && !isWind, seed: e.id, held: spec.held ? { id: spec.held, n: 1 } : null, kind: spec.kind };
-    if (striking) st.strikeF = G.clamp((1.5 - e.tm) / 0.4, 0, 1);
-    let gz = m[13]; if (corpse) { if (spec.clips.death) { st.downed = true; gz = corpse.gz - corpse.sink * 0.6; } else st.rootM = M(mT(e.x, corpse.gz - corpse.sink, e.y), mRY((spec.yaw || 0) - e.face), mRX(corpse.k * 1.5), mS(1, 1 - corpse.k * 0.15, 1)); }
+    if (striking) st.strikeF = e.st === 'strike' ? G.clamp(1 - (e.tm || 0) / 0.12, 0, 1) : G.clamp((1.5 - e.tm) / 0.4, 0, 1);
+    let gz = m[13]; if (!corpse && e.flash) st.rootM = M(mT(e.x, gz, e.y), mRY((spec.yaw || 0) - e.face), mS(1.07, 0.9, 1.07)); // squash on the hit frame
+    if (corpse) { if (spec.clips.death) { st.downed = true; gz = corpse.gz - corpse.sink * 0.6; } else st.rootM = M(mT(e.x, corpse.gz - corpse.sink, e.y), mRY((spec.yaw || 0) - e.face), mRX(corpse.k * 1.5), mS(1, 1 - corpse.k * 0.15, 1)); }
     charModel(model, 'en:' + e.id, e.x, e.y, gz, e.face, spec.noTint ? null : hex(d.col), st, dt);
     if (e.elite) { cyl(dyn, M(m, mT(0, 0.02, 0)), e.r * 1.5, e.r * 1.5, 0.03, 12, hex('#c060ff'), 1.0); for (let k = 0; k < 3; k++) { const a = nowT * 2 + k * 2.09; sph(dyn, M(m, mT(Math.cos(a) * e.r * 1.4, 0.6 + Math.sin(nowT * 4 + k) * 0.2, Math.sin(a) * e.r * 1.4)), 0.07, 5, 3, hex('#c060ff'), 1.0); } }
     return true;
@@ -1051,6 +1109,7 @@
   // ================= 2D overlay =================
   function drawOverlay(V, me, dt, L, darkness) {
     const F = R.fx; const x = ox; x.setTransform(R.DPR || 1, 0, 0, R.DPR || 1, 0, 0); x.clearRect(0, 0, R.VW, R.VH);
+    if (F.parts.length > 500) F.parts.splice(0, F.parts.length - 500); // hard cap keeps a crowded camp from snowballing
     for (let i = F.parts.length - 1; i >= 0; i--) { const p = F.parts[i]; p.t += dt; if (p.t > p.life) { F.parts.splice(i, 1); continue; } p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.vz -= (p.g || 0) * dt; }
     for (let i = F.floats.length - 1; i >= 0; i--) { const f = F.floats[i]; f.t += dt; f.z += dt * 0.8; if (f.t > 1.1) F.floats.splice(i, 1); }
     for (const e of V.enemies) {
@@ -1080,9 +1139,21 @@
     for (const k in R.tellFlash) { R.tellFlash[k] -= dt; if (R.tellFlash[k] <= 0) delete R.tellFlash[k]; }
     // soft vignette
     if (!post) { if (!R.vigG || R.vigK !== R.VW * 7919 + R.VH) { R.vigK = R.VW * 7919 + R.VH; const g = x.createRadialGradient(R.VW / 2, R.VH / 2, R.VH * 0.45, R.VW / 2, R.VH / 2, R.VH * 1.0); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.35)'); R.vigG = g; R.hurtG = null; } x.fillStyle = R.vigG; x.fillRect(0, 0, R.VW, R.VH); }
-    // crosshair
-    const cx = R.VW / 2, cy = R.VH / 2; x.strokeStyle = 'rgba(255,255,255,0.9)'; x.lineWidth = 1.5; x.beginPath(); x.moveTo(cx - 8, cy); x.lineTo(cx - 3, cy); x.moveTo(cx + 3, cy); x.lineTo(cx + 8, cy); x.moveTo(cx, cy - 8); x.lineTo(cx, cy - 3); x.moveTo(cx, cy + 3); x.lineTo(cx, cy + 8); x.stroke();
-    if (L.lookingAt) { x.fillStyle = '#fff'; x.font = 'bold 14px system-ui, sans-serif'; x.textAlign = 'center'; x.fillStyle = '#000'; x.fillText(L.lookingAt, cx + 1, cy + 25); x.fillStyle = '#fff'; x.fillText(L.lookingAt, cx, cy + 24); }
+    if (R.flashWhite > 0) { x.fillStyle = 'rgba(255,255,255,' + Math.min(0.35, R.flashWhite * 2.5) + ')'; x.fillRect(0, 0, R.VW, R.VH); } // parry / block confirmation
+    drawCompass(V, me, x);
+    // directional damage: a red arc on the side the hit came from, fading over 1.2 s
+    const cx = R.VW / 2, cy = R.VH / 2;
+    for (let i = F.hurts.length - 1; i >= 0; i--) { const h = F.hurts[i]; h.t += dt; if (h.t > 1.2) { F.hurts.splice(i, 1); continue; } const rel = h.a - R.cam.yaw; const sa = -Math.PI / 2 + rel; x.strokeStyle = 'rgba(255,40,40,' + (0.75 * (1 - h.t / 1.2)) + ')'; x.lineWidth = 10; x.beginPath(); x.arc(cx, cy, Math.min(R.VW, R.VH) * 0.17, sa - 0.55, sa + 0.55); x.stroke(); }
+    // crosshair: dark outline so it reads over sand and sky; blooms on a hit, gold on a crit, red X on a kill
+    const hm = R.hitMark || 0, km = R.killMark || 0, cr = R.hitCrit || 0; const gap = 3 + (hm > 0 ? (0.16 - hm) / 0.16 * 3 : 0);
+    const cross = (col, lw) => { x.strokeStyle = col; x.lineWidth = lw; x.beginPath(); x.moveTo(cx - 8 - gap + 3, cy); x.lineTo(cx - gap, cy); x.moveTo(cx + gap, cy); x.lineTo(cx + 8 + gap - 3, cy); x.moveTo(cx, cy - 8 - gap + 3); x.lineTo(cx, cy - gap); x.moveTo(cx, cy + gap); x.lineTo(cx, cy + 8 + gap - 3); x.stroke(); };
+    cross('rgba(0,0,0,0.6)', 3.5); cross('rgba(255,255,255,0.92)', 1.5);
+    if (hm > 0) { const k = hm / 0.16, r0 = 6 + (1 - k) * 5, r1 = r0 + 5; x.strokeStyle = cr > 0 ? 'rgba(255,224,64,' + (0.4 + k * 0.6) + ')' : 'rgba(255,255,255,' + (0.3 + k * 0.7) + ')'; x.lineWidth = cr > 0 ? 3 : 2; x.beginPath(); for (const [sx, sy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) { x.moveTo(cx + sx * r0 * 0.707, cy + sy * r0 * 0.707); x.lineTo(cx + sx * r1 * 0.707, cy + sy * r1 * 0.707); } x.stroke(); }
+    if (km > 0) { const k = km / 0.3, r = 9 + (1 - k) * 4; x.strokeStyle = 'rgba(255,60,60,' + (0.35 + k * 0.65) + ')'; x.lineWidth = 3; x.beginPath(); x.moveTo(cx - r, cy - r); x.lineTo(cx + r, cy + r); x.moveTo(cx + r, cy - r); x.lineTo(cx - r, cy + r); x.stroke(); }
+    if (L.lookingAt) { x.font = 'bold 14px system-ui, sans-serif'; x.textAlign = 'center'; const tw = x.measureText(L.lookingAt).width + 16; x.fillStyle = 'rgba(8,7,14,0.55)'; x.beginPath(); x.roundRect ? x.roundRect(cx - tw / 2, cy + 14, tw, 22, 6) : x.rect(cx - tw / 2, cy + 14, tw, 22); x.fill(); x.fillStyle = '#fff'; x.fillText(L.lookingAt, cx, cy + 30); }
+    // HUD float stack: things that happen to *you* (damage taken, dodge, parry, pickups, level) read above the hotbar instead of spawning at the camera
+    for (let i = F.hud.length - 1; i >= 0; i--) { const h = F.hud[i]; h.t += dt; if (h.t > 1.1) { F.hud.splice(i, 1); continue; } }
+    F.hud.forEach((h, i) => { const k = h.t / 1.1; const yy = R.VH - 150 - (F.hud.length - 1 - i) * 22 - k * 26; x.globalAlpha = Math.min(1, (1 - k) * 2.2); x.font = (h.big ? 'bold 20px' : 'bold 15px') + ' system-ui, sans-serif'; x.textAlign = 'center'; x.fillStyle = '#000'; x.fillText(h.s, cx + 1, yy + 1); x.fillStyle = h.c; x.fillText(h.s, cx, yy); }); x.globalAlpha = 1;
     if (me && me.inv[me.held] && G.ITEMS[me.inv[me.held].id].type === 'bow') { x.fillStyle = '#fff'; x.font = '12px system-ui, sans-serif'; x.textAlign = 'right'; x.fillText(G.Sim.count(me, 'arrow') + ' arrows', R.VW - 12, R.VH - 12); }
     if (!me) R.hurtV = 0;
     if (me) {
@@ -1090,12 +1161,26 @@
       const v = Math.max(R.hurt, hpF < 0.3 ? (0.3 - hpF) * 2 * (0.6 + Math.sin(nowT * 6) * 0.3) : 0);
       R.hurtV = v;
       if (v > 0 && !post) { if (!R.hurtG) { const g = x.createRadialGradient(cx, cy, R.VH * 0.3, cx, cy, R.VH * 0.8); g.addColorStop(0, 'rgba(180,0,0,0)'); g.addColorStop(1, 'rgba(180,0,0,1)'); R.hurtG = g; } x.globalAlpha = Math.min(0.8, v); x.fillStyle = R.hurtG; x.fillRect(0, 0, R.VW, R.VH); x.globalAlpha = 1; }
-      if (me.downed) { x.fillStyle = 'rgba(60,0,0,0.45)'; x.fillRect(0, 0, R.VW, R.VH); x.fillStyle = '#ff6060'; x.font = 'bold 24px system-ui, sans-serif'; x.textAlign = 'center'; x.fillText('YOU ARE DOWN — ' + me.bleed + 's', cx, cy - 30); x.font = '13px system-ui, sans-serif'; x.fillStyle = '#fff'; x.fillText('a teammate can revive you (hold E)', cx, cy - 10); }
+      if (me.downed) { x.fillStyle = 'rgba(60,0,0,0.45)'; x.fillRect(0, 0, R.VW, R.VH); x.fillStyle = '#ff6060'; x.font = 'bold 24px system-ui, sans-serif'; x.textAlign = 'center'; x.fillText('YOU ARE DOWN — ' + me.bleed + 's', cx, cy - 30); x.font = '13px system-ui, sans-serif'; x.fillStyle = '#fff'; x.fillText('a teammate can revive you (hold ' + G.keyOf('interact') + ')', cx, cy - 10); }
       if (me.dark && darkness > 0.8) { x.fillStyle = '#8080ff'; x.font = '13px system-ui, sans-serif'; x.textAlign = 'center'; x.fillText('the dark bites… find light', cx, cy + 44); }
     }
     if (R.banner) { R.banner.t += dt; const bt = R.banner.t; if (bt > 4) R.banner = null; else { const a = Math.min(1, bt * 3) * Math.min(1, (4 - bt)); x.globalAlpha = a; x.textAlign = 'center'; x.fillStyle = 'rgba(0,0,0,0.5)'; x.fillRect(0, R.VH * 0.28, R.VW, 62); x.font = 'bold 30px system-ui, sans-serif'; x.fillStyle = R.banner.col || '#ff5050'; x.fillText(R.banner.txt, cx, R.VH * 0.28 + 36); x.font = '12px system-ui, sans-serif'; x.fillStyle = '#fff'; x.fillText(R.banner.sub, cx, R.VH * 0.28 + 54); x.globalAlpha = 1; } }
-    let by = 10;
+    let by = 68; // below the clock and objective line
     for (const e of V.enemies) if (G.ENEMIES[e.t].boss) { const d = G.ENEMIES[e.t]; const w = Math.min(360, R.VW - 60); const x0 = (R.VW - w) / 2; x.fillStyle = '#000'; x.fillRect(x0 - 2, by - 2, w + 4, 12); x.fillStyle = '#601010'; x.fillRect(x0, by, w, 8); x.fillStyle = '#e03030'; x.fillRect(x0, by, w * Math.max(0, e.hp / e.maxHp), 8); x.fillStyle = '#fff'; x.font = '11px system-ui, sans-serif'; x.textAlign = 'center'; x.fillText(d.name, R.VW / 2, by + 22); by += 28; }
+  }
+  // compass strip under the clock: cardinal ticks plus bearings to the wreck, the three altars, the Dealer's Tables, pings and friends
+  let compassT = null, compassWorld = null;
+  function drawCompass(V, me, x) {
+    if (!me || me.dead) return; const world = V.world;
+    if (compassWorld !== world) { compassWorld = world; compassT = []; for (const [i, o] of world.objs) { const d = O[o.t]; if (d.boat) compassT.push({ x: (i % W) + .5, y: Math.floor(i / W) + .5, c: '#ffffff', l: '⚓' }); else if (d.altar) compassT.push({ x: (i % W) + .5, y: Math.floor(i / W) + .5, c: o.t === 'altar_meadow' ? '#30e070' : o.t === 'altar_forest' ? '#3070ff' : '#ff3050', l: '▲', altar: d.altar }); else if (d.casino) compassT.push({ x: (i % W) + .5, y: Math.floor(i / W) + .5, c: '#ff4fd8', l: '♠' }); } }
+    const cx = R.VW / 2, y0 = 86, half = 170, span = 1.35; x.save(); x.beginPath(); x.rect(cx - half, y0 - 14, half * 2, 30); x.clip();
+    x.fillStyle = 'rgba(8,7,14,0.55)'; x.fillRect(cx - half, y0 - 14, half * 2, 30);
+    const px = (a) => { let rel = a - R.cam.yaw; rel = Math.atan2(Math.sin(rel), Math.cos(rel)); return rel / span * half; };
+    x.font = 'bold 11px system-ui, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    for (const [lbl, a] of [['N', -Math.PI / 2], ['E', 0], ['S', Math.PI / 2], ['W', Math.PI]]) { const dx = px(a); if (Math.abs(dx) < half) { x.lineWidth = 3; x.strokeStyle = 'rgba(0,0,0,0.8)'; x.strokeText(lbl, cx + dx, y0 - 4); x.fillStyle = lbl === 'N' ? '#ffd24a' : '#ffffff'; x.fillText(lbl, cx + dx, y0 - 4); x.fillRect(cx + dx - 0.5, y0 + 6, 1, 6); } }
+    const marks = compassT.slice(); for (const p of R.fx.pings) marks.push({ x: p.x, y: p.y, c: p.col, l: '●' }); for (const id in V.players) { const q = V.players[id]; if (q !== me && !q.dead) marks.push({ x: q.x, y: q.y, c: q.col, l: '●' }); }
+    for (const m of marks) { if (m.altar && V.bosses && V.bosses[m.altar] === 'dead') continue; const a = Math.atan2(m.y - me.y, m.x - me.x); const dx = px(a); if (Math.abs(dx) > half - 6) continue; x.fillStyle = '#000'; x.fillText(m.l, cx + dx + 1, y0 + 5); x.fillStyle = m.c; x.fillText(m.l, cx + dx, y0 + 4); }
+    x.fillStyle = 'rgba(255,210,74,0.9)'; x.fillRect(cx - 0.5, y0 + 4, 1, 12); x.restore(); x.textBaseline = 'alphabetic'; // heading tick below the labels so it never overprints a letter
   }
   function ring(V, wx, wy, r, col, alpha, lw) {
     const x = ox; x.strokeStyle = col; x.globalAlpha = alpha; x.lineWidth = lw; x.beginPath(); let first = true;
@@ -1114,9 +1199,10 @@
     minx.clearRect(0, 0, sz, sz); minx.imageSmoothingEnabled = false;
     minx.drawImage(miniBase, 0, 0, sz, sz);
     const k = sz / W;
-    for (const [i, o] of V.world.objs) { const d = O[o.t]; if (d.altar || d.boat || d.station === 'workbench' || d.chest === 3 || o.t === 'campfire') { const x = (i % W) * k, y = Math.floor(i / W) * k; minx.fillStyle = d.boat ? '#ffffff' : d.altar ? (o.t === 'altar_meadow' ? '#30e070' : o.t === 'altar_forest' ? '#3070ff' : '#ff3050') : d.chest === 3 ? '#ffd24a' : o.t === 'campfire' ? '#ff9040' : '#b08040'; minx.fillRect(x - 1, y - 1, 3, 3); } }
+    for (const [i, o] of V.world.objs) { const d = O[o.t]; if (d.altar || d.boat || d.casino || d.station === 'workbench' || d.chest === 3 || o.t === 'campfire') { const x = (i % W) * k, y = Math.floor(i / W) * k; minx.fillStyle = d.boat ? '#ffffff' : d.casino ? '#ff4fd8' : d.altar ? (o.t === 'altar_meadow' ? '#30e070' : o.t === 'altar_forest' ? '#3070ff' : '#ff3050') : d.chest === 3 ? '#ffd24a' : o.t === 'campfire' ? '#ff9040' : '#b08040'; minx.fillRect(x - 1, y - 1, 3, 3); } }
     for (const e of V.enemies) if (G.ENEMIES[e.t].boss) { minx.fillStyle = '#ff2020'; minx.fillRect(e.x * k - 2, e.y * k - 2, 4, 4); }
     for (const id in V.players) { const p = V.players[id]; if (p.dead) continue; minx.fillStyle = p.col; minx.fillRect(p.x * k - 1.5, p.y * k - 1.5, 3, 3); if (id === V.me) { minx.strokeStyle = '#fff'; minx.beginPath(); minx.moveTo(p.x * k, p.y * k); minx.lineTo(p.x * k + Math.cos(R.cam.yaw) * 7, p.y * k + Math.sin(R.cam.yaw) * 7); minx.stroke(); } }
     for (const p of R.fx.pings) { minx.strokeStyle = p.col; minx.beginPath(); minx.arc(p.x * k, p.y * k, 3 + (p.t % 1) * 3, 0, 7); minx.stroke(); }
+    minx.fillStyle = '#fff'; minx.font = 'bold 10px system-ui, sans-serif'; minx.textAlign = 'center'; minx.fillText('N', sz / 2, 10);
   }
 })(window.G);

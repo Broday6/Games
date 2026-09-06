@@ -64,7 +64,9 @@
     const p = e.tgtP = nearestPlayer(S, e, 60);
     if (!p) { wander(S, e, dt); return; }
     const dist = G.dist(e.x, e.y, p.x, p.y) - e.r;
-    if (e.st === 'wind') { e.tm -= dt; if (e.tm <= 0) { e.st = 'cool'; e.tm = (opts.cool || 1.1) + Math.random() * 0.4; strike(S, e, p); } return; }
+    if (e.st === 'wind') { e.tm -= dt; if (e.tm <= 0) { e.st = 'strike'; e.tm = 0.12; e.struck = false; } return; }
+    // the strike is its own 120 ms state so the contact frame of the animation and the damage frame coincide (damage lands halfway through)
+    if (e.st === 'strike') { e.tm -= dt; if (!e.struck && e.tm <= 0.06) { e.struck = true; strike(S, e, p); } if (e.tm <= 0) { e.st = 'cool'; e.tm = (opts.cool || 1.1) + Math.random() * 0.4; } return; }
     if (e.st === 'cool') { e.tm -= dt; if (e.tm <= 0) e.st = 'chase'; if (opts.backoff) moveToward(S, e, e.x * 2 - p.x, e.y * 2 - p.y, dt, 0.6); return; }
     if (dist <= d.reach) { e.st = 'wind'; e.tm = d.windup; e.face = G.angleTo(e.x, e.y, p.x, p.y); Sim.ev(S, { t: 'tell', id: e.id }); return; }
     e.st = 'chase'; moveToward(S, e, p.x, p.y, dt, 1);
@@ -353,7 +355,7 @@
       // friendly fire puddles burn monsters
       if (e.burn <= 0 && e.t !== 'crawler' && e.t !== 'cinder') for (const pu of S.puddles) if (pu.friendly && G.dist(pu.x, pu.y, e.x, e.y) < pu.r + e.r) { e.burn = 1; break; }
       // knockback
-      if (Math.abs(e.kbx) > 0.01 || Math.abs(e.kby) > 0.01) { G.moveCircle(S.world, e, e.kbx * dt * 0.8, e.kby * dt * 0.8, Math.min(e.r, 0.45), true); e.kbx *= Math.pow(0.02, dt); e.kby *= Math.pow(0.02, dt); }
+      if (Math.abs(e.kbx) > 0.01 || Math.abs(e.kby) > 0.01) { G.moveCircle(S.world, e, e.kbx * dt * 2.0, e.kby * dt * 2.0, Math.min(e.r, 0.45), true); e.kbx *= Math.pow(0.06, dt); e.kby *= Math.pow(0.06, dt); }
       if (e.stun > 0) { e.stun -= dt; e.st = 'stun'; continue; }
       // spikes
       const ob = S.world.objs.get(G.idx(e.x, e.y));

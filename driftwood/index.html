@@ -10,7 +10,7 @@
 <body>
 <canvas id="game" width="640" height="360"></canvas>
 <canvas id="overlay" width="640" height="360"></canvas>
-<div id="resume" class="hidden"><div class="panel"><b id="resume-title">Paused</b><div class="small">click the world to play · mouse look · Esc opens this menu</div><div class="row" style="justify-content:center;margin-top:10px"><button id="menu-resume" class="primary">Resume</button><button id="menu-settings">Controls & settings</button><button id="menu-quit">Quit to lobby</button></div></div></div>
+<div id="resume" class="hidden"><div class="panel"><b id="resume-title">Paused</b><div class="small">click the world to play · mouse look · Esc opens this menu</div><div class="row" style="justify-content:center;margin-top:10px"><button id="menu-resume" class="primary">Resume</button><button id="menu-settings">Controls & settings</button><button id="menu-howto">How to play</button><button id="menu-credits">Credits</button><button id="menu-quit">Quit to lobby</button></div><div id="menu-party" class="small"></div><div id="lock-hint" class="small hidden" style="color:var(--acc);margin-top:6px">The browser refused to grab the mouse just now — click the game once more.</div></div></div>
 <div id="settings" class="hidden"><div class="panel">
   <h3>Controls & settings</h3>
   <div class="row" style="gap:16px;align-items:flex-start">
@@ -26,6 +26,11 @@
       <div class="setrow"><label><input type="checkbox" id="set-autoq"> Auto quality (lowers resolution when the frame rate drops)</label></div>
       <div class="setrow"><label><input type="checkbox" id="set-tut"> Show tutorial</label></div>
       <div class="setrow"><label><input type="checkbox" id="set-sprint"> Sprint is a toggle (press once to run)</label></div>
+      <div class="setrow"><label>Volume <span id="vol-v"></span></label><input type="range" id="set-vol" min="0" max="1" step="0.05"></div>
+      <div class="setrow"><label>HUD scale</label><select id="set-uiscale"><option value="auto">Auto (by screen size)</option><option value="1">100%</option><option value="1.15">115%</option><option value="1.3">130%</option><option value="1.5">150%</option></select></div>
+      <div class="setrow"><label><input type="checkbox" id="set-fps"> Show frame rate</label></div>
+      <div class="setrow"><label><input type="checkbox" id="set-motion"> Reduced motion (no pulses, no screen shake)</label></div>
+      <div class="setrow"><button id="set-fullscreen">Toggle fullscreen (F11)</button></div>
     </div>
   </div>
   <div class="row" style="justify-content:flex-end"><button id="settings-done" class="primary">Done</button></div>
@@ -41,7 +46,7 @@
     <div class="row" style="align-items:flex-start"><label>Class</label><div id="classes" class="classes"></div></div>
     <div class="row" style="align-items:flex-start"><label>Face</label><div id="skins" class="hats"></div></div>
     <div class="row" style="align-items:flex-start"><label>Hat</label><div id="hats" class="hats"></div></div>
-    <div class="row"><label>Camp</label><span class="small" id="metaline"></span><button id="btn-camp">Open the Camp</button><button id="btn-settings">Controls & settings</button><button id="btn-howto">How to play</button></div>
+    <div class="row"><label>Camp</label><span class="small" id="metaline"></span><button id="btn-camp">Open the Camp</button><button id="btn-settings">Controls & settings</button><button id="btn-howto">How to play</button><button id="btn-credits">Credits</button></div>
     <div class="tabs">
       <button id="tab-host" class="sel">Host a game</button>
       <button id="tab-join">Join a friend</button>
@@ -88,6 +93,7 @@
       <div>10 bosses: a night boss every night from night 2, three altar guardians, and what waits at sea.</div>
       <div>Feeling lucky? Sit at a <b>Dealer's Table</b> (by the wreck and each altar) and gamble coins for boons and hats.</div>
     </div>
+    <div class="small" id="verline" style="margin-top:8px;text-align:right"></div>
   </div>
 </div>
 
@@ -101,6 +107,7 @@
     <div class="bar" id="xpbar"><div></div><span></span></div>
     <div id="pws"></div>
     <div id="buffs"></div>
+    <div id="party"></div>
   </div>
   <div id="clock"><div class="day"></div><div class="time"></div><div class="obj" id="objective"></div></div>
   <canvas id="minimap" width="150" height="150"></canvas>
@@ -110,6 +117,7 @@
   <div id="toast"></div>
   <div id="chat"><div id="chatlog"></div><input id="chatin" class="hidden" maxlength="120" placeholder="say something… (Enter)"></div>
   <div id="netlbl"></div>
+  <div id="fps" class="hidden"></div>
   <div id="tutorial" class="hidden"><div class="th">Tutorial <button id="tut-close" title="hide (re-enable in settings)">✕</button></div><div id="tut-body"></div></div>
 </div>
 <div id="howto" class="hidden"><div class="panel"><h3>How to play Driftwood</h3><div id="howto-body"></div><div class="row" style="justify-content:flex-end"><button id="howto-done" class="primary">Got it</button></div></div></div>
@@ -128,7 +136,7 @@
   </div>
 </div>
 <div id="tip" class="panel hidden"></div>
-<div id="boon" class="hidden"><div class="panel"><h3 id="boon-title">Choose a boon</h3><div id="boon-opts"></div><div class="small" id="boon-timer"></div></div></div>
+<div id="boon" class="hidden"><div class="panel"><h3 id="boon-title">Choose a boon</h3><div id="boon-opts"></div><div id="boon-bar"><div></div></div><div class="small" id="boon-timer"></div></div></div>
 <div id="camp" class="hidden"><div class="panel">
   <h1>The Camp</h1>
   <div class="small">Between runs the castaways rest here. Spend <b style="color:var(--acc)">Shards</b> earned from every run — win or lose — on permanent upgrades. Progress is saved in this browser.</div>
@@ -145,7 +153,9 @@
   <div class="row" style="justify-content:flex-end"><button id="cas-leave">Leave the table</button></div>
 </div></div>
 <div id="confirm" class="panel hidden"></div>
-<div id="end" class="hidden"><div class="panel"><h1></h1><div class="stats"></div><button id="btn-again" class="primary">Back to lobby</button></div></div>
+<div id="end" class="hidden"><div class="panel"><h1></h1><div class="stats"></div><button id="btn-again" class="primary">Continue to the Camp</button></div></div>
+<div id="credits" class="hidden"><div class="panel"><h3>Credits &amp; licences</h3><div class="small">Driftwood is built on free art and code. Thank you to everyone who shares their work.</div><pre id="credits-body"></pre><div class="row" style="justify-content:flex-end"><button id="credits-done" class="primary">Done</button></div></div></div>
+<div id="fatal" class="hidden"><div class="panel"><h3 id="fatal-title">Something broke</h3><div id="fatal-msg" class="small"></div><pre id="fatal-detail"></pre><div class="row" style="justify-content:flex-end"><button id="fatal-copy">Copy details</button><button id="fatal-dismiss">Keep playing</button><button id="fatal-reload" class="primary">Reload</button></div></div></div>
 
 <script src="vendor/peerjs.min.js"></script>
 <script>

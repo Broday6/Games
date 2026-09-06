@@ -129,6 +129,19 @@ reach is generous and forgives aim (the swing samples a little to either side of
 look-at label shows how many hits a resource has left. Items are modelled with wrapped hafts,
 bevelled axe heads, two-pronged picks, cylinder crossguards with knobs and pommels, and fullered blades.
 
+### Feedback and feel
+
+Every hit you land is confirmed three ways: the crosshair blooms (gold on a crit, a red X on a kill), the enemy flashes white and
+squashes for a frame (textured models too — the flash used to be a no-op on them), and the hand freezes on the impact frame while the
+camera nods. Damage *you* take shows where it came from (a red arc around the crosshair on that side) and everything that happens to you
+— damage taken, dodges, parries, pickups, level-ups — reads in a stack above the hotbar instead of spawning at the camera where it was
+invisible. Parries flash the screen white, blocks kick the view a touch, enemy wind-ups resolve into a distinct 120 ms strike state so the
+swing you see is the swing that hurts, knockback is visible, and a melee hit grants 0.35 s of immunity so a pack cannot chain you down.
+Hands sway with your stride (without moving the horizon), lower and rise when you switch items, and the sprint FOV kick is 4°.
+Sound has distance falloff and stereo panning, footsteps per surface, a heartbeat under 30% health, and a volume slider.
+Movement has a touch of acceleration (full speed in about 0.1 s, mirrored in client prediction), round obstacles are resolved analytically
+so you slide around trees instead of catching on them, and the host's own view is interpolated between 30 Hz sim steps like a client's.
+
 ### Terrain
 
 The island has rolling hills and valleys (a slope-limited relief layer on top of the biome height, so every rise is walkable
@@ -148,8 +161,24 @@ only every six seconds and never drops below 60%, so the picture no longer visib
 vignettes are drawn in the post shader (the old per-frame canvas gradient was a real frame-time sink at low HP), the hit kick is a small
 pitch nudge and dodging no longer rolls the camera. Toon outlines fade out past ~10 m so distant grass stays green instead of turning
 into black spikes.
+
+Chunks stream: a chunk that comes into view (or whose objects changed) is queued and built nearest-first within a 5 ms per-frame budget,
+so crossing a chunk border no longer stalls the frame; breaking a tree rebuilds only that chunk's object buffer. The sky is drawn after
+the opaque world so the depth test discards it behind terrain, per-frame allocations were cut by two thirds (colour parsing is cached,
+light and ghost buffers are reused), particle emitters are frame-rate independent and capped, the post target is freed on resize, and a
+lost WebGL context is rebuilt instead of leaving a black screen. The audit that drove this round, with what was fixed and what remains,
+is in `docs/AUDIT.md`.
 Ten point lights per fragment, GPU skinning, chunked terrain with object culling. If it still stutters: lower the quality slider,
 turn off toon outlines, or close other tabs — the game is single-threaded JavaScript.
+
+### Launch readiness
+
+Credits & licences (the CC-BY attributions the art requires) are in the lobby and the pause menu and bundled into every build. An
+uncaught error shows a panel with the details instead of freezing; a browser without WebGL gets a clear message; losing the host shows
+a modal with *Back to lobby* / *Try rejoining*. Settings cover volume, HUD scale (auto by screen size), frame-rate display, reduced motion,
+fullscreen (F11 in the browser too), and all prompts use your real key binds. The pause menu has How to play and a party roster; the HUD
+has a compass strip (wreck, altars, Dealer's Tables, pings, friends), low stamina/food warnings, a boon timer bar, and a co-op roster
+with health bars. Quitting asks first; the run summary shows before the Camp; the version is printed next to the seed.
 
 ### Code map
 

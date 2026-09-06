@@ -16,13 +16,23 @@
     G.PLAYER_COLORS.forEach((c, i) => { const d = document.createElement('div'); d.className = 'swatch' + (i === 0 ? ' sel' : ''); d.style.background = c; d.onclick = () => { UI.color = c; [...sw.children].forEach(x => x.classList.remove('sel')); d.classList.add('sel'); }; sw.appendChild(d); });
     try { const saved = JSON.parse(localStorage.getItem('driftwood') || '{}'); if (saved.hat && G.HAT[saved.hat]) UI.hat = saved.hat; if (saved.skin && G.SKINS.some(k => k.id === saved.skin)) UI.skin = saved.skin; if (saved.name) $('name').value = saved.name; if (saved.color) { UI.color = saved.color; [...sw.children].forEach((x, i) => x.classList.toggle('sel', G.PLAYER_COLORS[i] === saved.color)); } if (saved.cls) UI.cls = saved.cls; } catch (e) { }
     $('inv-sort').onclick = () => G.Main.act({ a: 'sort' });
+    $('verline').textContent = 'Driftwood v' + (window.__VERSION || 'dev') + ' · free & open · CC-BY art credited under Credits';
     UI.renderClasses(); UI.renderHats(); UI.renderSkins(); $('btn-howto').onclick = () => $('howto').classList.remove('hidden'); $('howto-done').onclick = () => $('howto').classList.add('hidden'); UI.renderHowto(); $('tut-close').onclick = () => { const m = UI.loadMeta(); m.tutorialOff = true; UI.saveMeta(m); $('tutorial').classList.add('hidden'); }; $('btn-camp').onclick = () => UI.showCamp(null); $('camp-done').onclick = () => { $('camp').classList.add('hidden'); if (G.Main.started) location.reload(); };
     $('btn-settings').onclick = () => UI.showSettings(); $('menu-settings').onclick = () => UI.showSettings(); $('settings-done').onclick = () => UI.hideSettings();
-    $('menu-resume').onclick = () => { UI.setResume(false); UI.paused = false; G.Input.lock(); }; $('resume').onclick = (e) => { if (e.target.id === 'resume') { UI.setResume(false); UI.paused = false; G.Input.lock(); } }; $('menu-quit').onclick = () => location.reload();
+    $('menu-resume').onclick = () => { UI.setResume(false); UI.paused = false; G.Input.lock(); }; $('resume').onclick = (e) => { if (e.target.id === 'resume') { UI.setResume(false); UI.paused = false; G.Input.lock(); } }; $('menu-quit').onclick = () => UI.confirm('<p>Quit to the lobby? This run ends and cannot be resumed.</p>', () => location.reload(), 'Quit', 'Keep playing');
+    $('menu-howto').onclick = () => { $('howto').classList.remove('hidden'); }; $('menu-credits').onclick = () => UI.credits(); $('btn-credits').onclick = () => UI.credits(); $('credits-done').onclick = () => $('credits').classList.add('hidden');
+    $('fatal-dismiss').onclick = () => $('fatal').classList.add('hidden'); $('fatal-reload').onclick = () => location.reload(); $('fatal-copy').onclick = () => { try { navigator.clipboard.writeText($('fatal-detail').textContent).then(() => UI.toast('Copied', '')).catch(() => { }); } catch (e) { } };
+    document.addEventListener('visibilitychange', () => { if (document.hidden && G.Main.started && G.Main.mode === 'host' && G.Net.count() === 0 && !UI.paused) { G.Input.unlock(); UI.setResume(true); UI.toast('Paused', 'the tab went to the background'); } });
+    document.addEventListener('pointerlockerror', () => { $('lock-hint').classList.remove('hidden'); if (G.Main.started) UI.setResume(true); setTimeout(() => $('lock-hint').classList.add('hidden'), 4000); });
     $('binds-reset').onclick = () => { G.Input.resetBinds(); UI.renderBinds(); };
-    const S = G.Input.settings; const sync = () => { $('set-sens').value = S.sens; $('sens-v').textContent = S.sens.toFixed(1) + '×'; $('set-fov').value = S.fov; $('fov-v').textContent = S.fov + '°'; $('set-q').value = S.quality; $('q-v').textContent = Math.round(S.quality * 100) + '%'; $('set-inv').checked = !!S.invertY; $('set-shake').checked = !!S.shake; $('set-bob').checked = !!S.bob; $('set-toon').checked = S.toon !== false; $('set-autoq').checked = S.autoq !== false; $('set-sprint').checked = !!S.sprintToggle; const mm = UI.loadMeta(); $('set-tut').checked = !mm.tutorialOff; };
+    const S = G.Input.settings; const sync = () => { $('set-vol').value = S.volume === undefined ? 0.5 : S.volume; $('vol-v').textContent = Math.round((S.volume === undefined ? 0.5 : S.volume) * 100) + '%'; $('set-uiscale').value = S.uiScale || 'auto'; $('set-fps').checked = !!S.fps; $('set-motion').checked = !!S.reduceMotion; $('set-sens').value = S.sens; $('sens-v').textContent = S.sens.toFixed(1) + '×'; $('set-fov').value = S.fov; $('fov-v').textContent = S.fov + '°'; $('set-q').value = S.quality; $('q-v').textContent = Math.round(S.quality * 100) + '%'; $('set-inv').checked = !!S.invertY; $('set-shake').checked = !!S.shake; $('set-bob').checked = !!S.bob; $('set-toon').checked = S.toon !== false; $('set-autoq').checked = S.autoq !== false; $('set-sprint').checked = !!S.sprintToggle; const mm = UI.loadMeta(); $('set-tut').checked = !mm.tutorialOff; };
     sync();
     $('set-sens').oninput = () => { S.sens = +$('set-sens').value; G.Input.saveSettings(); sync(); }; $('set-fov').oninput = () => { S.fov = +$('set-fov').value; G.Input.saveSettings(); sync(); }; $('set-q').oninput = () => { S.quality = +$('set-q').value; G.Input.saveSettings(); sync(); };
+    $('set-vol').oninput = () => { S.volume = +$('set-vol').value; G.Audio.setVolume(S.volume); G.Input.saveSettings(); sync(); }; $('set-fps').onchange = () => { S.fps = $('set-fps').checked; G.Input.saveSettings(); $('fps').classList.toggle('hidden', !S.fps); };
+    $('set-uiscale').onchange = () => { S.uiScale = $('set-uiscale').value; G.Input.saveSettings(); UI.applyScale(); }; $('set-motion').onchange = () => { S.reduceMotion = $('set-motion').checked; if (S.reduceMotion) S.shake = false; G.Input.saveSettings(); UI.applyMotion(); sync(); };
+    $('set-fullscreen').onclick = () => { try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); } catch (e) { } };
+    window.addEventListener('keydown', (e) => { if (e.key === 'F11' && !window.__ELECTRON) { e.preventDefault(); $('set-fullscreen').click(); } });
+    UI.applyScale(); UI.applyMotion(); G.Audio.setVolume(S.volume === undefined ? 0.5 : S.volume); $('fps').classList.toggle('hidden', !S.fps);
     $('set-inv').onchange = () => { S.invertY = $('set-inv').checked; G.Input.saveSettings(); }; $('set-shake').onchange = () => { S.shake = $('set-shake').checked; G.Input.saveSettings(); }; $('set-bob').onchange = () => { S.bob = $('set-bob').checked; G.Input.saveSettings(); }; $('set-toon').onchange = () => { S.toon = $('set-toon').checked; G.Input.saveSettings(); }; $('set-tut').onchange = () => { const m = UI.loadMeta(); m.tutorialOff = !$('set-tut').checked; if ($('set-tut').checked) { m.tutorialDone = false; UI.tutStep = 0; } UI.saveMeta(m); UI.tutMeta = null; UI.tutLast = ''; }; $('set-autoq').onchange = () => { S.autoq = $('set-autoq').checked; G.Input.saveSettings(); if (!S.autoq) { G.Render.qScale = 1; G.Render.resize(); } }; $('set-sprint').onchange = () => { S.sprintToggle = $('set-sprint').checked; G.Input.sprintLatch = false; G.Input.saveSettings(); };
     // tabs
     const tabs = { host: $('tab-host'), join: $('tab-join'), solo: $('tab-solo') };
@@ -35,13 +45,13 @@
     $('btn-join').onclick = () => { const code = $('joincode').value.trim().toUpperCase(); if (code.length < 5) return UI.status('Enter the 5-letter room code.'); $('btn-join').disabled = true; G.Main.join(name(), UI.color, code); };
     $('btn-solo').onclick = () => G.Main.solo(name(), UI.color, $('seed2').value.trim());
     $('btn-tut').onclick = () => G.Main.tutorialRun(name(), UI.color);
-    $('copycode').onclick = () => { try { navigator.clipboard.writeText($('roomcode').textContent); UI.status('Code copied!'); } catch (e) { } };
+    $('copycode').onclick = () => { const code = $('roomcode').textContent; const fail = () => UI.status('Copy failed — the code is ' + code + ', type it to your friend.'); try { navigator.clipboard.writeText(code).then(() => UI.status('Code copied!')).catch(fail); } catch (e) { fail(); } };
     $('joincode').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-join').click(); });
     // manual signalling
     $('mk-invite').onclick = async () => { $('mk-invite').disabled = true; try { G.Main.ensureHostForManual(name(), UI.color, $('seed').value.trim()); $('invite-out').value = await G.Net.manualCreateInvite(); UI.status('Invite ready — send it to your friend, then paste their reply below.'); try { navigator.clipboard.writeText($('invite-out').value); } catch (e) { } } catch (e) { UI.status('Could not create invite: ' + e.message); } $('mk-invite').disabled = false; };
     $('accept-reply').onclick = async () => { try { await G.Net.manualAcceptReply($('reply-in').value); $('reply-in').value = ''; UI.status('Reply accepted — connecting…'); } catch (e) { UI.status('Bad reply code.'); } };
     $('mk-reply').onclick = async () => { try { G.Main.prepareClient(name(), UI.color); $('reply-out').value = await G.Net.manualAcceptInvite($('invite-in').value); UI.status('Reply ready — send it back to the host and wait.'); try { navigator.clipboard.writeText($('reply-out').value); } catch (e) { } } catch (e) { UI.status('Bad invite code.'); } };
-    $('btn-again').onclick = () => location.reload();
+    $('btn-again').onclick = () => { $('end').classList.add('hidden'); UI.showCamp(UI.lastRun); };
     // hotbar / inventory grids
     const hb = $('hotbar'); for (let i = 0; i < 9; i++) hb.appendChild(mkSlot(i, true));
     const grid = $('invgrid'); for (let i = 0; i < 27; i++) grid.appendChild(mkSlot(i, false));
@@ -54,15 +64,21 @@
       const B = G.Input.binds;
       if (k === B.chat && G.Main.started) { openChat(); return true; }
       if (k === B.inventory && G.Main.started) { UI.toggleInv(); return true; }
-      if (k === 'Escape' || k === B.menu) { if (UI.casOpen) { UI.casino(false); return true; } if (UI.open) { UI.toggleInv(false); return true; } if (!$('confirm').classList.contains('hidden')) { $('confirm').classList.add('hidden'); return true; } if (G.Main.started && k !== 'Escape') { G.Input.unlock(); UI.setResume(true); return true; } }
+      if (k === 'Escape' || k === B.menu) { if (UI.casOpen) { UI.casino(false); return true; } if (UI.open) { UI.toggleInv(false); return true; } if (!$('confirm').classList.contains('hidden')) { $('confirm').classList.add('hidden'); return true; } if (G.Main.started && !$('resume').classList.contains('hidden') && !UI.open) { UI.setResume(false); UI.paused = false; G.Input.lock(); return true; } if (G.Main.started && k !== 'Escape') { G.Input.unlock(); UI.setResume(true); return true; } }
       if (k === B.mute) { const m = G.Audio.toggleMute(); UI.toast(m ? 'Muted' : 'Sound on', ''); return true; }
       if (k === B.emote && G.Main.started) { G.Main.act({ a: 'emote' }); return true; }
-      if (UI.lastOffer && k >= '1' && k <= '4' && e.altKey) { G.Main.act({ a: 'pick', i: +k - 1 }); return true; }
+      if (UI.lastOffer && e.altKey && /^Digit[1-4]$/.test(e.code || '')) { G.Main.act({ a: 'pick', i: +e.code.slice(5) - 1 }); return true; } // physical key so Option+1 on macOS works too
       return false;
     };
     G.Net.onStatus = UI.status;
   };
   UI.status = (s) => { $('status').textContent = s || ''; };
+  UI.applyScale = function () { const S = G.Input.settings; let k = S.uiScale && S.uiScale !== 'auto' ? +S.uiScale : Math.max(1, Math.min(1.5, window.innerHeight / 1080)); document.documentElement.style.setProperty('--ui', k.toFixed(2)); };
+  window.addEventListener('resize', () => UI.applyScale && UI.applyScale());
+  UI.applyMotion = function () { document.body.classList.toggle('rm', !!G.Input.settings.reduceMotion); };
+  UI.credits = function () { const b = $('credits-body'); const show = (t) => { b.textContent = t; $('credits').classList.remove('hidden'); }; if (window.__LICENSES) show(window.__LICENSES); else fetch('assets/LICENSES.md').then(r => r.text()).then(show).catch(() => show('See assets/LICENSES.md in the repository.')); if (G.Main.started) G.Input.unlock(); };
+  UI.fatal = function (title, msg, detail) { $('fatal-title').textContent = title || 'Something broke'; $('fatal-msg').textContent = msg || ''; $('fatal-detail').textContent = detail || ''; $('fatal').classList.remove('hidden'); try { G.Input.unlock(); } catch (e) { } };
+  UI.hostLost = function (room) { const c = $('confirm'); c.innerHTML = '<p><b style="color:#ff6060">Connection to the host was lost.</b><br>The host left or the network dropped. This run is over for you.</p><div class="row" style="justify-content:center"><button id="cy" class="primary">Back to the lobby</button>' + (room ? '<button id="cn">Try rejoining ' + esc(room) + '</button>' : '') + '</div>'; c.classList.remove('hidden'); $('cy').onclick = () => location.reload(); if (room) $('cn').onclick = () => { location.search = '?room=' + encodeURIComponent(room); }; G.Input.unlock(); };
   // ---- hats (cosmetics): free ones, ones won at the Dealer's Table, ones bought with shards ----
   UI.hat = 'none';
   UI.ownedHats = (meta) => { const m = meta || UI.loadMeta(); const owned = new Set(['none', 'cap', 'beanie']); (m.hats || []).forEach(h => owned.add(h)); return owned; };
@@ -110,7 +126,7 @@
         o.opts.forEach((id, i) => { const p = G.PW[id]; const d = document.createElement('div'); d.className = 'boonopt'; d.style.borderColor = G.RARITY_COL[p.rarity]; const c = document.createElement('canvas'); c.width = 16; c.height = 16; c.getContext('2d').drawImage(G.Sprites.powerup(id), 0, 0); d.appendChild(c); const b = document.createElement('b'); b.textContent = p.name + (me.pw[id] ? ' ×' + (me.pw[id] + 1) : ''); b.style.color = G.RARITY_COL[p.rarity]; d.appendChild(b); const sp = document.createElement('span'); sp.textContent = p.desc; d.appendChild(sp); const k = document.createElement('div'); k.className = 'k'; k.textContent = G.RARITY_NAME[p.rarity] + ' · Alt+' + (i + 1); d.appendChild(k); d.onclick = () => G.Main.act({ a: 'pick', i }); box.appendChild(d); });
       }
     }
-    if (o) $('boon-timer').textContent = 'auto-pick in ' + Math.max(0, 25 - Math.round(me.offerT || 0)) + 's · the game keeps running';
+    if (o) { const left = Math.max(0, 25 - (me.offerT || 0)); $('boon-timer').textContent = 'Alt+1…4 to pick · auto-pick in ' + Math.round(left) + 's · the game keeps running'; $('boon-bar').firstElementChild.style.width = (left / 25 * 100) + '%'; if (left < 5 && Math.floor(left) !== UI.boonTick) { UI.boonTick = Math.floor(left); G.Audio.play('tick'); } }
   };
   // ---- the Dealer's Table ----
   UI.casOpen = false; UI.casGame = 'slots'; UI.casBet = {}; UI.casPending = null;
@@ -194,6 +210,7 @@
   };
   // ---- tutorial: a checklist that follows the player's progress; hidden once every step was completed or the player closes it ----
   const keyName = (k) => { k = k || ''; if (k === ' ' || k === 'Space') return 'Space'; k = k.replace(/^Key/, '').replace(/^Digit/, '').replace('ShiftLeft', 'Shift').replace('ControlLeft', 'Ctrl'); return k.length === 1 ? k.toUpperCase() : k; };
+  G.keyName = keyName; G.keyOf = (action) => keyName((G.Input.binds || {})[action] || action); // prompts everywhere use the player's real binds
   const fillKeys = (txt) => txt.replace(/\{(\w+)\}/g, (m, k) => '<b>' + keyName((G.Input.binds || {})[k] || k) + '</b>');
   UI.tutStep = 0; UI.tutLast = '';
   UI.tutorial = function (V) {
@@ -211,7 +228,7 @@
     '<h3>The Dealer\'s Table</h3><div class="small">Bet coins on slots, a dice duel, the Wheel of Fates or blackjack. Wins pay coins and <b>boons</b> (the same skills as chests), jackpots unlock <b>hats</b>, busts <b>hex</b> you. Sketchy items rig the next game in your favour.</div>'; };
   UI.showHostInfo = (code) => { $('hostinfo').classList.remove('hidden'); $('roomcode').textContent = code; };
   UI.setLobbyPlayers = (names) => { $('players').innerHTML = 'Players: ' + names.map(n => '<b style="color:' + n.col + '">' + esc(n.name) + '</b>').join(', '); };
-  UI.enterGame = (seed) => { $('lobby').classList.add('hidden'); $('hud').classList.remove('hidden'); $('seedlbl').textContent = 'seed ' + seed; };
+  UI.enterGame = (seed) => { $('lobby').classList.add('hidden'); $('hud').classList.remove('hidden'); $('seedlbl').textContent = 'seed ' + seed + ' · v' + (window.__VERSION || 'dev'); };
   const esc = (s) => String(s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
 
   function openChat() { UI.chatOpen = true; $('chatin').classList.remove('hidden'); G.Input.unlock(); UI.setResume(false); $('chatin').focus(); setTimeout(() => $('chatin').focus(), 30); G.Input.locked = true; }
@@ -224,9 +241,9 @@
   };
   let toastT = null;
   UI.toast = function (title, desc, col) { const t = $('toast'); t.innerHTML = '<div style="color:' + (col || '#ffd24a') + '">' + esc(title) + '</div><div class="d">' + esc(desc || '') + '</div>'; t.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => t.style.opacity = 0, 3000); };
-  UI.confirm = function (html, onYes) { const c = $('confirm'); c.innerHTML = html + '<div class="row" style="justify-content:center"><button id="cy" class="primary">Set sail</button><button id="cn">Not yet</button></div>'; c.classList.remove('hidden'); $('cy').onclick = () => { c.classList.add('hidden'); onYes(); }; $('cn').onclick = () => c.classList.add('hidden'); };
+  UI.confirm = function (html, onYes, yes, no) { const c = $('confirm'); c.innerHTML = html + '<div class="row" style="justify-content:center"><button id="cy" class="primary">' + esc(yes || 'Set sail') + '</button><button id="cn">' + esc(no || 'Not yet') + '</button></div>'; c.classList.remove('hidden'); $('cy').onclick = () => { c.classList.add('hidden'); onYes(); }; $('cn').onclick = () => c.classList.add('hidden'); };
   UI.end = function (win, V, shards) {
-    const run = UI.recordRun(V, win, shards || 0); UI.showCamp(run); return;
+    const run = UI.recordRun(V, win, shards || 0); UI.lastRun = run;
     const e = $('end'); e.classList.remove('hidden'); e.querySelector('h1').textContent = win ? 'YOU ESCAPED THE ISLAND' : 'THE ISLAND KEEPS YOU';
     e.querySelector('h1').style.color = win ? '#ffd24a' : '#e03030';
     const me = V.players[V.me];
@@ -239,7 +256,7 @@
     const d = document.createElement('div'); d.className = 'slot'; d.dataset.i = i;
     const c = document.createElement('canvas'); c.width = 16; c.height = 16; d.appendChild(c);
     const n = document.createElement('span'); n.className = 'n'; d.appendChild(n);
-    if (hot) { const k = document.createElement('span'); k.className = 'k'; k.textContent = i + 1; d.appendChild(k); }
+    if (hot || i < 9) { const k = document.createElement('span'); k.className = 'k'; k.textContent = i + 1; d.appendChild(k); }
     if (!hot) {
       d.onclick = (e) => {
         const V = G.Main.view(); const me = V && V.players[V.me]; if (!me) return;
@@ -306,8 +323,13 @@
     const me = V.players[V.me]; if (!me) return;
     const set = (id, v, max, txt) => { const b = $(id); b.firstElementChild.style.width = Math.max(0, Math.min(100, v / max * 100)) + '%'; b.lastElementChild.textContent = txt; };
     set('hpbar', me.hp, me.maxHp, 'HP ' + Math.ceil(me.hp) + '/' + me.maxHp + (me.swCd > 0 ? ' · second wind ' + me.swCd + 's' : ''));
-    set('stbar', me.stam, 100, 'Stamina');
+    set('stbar', me.stam, 100, me.stam < 15 ? 'Stamina — exhausted' : 'Stamina');
     set('fdbar', me.hunger, 100, me.hunger < 25 ? 'Food — STARVING' : 'Food');
+    $('hpbar').classList.toggle('low', me.hp < me.maxHp * 0.3); $('stbar').classList.toggle('low', me.stam < 15); $('fdbar').classList.toggle('low', me.hunger < 25);
+    if (me.hunger < 25 && !UI.warnedFood) { UI.warnedFood = true; UI.toast('You are starving', 'eat something (' + G.keyOf('eat') + ') — berries, wheat or cooked meat', '#ffb060'); } else if (me.hunger >= 40) UI.warnedFood = false;
+    const others = Object.values(V.players).filter(q => q.id !== me.id); const pk = others.map(q => q.id + q.name + Math.round(q.hp) + (q.downed ? 'd' : '') + (q.dead ? 'x' : '')).join('|');
+    if (pk !== UI.lastParty) { UI.lastParty = pk; $('party').innerHTML = others.map(q => '<div class="pm' + (q.downed ? ' down' : '') + '"><span class="nm" style="color:' + esc(q.col) + '">' + esc(q.name) + (q.dead ? ' ☠' : q.downed ? ' ↓' : '') + '</span><div class="hb"><div style="width:' + Math.max(0, Math.min(100, q.hp / q.maxHp * 100)) + '%"></div></div></div>').join(''); }
+    if (G.Input.settings.fps && G.Render.fps) $('fps').textContent = G.Render.fps + ' fps · ' + G.Render.W + '×' + G.Render.H;
     $('coins').textContent = '⬤ ' + me.coins + ' coins';
     $('dodges').textContent = 'Dodge ' + '◆'.repeat(me.dodgeCh) + '◇'.repeat(Math.max(0, (1 + (me.pw.feather || 0)) - me.dodgeCh)) + (me.charge > 0 ? ' · HEAVY ' + Math.round(me.charge * 100) + '%' : '');
     const xpNext = me.xpNext || G.XP_FOR(me.lvl || 1); set('xpbar', me.xp, xpNext, 'Lv ' + me.lvl + ' · ' + Math.round(me.xp) + '/' + xpNext + ' xp');
@@ -344,7 +366,7 @@
         const c = document.createElement('canvas'); c.width = 16; c.height = 16; c.getContext('2d').drawImage(G.Sprites.item(r.out), 0, 0); d.appendChild(c);
         const nm = document.createElement('span'); nm.textContent = I[r.out].name + (r.n > 1 ? ' ×' + r.n : ''); d.appendChild(nm);
         const nd = document.createElement('span'); nd.className = 'needs'; nd.innerHTML = Object.keys(r.needs).map(k => '<span data-k="' + k + '">' + r.needs[k] + ' ' + I[k].name + '</span>').join(', ') + (r.station ? '<div class="st">@ ' + G.OBJS[r.station].name + '</div>' : ''); d.appendChild(nd);
-        d.onclick = (e) => { const n = e.shiftKey ? 5 : 1; for (let k = 0; k < n; k++) G.Main.act({ a: 'craft', r: ri }); }; d.onmouseenter = () => tip(d, r.out); d.onmouseleave = hideTip;
+        d.onclick = (e) => { if (d.classList.contains('no')) { const V = G.Main.view(); const me = V && V.players[V.me]; const miss = me ? Object.keys(r.needs).filter(k => G.Sim.count(me, k) < r.needs[k]).map(k => (r.needs[k] - G.Sim.count(me, k)) + ' more ' + I[k].name) : []; UI.toast(miss.length ? 'Missing: ' + miss.join(', ') : 'Needs a ' + (I[r.station] ? I[r.station].name : r.station) + ' nearby', '', '#ff9090'); G.Audio.play('no'); return; } const n = e.shiftKey ? 5 : 1; for (let k = 0; k < n; k++) G.Main.act({ a: 'craft', r: ri }); }; d.onmouseenter = () => tip(d, r.out); d.onmouseleave = hideTip;
         list.appendChild(d);
       });
     }
