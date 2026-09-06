@@ -304,6 +304,7 @@
   const PF = {};
   // baked glTF props (js/props.js): flat-coloured triangle lists, optionally tinted
   function propMesh(t, m, name, tint) { const P = G.PROPS && G.PROPS[name]; if (!P) return false; const v = P.v; grow(t, v.length / 9); for (let i = 0; i < v.length; i += 9) { const c = tint ? [v[i + 6] * tint[0], v[i + 7] * tint[1], v[i + 8] * tint[2]] : [v[i + 6], v[i + 7], v[i + 8]]; vert(t, xf(m, v[i], v[i + 1], v[i + 2]), xfn(m, v[i + 3], v[i + 4], v[i + 5]), c, 0); } return true; }
+  const dropSeen = new Map(); let dropPruneT = 0;
   function pf(name, fn) { const t = { arr: new Float32Array(VF * 3 * 400), n: 0 }; fn(t, m4()); PF[name] = t.arr.slice(0, t.n * VF); }
   function buildPrefabs() {
     const wood = hex('#7a4a22'), leaf = hex('#3f8f38'), leaf2 = hex('#2f6f2a'), stone = hex('#7d7f83'), dark = hex('#3a3040');
@@ -333,7 +334,8 @@
       pf('obsidian_vein', (t, m) => { propMesh(t, M(m, mS(3.0, 3.8, 3.0)), 'rock_c', [0.45, 0.4, 0.6]); ore(t, m, hex('#b080ff'), 0.95, 5, 2.0); });
     }
     const chest = (name, col) => pf(name, (t, m) => { const c = hex(col); box(t, M(m, mT(0, 0, 0)), 0.8, 0.45, 0.55, c, 0.05); box(t, M(m, mT(0, 0.45, 0)), 0.84, 0.2, 0.6, sh(c, 1.25), 0.05); box(t, M(m, mT(0, 0.32, 0.29)), 0.12, 0.16, 0.06, hex('#ffd24a'), 0.4); for (const x of [-0.3, 0.3]) box(t, M(m, mT(x, 0.3, 0)), 0.06, 0.66, 0.6, hex('#3a3030')); });
-    chest('chest_c', '#8a6a3f'); chest('chest_u', '#3a9a4a'); chest('chest_r', '#b03030'); chest('chest_l', '#d0a020');
+    chest('chest_c', '#8a6a3f'); chest('chest_u', '#3a9a4a');
+    pf('storage', (t, m) => { const c = hex('#a67c3a'), dk = hex('#4a3420'); box(t, m, 0.86, 0.5, 0.6, c, 0.05); box(t, M(m, mT(0, 0.5, 0)), 0.9, 0.18, 0.64, sh(c, 1.2), 0.05); for (const x of [-0.34, 0.34]) box(t, M(m, mT(x, 0, 0)), 0.08, 0.7, 0.66, dk); for (const z of [-0.32, 0.32]) box(t, M(m, mT(0, 0.2, z)), 0.9, 0.06, 0.04, dk); box(t, M(m, mT(0, 0.36, 0.31)), 0.14, 0.14, 0.05, hex('#c8c8d0'), 0.5); });
     const altar = (name, col) => pf(name, (t, m) => { box(t, m, 1.5, 0.25, 1.5, hex('#5a5a60')); box(t, M(m, mT(0, 0.25, 0)), 1.0, 0.25, 1.0, hex('#6a6a70')); cyl(t, M(m, mT(0, 0.5, 0)), 0.22, 0.18, 1.1, 6, hex('#7a7a80')); for (let i = 0; i < 4; i++) cyl(t, M(m, mT(Math.cos(i * 1.57) * 0.6, 0.5, Math.sin(i * 1.57) * 0.6)), 0.08, 0.06, 0.5, 4, hex('#6a6a70')); const g = M(m, mT(0, 2.0, 0), mRY(0.7)); cyl(t, g, 0.28, 0, 0.4, 4, hex(col), 0.9); cyl(t, M(g, mRX(Math.PI), mT(0, 0, 0)), 0.28, 0, 0.4, 4, hex(col), 0.9); });
     altar('altar_meadow', '#30e070'); altar('altar_forest', '#3070ff'); altar('altar_volcano', '#ff3050');
     pf('boat', (t, m) => { const hull = hex('#7a4a20'); box(t, M(m, mT(0, 0.2, 0)), 3.2, 0.5, 1.3, hull); box(t, M(m, mT(1.8, 0.35, 0), mRY(0.8)), 0.9, 0.5, 0.9, hull); box(t, M(m, mT(0, 0.55, 0)), 2.9, 0.1, 1.0, hex('#9a6a30')); cyl(t, M(m, mT(-0.2, 0.6, 0)), 0.07, 0.06, 2.6, 5, hex('#5a3a20')); quad(t, M(m, mT(-0.12, 1.4, 0)), [0, 0, 0], [0, 1.6, 0], [1.3, 1.5, 0], [1.4, 0.3, 0], hex('#e8e0d0')); box(t, M(m, mT(0.9, 0.7, -0.5), mRZ(0.4)), 0.8, 0.12, 0.12, hex('#4a2a10')); });
@@ -574,7 +576,7 @@
     if (!buildQ.length) return; const t0 = performance.now(); const budget = cold ? 1e9 : 5;
     const cx = R.cam.x / CH - 0.5, cy = R.cam.y / CH - 0.5; buildQ.sort((a, b) => ((a.cxI - cx) ** 2 + (a.cyI - cy) ** 2) - ((b.cxI - cx) ** 2 + (b.cyI - cy) ** 2));
     while (buildQ.length) { const q = buildQ[0]; if (Math.abs(q.cxI - cx) > 4.5 || Math.abs(q.cyI - cy) > 4.5) { buildQ.shift(); continue; } // scrolled out of range before it was built
-      const old = chunks[q.k]; chunks[q.k] = buildChunk(world, q.cxI, q.cyI, old && old.objDirty ? old : undefined); buildQ.shift(); if (performance.now() - t0 > budget) break; }
+      const old = chunks[q.k]; chunkSig[q.k] = chunkObjSig(world, q.cxI, q.cyI); chunks[q.k] = buildChunk(world, q.cxI, q.cyI, old && old.objDirty ? old : undefined); buildQ.shift(); if (performance.now() - t0 > budget) break; }
     cold = false;
   }
   function dropChunk(k) { const c = chunks[k]; if (!c) return; freeBuf(c.vbo); freeBuf(c.wvbo); freeBuf(c.obo); freeBuf(c.sbo); delete chunks[k]; }
@@ -588,9 +590,13 @@
   R.resetWorld = () => { for (const k in chunks) dropChunk(k); buildQ.length = 0; cold = true; miniBase = null; };
   // the client/host mutate world.objs directly; detect changes cheaply by hashing object state per chunk each frame
   const chunkSig = {};
-  function checkChunkDirty(world, cxI, cyI) {
+  function chunkObjSig(world, cxI, cyI) {
     let sig = 0; const x0 = cxI * CH, y0 = cyI * CH;
     for (let ty = 0; ty < CH; ty++) for (let tx = 0; tx < CH; tx++) { const X = x0 + tx, Y = y0 + ty; if (X >= W || Y >= W) continue; const o = world.objs.get(Y * W + X); if (o) sig = (sig * 31 + (G.OBJ_IDX[o.t] + 1) * 7 + (o.stub ? 3 : 0) + (o.closed ? 5 : 0) + tx * 13 + ty * 17) | 0; }
+    return sig;
+  }
+  function checkChunkDirty(world, cxI, cyI) {
+    const sig = chunkObjSig(world, cxI, cyI);
     const k = cxI + ',' + cyI; if (chunkSig[k] !== undefined && chunkSig[k] !== sig) objDirty(k); chunkSig[k] = sig;
   }
 
@@ -769,7 +775,9 @@
     // glows for the lights we gathered (night only so the day stays clean)
     const darkG = G.clamp(G.Sim.darkness({ time: V.time }) / 0.9, 0, 1); if (darkG > 0.2) for (const l of lights) { if (l.c[0] < 0.5) continue; const gz0 = l.z; glowQuad(l.x, l.y, gz0, l.r * 0.3, l.c.map(c => c * darkG * 0.9)); glowQuad(l.x, l.y, gz0, l.r * 0.1, [1, 0.95, 0.8].map(c => c * darkG)); }
     // drops
-    for (const d of V.drops) { const gz = R.groundZ(world, d.x, d.y); const bob = Math.sin(nowT * 3 + d.id) * 0.05; shadowDisc(d.x, d.y, gz, 0.18); itemMesh(t, M(mT(d.x, gz + 0.25 + bob, d.y), mRY(nowT * 1.5 + d.id), mRZ(0.5)), d.item, true, d); if (d.aff || d.q >= 3) { const c = hex(G.RARITY_COL[d.q || 0]); cyl(t, M(mT(d.x, gz + 0.02, d.y)), 0.3, 0.3, 0.02, 10, c, 1.0); cyl(t, M(mT(d.x, gz, d.y)), 0.025, 0.005, 1.6 + (d.q || 0) * 0.4, 4, c, 0.9); } }
+    if (nowT - dropPruneT > 5) { dropPruneT = nowT; const live = new Set(V.drops.map(d => d.id)); for (const k of dropSeen.keys()) if (!live.has(k)) dropSeen.delete(k); }
+    for (const d of V.drops) { const gz = R.groundZ(world, d.x, d.y); const bob = Math.sin(nowT * 3 + d.id) * 0.05; let born = dropSeen.get(d.id); if (born === undefined) { born = nowT; dropSeen.set(d.id, nowT); } const age = nowT - born; const hop = age < 0.55 ? Math.sin(age / 0.55 * Math.PI) * 0.55 : 0; // fresh drops pop up in an arc as they fly out
+      shadowDisc(d.x, d.y, gz, 0.18 * (1 - hop * 0.5)); itemMesh(t, M(mT(d.x, gz + 0.25 + bob + hop, d.y), mRY(nowT * 1.5 + d.id + hop * 4), mRZ(0.5)), d.item, true, d); if (d.aff || d.q >= 3) { const c = hex(G.RARITY_COL[d.q || 0]); cyl(t, M(mT(d.x, gz + 0.02, d.y)), 0.3, 0.3, 0.02, 10, c, 1.0); cyl(t, M(mT(d.x, gz, d.y)), 0.025, 0.005, 1.6 + (d.q || 0) * 0.4, 4, c, 0.9); } }
     // enemies
     for (const e of V.enemies) {
       if (e.hidden) continue; const gz = R.groundZ(world, e.x, e.y); const zoff = e.t === 'leviathan' ? -0.6 : 0;

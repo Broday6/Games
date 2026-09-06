@@ -58,3 +58,25 @@ blue instead of damage-red; tutorial casino step works for joined clients (`gamb
 - **Smoothness.** VAOs for chunk draws, bufferSubData into fixed stores, chunk eviction after 15 s unseen, pooled model world matrices,
   and prefab instancing that writes straight into the chunk array: a tree break went from ~270 ms to ~4 ms, a cold 35-chunk build from
   ~950 ms to ~100 ms.
+
+## Round 4 (dropping, storage, playing online from the web)
+
+- **Dropping.** `X` drops one of the held item, `Shift+X` the whole stack (over a bag slot while the inventory is open it drops that
+  slot). In the bag: Ctrl-click drops one, Shift-click the stack, or pick a stack up and click the dashed drop bar. Drops are thrown
+  in the facing direction with a short arc and remember who threw them: the pickup magnet ignores your own drop until you have walked out
+  of range once (or 20 s pass), so dropping something at your feet no longer snaps it straight back into the bag. Weapon affixes and
+  rarity survive a drop (they were lost before).
+- **Storage Chest.** Placeable (8 wood + 2 sticks, no workbench needed), 18 stacks, opened with the interact key; the panel sits next to
+  the bag. Bag click stows, chest click takes, right-click takes one, Take all / Stow matching buttons. Contents live on the world object
+  (`o.inv`) so they are shared by the party and synced through the normal object-change stream; breaking the chest spills everything.
+  The bag + chest + crafting columns scale down to fit narrow windows instead of overlapping.
+- **Rendering bug found on the way.** Chunk object signatures were only recorded on the first *scan after* a world change, so the very
+  first object change of a session (the first tree felled, the first thing built) left the chunk mesh stale until a second change happened.
+  Signatures are now recorded when a chunk is built.
+- **Online play from the web.** The claude.ai preview runs inside a sandbox whose content-security policy blocks the PeerJS signalling
+  WebSocket, so room codes cannot connect there. Publishing the artifact with the `room`/`db` capabilities would have made it
+  organisation-internal and unshareable, so the preview instead explains itself and links to the hosted copy. The GitHub Pages workflow
+  had failed on every push (`configure-pages` may not enable Pages with the workflow token); it now stages only the site files, tries the
+  official Pages actions and falls back to publishing a `gh-pages` branch. The lobby gained **Copy invite link**
+  (`…/driftwood/?room=CODE`, which pre-fills the Join tab), the bundle bakes the public URL in for links from `file://` and the preview,
+  and Google STUN is joined by the free Open Relay TURN servers so strict-NAT players connect through a relay.

@@ -53,11 +53,13 @@
       <button id="tab-solo">Play solo</button>
     </div>
     <div class="tabbody">
+      <div id="hostednote" class="hidden small" style="margin:0 0 10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:rgba(255,210,74,0.06)"></div>
       <div id="pane-host">
         <div class="row"><label>Seed</label><input id="seed" placeholder="random" style="flex:1"><button id="randseed">🎲</button></div>
         <div class="row"><button id="btn-host" class="primary">Create room</button><span class="small">You'll get a 5-letter room code to share.</span></div>
         <div id="hostinfo" class="hidden">
-          <div class="row"><label>Room code</label><span class="code" id="roomcode">-----</span><button id="copycode">Copy</button></div>
+          <div class="row"><label>Room code</label><span class="code" id="roomcode">-----</span><button id="copycode">Copy code</button><button id="copylink">Copy invite link</button></div>
+          <div class="small" id="invitelink" style="margin:-4px 0 6px;word-break:break-all"></div>
           <div id="players"></div>
           <div class="row"><button id="btn-start" class="primary">Start game</button><span class="small">Friends can also join after you start.</span></div>
         </div>
@@ -123,9 +125,16 @@
 <div id="howto" class="hidden"><div class="panel"><h3>How to play Driftwood</h3><div id="howto-body"></div><div class="row" style="justify-content:flex-end"><button id="howto-done" class="primary">Got it</button></div></div></div>
 
 <div id="inv" class="panel hidden">
+  <div id="chestcol" class="hidden">
+    <h3>Storage Chest <span class="small" id="chest-used"></span></h3>
+    <div class="grid" id="chestgrid"></div>
+    <div class="small" style="margin-top:6px">click a chest slot to take it · right-click takes one · click a bag slot to stow it · Shift-click stows the stack</div>
+    <div class="row" style="margin-top:6px"><button id="chest-takeall" style="padding:3px 10px;font-size:12px">Take all</button><button id="chest-stowall" style="padding:3px 10px;font-size:12px">Stow matching</button></div>
+  </div>
   <div>
-    <h3>Inventory <span class="small">(click to move · right-click to use/equip · Shift-click to drop · Tab to close)</span> <button id="inv-sort" style="padding:2px 8px;font-size:11px;float:right">Sort bag</button></h3>
+    <h3>Inventory <span class="small" id="inv-hint">(click to move · right-click to use/equip · Shift-click drops the stack · Ctrl-click drops one · Tab to close)</span> <button id="inv-sort" style="padding:2px 8px;font-size:11px;float:right">Sort bag</button></h3>
     <div class="grid" id="invgrid"></div>
+    <div id="dropzone" class="hidden">Drop it here — or press <b id="dropzone-key">X</b> over a slot</div>
     <h3 style="margin-top:8px">Armour</h3>
     <div id="armor"></div>
     <div class="small" id="invstats"></div>

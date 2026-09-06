@@ -1,12 +1,18 @@
 name: Deploy to GitHub Pages
 
+# Publishes the game to https://<user>.github.io/<repo>/ (the copy of Driftwood where room codes work).
+# Preferred path: the official Pages actions. They can only run once Pages is enabled for the repo, and the
+# workflow token is not allowed to enable it (see the "Resource not accessible by integration" failure), so when
+# that path is unavailable the job falls back to pushing the site to a gh-pages branch, which GitHub publishes
+# automatically for public repositories.
+
 on:
   push:
     branches: ["claude/muck-video-game-06f869", "main", "master"]
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -22,14 +28,46 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Configure Pages (auto-enables Pages on first run)
+
+      - name: Stage the site (landing page + game)
+        run: |
+          rm -rf _site && mkdir -p _site
+          cp index.html _site/index.html
+          cp -r driftwood _site/driftwood
+          rm -rf _site/driftwood/dist _site/driftwood/node_modules
+          touch _site/.nojekyll
+          (cd driftwood && node build.js) && cp driftwood/dist/driftwood.html _site/Driftwood-browser.html || true
+          du -sh _site
+
+      - name: Configure Pages
+        id: cfg
+        continue-on-error: true
         uses: actions/configure-pages@v5
         with:
           enablement: true
+
       - name: Upload site
+        if: steps.cfg.outcome == 'success'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
+
       - name: Deploy
+        if: steps.cfg.outcome == 'success'
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Fallback — publish the gh-pages branch
+        if: steps.cfg.outcome != 'success'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Pages is not enabled for this repository yet; publishing the site to the gh-pages branch instead."
+          cd _site
+          git init -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Deploy ${GITHUB_SHA::7} to GitHub Pages"
+          git push -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+          echo "If the site does not appear within a few minutes, enable it once under Settings → Pages (Source: Deploy from a branch, gh-pages, / root)."

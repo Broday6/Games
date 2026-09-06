@@ -15,7 +15,7 @@
     if (G.Assets) G.Assets.load();
     In.onAction = onLocalAction; In.onLockChange = onLockChange;
     Net.onMessage = onMessage; Net.onJoin = onJoin; Net.onLeave = onLeave;
-    const p = new URLSearchParams(location.search); if (p.get('room')) { document.getElementById('tab-join').click(); document.getElementById('joincode').value = p.get('room').toUpperCase(); }
+    const p = new URLSearchParams(location.search); if (p.get('room')) { const code = p.get('room').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5); document.getElementById('tab-join').click(); document.getElementById('joincode').value = code; UI.status('Room ' + code + ' is filled in — pick a name and press Join.'); const nm = document.getElementById('name'); if (nm && !nm.value) nm.focus(); }
     requestAnimationFrame(loop);
   });
 
@@ -30,7 +30,7 @@
   M.host = function (name, col, seed) {
     makeHostSim(name, col, seed);
     const code = Net.makeCode();
-    Net.host(code, (ok) => { if (!ok) { UI.showHostInfo('—'); document.getElementById('btn-host').disabled = false; document.getElementById('manual').open = true; UI.status('The room server could not be reached — use the manual invite below, or try again.'); } });
+    Net.host(code, (ok) => { if (!ok) { UI.showHostInfo('—'); document.getElementById('btn-host').disabled = false; document.getElementById('manual').open = true; UI.status(Net.blockedHere() ? 'Room codes cannot connect from inside this preview — open the web version (link above) to host online, or play solo here.' : 'The room server could not be reached — use the manual invite below, or try again.'); } });
     UI.showHostInfo(code); document.getElementById('seed').value = M.S.world.seed;
   };
   M.ensureHostForManual = function (name, col, seed) { makeHostSim(name, col, seed); Net.mode = 'host'; Net.id = 'host'; document.getElementById('hostinfo').classList.remove('hidden'); document.getElementById('seed').value = M.S.world.seed; };
@@ -114,6 +114,7 @@
         case 'boatinfo': { const b = V ? V.boat : null; if (b) UI.toast('Ship repairs', Object.keys(G.BOAT_NEED).map(k => G.ITEMS[k].name + ' ' + b[k] + '/' + G.BOAT_NEED[k]).join(' · ')); break; }
         case 'tile': if (M.world) { M.world.tiles[ev.i] = ev.v; R.dirtyTerrain(ev.i); } break;
         case 'casino': UI.casino(true, ev); break;
+        case 'storage': UI.openChest(ev.i, ev); break;
         case 'gres': UI.gres(ev); break;
         case 'hat': UI.unlockHat(ev.id); break;
       }
@@ -185,7 +186,7 @@
     const me = V.players[V.me]; if (!me || me.dead) return me && me.dead ? 'You are dead. You will wash ashore again at dawn.' : '';
     if (me.downed) return '';
     const w = V.world; let best = null, bd = 2.2;
-    for (let y = Math.floor(me.y - 2); y <= me.y + 2; y++) for (let x = Math.floor(me.x - 2); x <= me.x + 2; x++) { const o = w.objs.get(G.idx(x, y)); if (!o) continue; const d = G.OBJS[o.t]; if (!(d.isChest || d.altar || d.boat || d.door || d.casino)) continue; const dd = G.dist(me.x, me.y, x + .5, y + .5); if (dd < bd) { bd = dd; best = { o, d }; } }
+    for (let y = Math.floor(me.y - 2); y <= me.y + 2; y++) for (let x = Math.floor(me.x - 2); x <= me.x + 2; x++) { const o = w.objs.get(G.idx(x, y)); if (!o) continue; const d = G.OBJS[o.t]; if (!(d.isChest || d.altar || d.boat || d.door || d.casino || d.storage)) continue; const dd = G.dist(me.x, me.y, x + .5, y + .5); if (dd < bd) { bd = dd; best = { o, d }; } }
     for (const id in V.players) { const q = V.players[id]; if (q !== me && q.downed && G.dist(q.x, q.y, me.x, me.y) < 1.6) return 'Hold ' + G.keyOf('interact') + ' to revive ' + q.name; }
     if (best) {
       const { o, d } = best;
@@ -193,6 +194,7 @@
       if (d.altar) return V.bosses[d.altar] === 'dead' ? 'This guardian is slain.' : V.bosses[d.altar] ? 'The guardian is loose!' : G.keyOf('interact') + ': summon the guardian (needs ' + G.ITEMS[d.key].name + ')';
       if (d.boat) return V.boat.done ? G.keyOf('interact') + ': SET SAIL' : G.keyOf('interact') + ': deposit repairs — ' + Object.keys(G.BOAT_NEED).map(k => G.ITEMS[k].name + ' ' + V.boat[k] + '/' + G.BOAT_NEED[k]).join(', ');
       if (d.door) return G.keyOf('interact') + ': ' + (o.closed ? 'open' : 'close') + ' door';
+      if (d.storage) { const used = o.inv ? o.inv.filter(Boolean).length : 0; return G.keyOf('interact') + ': open Storage Chest (' + used + '/' + d.storage + ' slots used)'; }
       if (d.casino) return G.keyOf('interact') + ": sit at the Dealer's Table — slots · dice · Wheel of Fates · blackjack (bet coins, win boons)";
     }
     const it = me.inv[me.held]; if (it && G.ITEMS[it.id].type === 'place') return 'LMB: place ' + G.ITEMS[it.id].name + ' where you look';

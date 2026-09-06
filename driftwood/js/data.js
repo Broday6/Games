@@ -112,6 +112,7 @@
   place('campfire', 'Campfire', 'campfire', '#ff9040'); place('wall_wood', 'Wooden Wall', 'wall_wood', '#a0702e');
   place('wall_stone', 'Stone Wall', 'wall_stone', '#8a8c90'); place('door_wood', 'Wooden Door', 'door_wood', '#c09050');
   place('floor_wood', 'Wooden Floor / Bridge', 'floor_wood', '#c9a15a'); place('spikes', 'Spike Trap', 'spikes', '#b0b0b8');
+  place('chest_wood', 'Storage Chest', 'storage', '#b08a4a'); I.chest_wood.desc = 'holds 18 stacks — everyone in the party can use it';
   I.totem_meadow = { id: 'totem_meadow', name: 'Ogre Totem', type: 'key', altar: 'altar_meadow', col: '#40c060' };
   I.totem_forest = { id: 'totem_forest', name: 'Hollow Totem', type: 'key', altar: 'altar_forest', col: '#4060d0' };
   I.totem_volcano = { id: 'totem_volcano', name: 'Cinder Totem', type: 'key', altar: 'altar_volcano', col: '#e04040' };
@@ -172,6 +173,7 @@
   rec('furnace', 1, { stone: 20, wood: 5 }, 'workbench'); rec('cauldron', 1, { stone: 10, iron_bar: 3 }, 'workbench');
   rec('campfire', 1, { wood: 6, stone: 4 }); rec('wall_wood', 4, { wood: 6 }, 'workbench');
   rec('wall_stone', 4, { stone: 8 }, 'workbench'); rec('door_wood', 1, { wood: 6, stick: 2 }, 'workbench');
+  rec('chest_wood', 1, { wood: 8, stick: 2 });
   rec('floor_wood', 4, { wood: 4 }, 'workbench'); rec('spikes', 2, { wood: 4, stone: 2, iron_bar: 1 }, 'workbench');
   rec('helm_leather', 1, { wolf_pelt: 3, rope: 1 }, 'workbench'); rec('chest_leather', 1, { wolf_pelt: 5, rope: 2 }, 'workbench');
   rec('legs_leather', 1, { wolf_pelt: 4, rope: 1 }, 'workbench');
@@ -228,6 +230,7 @@
   obj('casino', { name: "Dealer's Table", hp: 9999, tool: 'none', tier: 99, casino: true, light: 3, neon: true });
   // placeables
   obj('workbench', { name: 'Workbench', hp: 40, tool: 'none', tier: 99, station: 'workbench', built: true });
+  obj('storage', { name: 'Storage Chest', hp: 50, tool: 'none', tier: 99, built: true, storage: 18 });
   obj('furnace', { name: 'Furnace', hp: 80, tool: 'none', tier: 99, station: 'furnace', built: true, light: 2.5 });
   obj('anvil', { name: 'Anvil', hp: 100, tool: 'none', tier: 99, station: 'anvil', built: true });
   obj('cauldron', { name: 'Cauldron', hp: 60, tool: 'none', tier: 99, station: 'cauldron', built: true, light: 1.5 });

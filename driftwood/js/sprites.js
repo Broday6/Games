@@ -42,7 +42,7 @@
     cactus(x) { px(x, 6, 3, 4, 12, '#3a9a4a'); px(x, 2, 6, 4, 2, '#3a9a4a'); px(x, 2, 3, 2, 4, '#3a9a4a'); px(x, 10, 8, 4, 2, '#3a9a4a'); px(x, 12, 5, 2, 4, '#3a9a4a'); px(x, 7, 5, 1, 8, '#5ac060'); px(x, 7, 1, 2, 2, '#e05a9a'); },
     grass_tuft(x) { for (let i = 0; i < 5; i++) px(x, 3 + i * 2, 7 + (i % 3) * 2, 1, 8 - (i % 3) * 2, i % 2 ? '#7ab84a' : '#5c9a45'); },
     chest_c(x, c) { px(x, 2, 6, 12, 8, c || '#8a6a3f'); px(x, 2, 6, 12, 3, shade(c || '#8a6a3f', 30)); px(x, 7, 8, 2, 3, '#ffd24a'); px(x, 2, 9, 12, 1, OUT); },
-    chest_u(x) { objDraw.chest_c(x, '#3a9a4a'); }, chest_r(x) { objDraw.chest_c(x, '#b03030'); }, chest_l(x) { objDraw.chest_c(x, '#d0a020'); },
+    storage(x) { objDraw.chest_c(x, '#a67c3a'); px(x, 3, 7, 10, 1, '#5a4020'); px(x, 3, 12, 10, 1, '#5a4020'); }, chest_u(x) { objDraw.chest_c(x, '#3a9a4a'); }, chest_r(x) { objDraw.chest_c(x, '#b03030'); }, chest_l(x) { objDraw.chest_c(x, '#d0a020'); },
     altar(x, c) { px(x, 2, 12, 12, 3, '#5a5a60'); px(x, 4, 5, 8, 7, '#7a7a80'); px(x, 6, 2, 4, 3, c); px(x, 7, 6, 2, 5, c); },
     altar_meadow(x) { objDraw.altar(x, '#30e070'); }, altar_forest(x) { objDraw.altar(x, '#3070ff'); }, altar_volcano(x) { objDraw.altar(x, '#ff3050'); },
     boat(x) { px(x, 1, 10, 14, 4, '#7a4a20'); px(x, 2, 8, 12, 2, '#9a6a30'); px(x, 7, 1, 1, 8, '#5a3a20'); px(x, 8, 2, 5, 5, '#e8e0d0'); px(x, 3, 11, 3, 2, '#4a2a10'); },

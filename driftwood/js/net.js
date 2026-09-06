@@ -4,7 +4,18 @@
   const Net = { mode: null, id: null, conns: {}, onMessage: null, onJoin: null, onLeave: null, onStatus: null, peer: null, room: null };
   G.Net = Net;
   const PREFIX = 'driftwood-v1-';
-  const ICE = { iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }] };
+  // STUN finds the public address; the free Open Relay TURN servers carry traffic when both players sit behind strict NATs
+  // (mobile hotspots, university networks) where a direct WebRTC path cannot be punched through.
+  const ICE = { iceServers: [
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.relay.metered.ca:80'] },
+    { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp', 'turns:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
+  ] };
+  Net.ICE = ICE;
+  // Where the game lives on the open web. The claude.ai preview page cannot reach the room server (its sandbox blocks
+  // the signalling WebSocket), so the lobby points people there for online play.
+  Net.hostedUrl = () => window.__HOSTED_URL || (location.protocol.startsWith('http') && !window.__ARTIFACT ? location.origin + location.pathname : '');
+  Net.inviteLink = (code) => { const base = window.__ARTIFACT || location.protocol === 'file:' ? (window.__HOSTED_URL || '') : location.origin + location.pathname; return base ? base + (base.includes('?') ? '&' : '?') + 'room=' + code : ''; };
+  Net.blockedHere = () => !!window.__ARTIFACT;
   const status = (s) => { Net.status = s; if (Net.onStatus) Net.onStatus(s); };
 
   Net.hasPeerJS = () => typeof window.Peer === 'function';
@@ -47,7 +58,7 @@
     Net.mode = 'host'; Net.room = code; Net.id = 'host';
     if (!Net.hasPeerJS()) { status('Room codes unavailable here — use the manual invite below.'); cb && cb(false, 'no-peerjs'); return; }
     status('Opening room ' + code + '…');
-    const peer = new Peer(PREFIX + code, { debug: 0 });
+    const peer = new Peer(PREFIX + code, { debug: 0, config: ICE });
     Net.peer = peer;
     let opened = false;
     peer.on('open', () => { opened = true; status('Room ' + code + ' is open. Share the code!'); cb && cb(true); });
@@ -55,15 +66,15 @@
       const id = dc.peer;
       dc.on('open', () => { const c = wrap(id, (s) => dc.send(s), () => dc.close()); dc.on('data', (d) => c.receive(d)); dc.on('close', () => dropConn(id)); dc.on('error', () => dropConn(id)); addConn(c); });
     });
-    peer.on('error', (e) => { console.warn('peer error', e); if (!opened) { status('Could not reach the room server (' + (e.type || 'error') + '). Use the manual invite below.'); cb && cb(false, e.type); } });
+    peer.on('error', (e) => { console.warn('peer error', e); if (!opened) { status(Net.blockedHere() ? 'Room codes cannot connect from inside this preview — open the web version (link above) to host online.' : 'Could not reach the room server (' + (e.type || 'error') + '). Use the manual invite below.'); cb && cb(false, e.type); } });
     peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) { } });
-    setTimeout(() => { if (!opened) { status('Room server is slow or blocked — you can still use the manual invite below.'); cb && cb(false, 'timeout'); } }, 8000);
+    setTimeout(() => { if (!opened) { status(Net.blockedHere() ? 'Room codes cannot connect from inside this preview — open the web version (link above) to host online.' : 'Room server is slow or blocked — you can still use the manual invite below.'); cb && cb(false, 'timeout'); } }, Net.blockedHere() ? 3500 : 8000);
   };
   Net.join = function (code, cb) {
     Net.mode = 'client'; Net.room = code;
     if (!Net.hasPeerJS()) { status('Room codes unavailable here — ask the host for a manual invite.'); cb && cb(false, 'no-peerjs'); return; }
     status('Connecting to room ' + code + '…');
-    const peer = new Peer({ debug: 0 }); Net.peer = peer;
+    const peer = new Peer({ debug: 0, config: ICE }); Net.peer = peer;
     let done = false;
     peer.on('open', (myId) => {
       Net.id = myId;
@@ -71,8 +82,8 @@
       dc.on('open', () => { done = true; const c = wrap('host', (s) => dc.send(s), () => dc.close()); dc.on('data', (d) => c.receive(d)); dc.on('close', () => { dropConn('host'); status('Disconnected from host.'); }); addConn(c); status('Connected!'); cb && cb(true); });
       dc.on('error', (e) => { if (!done) { status('Connection failed: ' + e); cb && cb(false, 'conn'); } });
     });
-    peer.on('error', (e) => { if (!done) { status('Could not join (' + (e.type || 'error') + '). Check the code, or use a manual invite.'); cb && cb(false, e.type); } });
-    setTimeout(() => { if (!done) { status('Join timed out. Check the code or use a manual invite.'); cb && cb(false, 'timeout'); } }, 12000);
+    peer.on('error', (e) => { if (!done) { status(Net.blockedHere() ? 'Room codes cannot connect from inside this preview — open the web version (link above) to join.' : 'Could not join (' + (e.type || 'error') + '). Check the code, or use a manual invite.'); cb && cb(false, e.type); } });
+    setTimeout(() => { if (!done) { status(Net.blockedHere() ? 'Room codes cannot connect from inside this preview — open the web version (link above) to join.' : 'Join timed out. Check the code or use a manual invite.'); cb && cb(false, 'timeout'); } }, Net.blockedHere() ? 3500 : 12000);
   };
 
   // ---- manual WebRTC path (copy/paste offer & answer) ----

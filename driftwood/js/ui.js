@@ -45,6 +45,8 @@
     $('btn-join').onclick = () => { const code = $('joincode').value.trim().toUpperCase(); if (code.length < 5) return UI.status('Enter the 5-letter room code.'); $('btn-join').disabled = true; G.Main.join(name(), UI.color, code); };
     $('btn-solo').onclick = () => G.Main.solo(name(), UI.color, $('seed2').value.trim());
     $('btn-tut').onclick = () => G.Main.tutorialRun(name(), UI.color);
+    $('copylink').onclick = () => { const link = G.Net.inviteLink($('roomcode').textContent); if (!link) return UI.status('No public link for this copy of the game — share the code instead.'); const fail = () => UI.status('Copy failed — the link is ' + link); try { navigator.clipboard.writeText(link).then(() => UI.status('Invite link copied! Friends who open it land straight in your room.')).catch(fail); } catch (e) { fail(); } };
+    if (G.Net.blockedHere()) { const u = G.Net.hostedUrl(); const n = $('hostednote'); n.classList.remove('hidden'); n.innerHTML = '<b style="color:var(--acc)">Playing with friends?</b> This preview runs inside claude.ai, whose sandbox blocks the room server, so room codes cannot connect from here. ' + (u ? 'Open <a href="' + u + '" target="_blank" rel="noopener" style="color:var(--acc)">the web version</a> (same game, opens in a new tab) to host or join online' : 'Download the desktop app or the browser file from the Releases page to host or join online') + ' — or play solo right here.'; }
     $('copycode').onclick = () => { const code = $('roomcode').textContent; const fail = () => UI.status('Copy failed — the code is ' + code + ', type it to your friend.'); try { navigator.clipboard.writeText(code).then(() => UI.status('Code copied!')).catch(fail); } catch (e) { fail(); } };
     $('joincode').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-join').click(); });
     // manual signalling
@@ -55,6 +57,11 @@
     // hotbar / inventory grids
     const hb = $('hotbar'); for (let i = 0; i < 9; i++) hb.appendChild(mkSlot(i, true));
     const grid = $('invgrid'); for (let i = 0; i < 27; i++) grid.appendChild(mkSlot(i, false));
+    const cg = $('chestgrid'); for (let i = 0; i < 18; i++) cg.appendChild(mkChestSlot(i));
+    $('chest-takeall').onclick = () => { if (UI.chest !== null) G.Main.act({ a: 'takeall', i: UI.chest }); };
+    $('chest-stowall').onclick = () => { if (UI.chest !== null) G.Main.act({ a: 'stowall', i: UI.chest }); };
+    $('dropzone').onclick = () => { if (UI.drag !== null) { G.Main.act({ a: 'drop', slot: UI.drag, n: 0 }); clearDrag(); } };
+    $('inv').addEventListener('mouseleave', () => { UI.hoverSlot = null; });
     const arm = $('armor'); ['head', 'chest', 'legs', 'trinket'].forEach(s => { const d = document.createElement('div'); d.className = 'slot'; d.dataset.l = s; d.dataset.armor = s; const c = document.createElement('canvas'); c.width = 32; c.height = 32; d.appendChild(c); d.oncontextmenu = (e) => { e.preventDefault(); G.Main.act({ a: 'unequip', slot: s }); }; d.onclick = () => G.Main.act({ a: 'unequip', slot: s }); d.onmouseenter = () => { const V = G.Main.view(); const me = V && V.players[V.me]; if (me && me.armor[s]) tip(d, me.armor[s]); }; d.onmouseleave = hideTip; arm.appendChild(d); });
     // chat
     $('chatin').addEventListener('keydown', (e) => { if (e.key === 'Enter') { const v = $('chatin').value.trim(); if (v) G.Main.act({ a: 'chat', msg: v }); closeChat(); e.preventDefault(); } else if (e.key === 'Escape') { closeChat(); } e.stopPropagation(); });
@@ -67,6 +74,7 @@
       if (k === 'Escape' || k === B.menu) { if (UI.casOpen) { UI.casino(false); return true; } if (UI.open) { UI.toggleInv(false); return true; } if (!$('confirm').classList.contains('hidden')) { $('confirm').classList.add('hidden'); return true; } if (G.Main.started && !$('resume').classList.contains('hidden') && !UI.open) { UI.setResume(false); UI.paused = false; G.Input.lock(); return true; } if (G.Main.started && k !== 'Escape') { G.Input.unlock(); UI.setResume(true); return true; } }
       if (k === B.mute) { const m = G.Audio.toggleMute(); UI.toast(m ? 'Muted' : 'Sound on', ''); return true; }
       if (k === B.emote && G.Main.started) { G.Main.act({ a: 'emote' }); return true; }
+      if (k === B.drop && G.Main.started && !UI.casOpen) { const V = G.Main.view(); const me = V && V.players[V.me]; if (!me) return true; const slot = UI.open ? (UI.drag !== null ? UI.drag : UI.hoverSlot) : me.held; if (slot !== null && slot !== undefined && me.inv[slot]) { G.Main.act({ a: 'drop', slot, n: e.shiftKey ? 0 : 1 }); if (UI.drag === slot) clearDrag(); } return true; }
       if (UI.lastOffer && e.altKey && /^Digit[1-4]$/.test(e.code || '')) { G.Main.act({ a: 'pick', i: +e.code.slice(5) - 1 }); return true; } // physical key so Option+1 on macOS works too
       return false;
     };
@@ -230,11 +238,11 @@
     $('tut-body').innerHTML = (UI.tutStep > 0 ? '<div class="tstep done">✓ ' + UI.tutStep + ' of ' + T.length + ' done</div>' : '') + T.map((t, i) => (i < UI.tutStep || i > UI.tutStep + 2) ? '' : '<div class="tstep' + (i === UI.tutStep ? ' cur' : '') + '">' + (i + 1) + '. ' + (i === UI.tutStep ? fillKeys(t.txt) : fillKeys(t.txt.split('.')[0]) + '…') + '</div>').join('');
   };
   UI.renderHowto = function () { const b = G.Input.binds || {}; $('howto-body').innerHTML = '<ol>' + G.TUTORIAL.map(t => '<li>' + fillKeys(t.txt) + '</li>').join('') + '</ol>' +
-    '<h3>Controls</h3><div class="small">Look: mouse · Move: <b>' + [b.forward, b.left, b.back, b.right].map(keyName).join('') + '</b> · Sprint: <b>' + keyName(b.sprint) + '</b> · Jump: <b>' + keyName(b.jump) + '</b> · Dodge: <b>' + keyName(b.dodge) + '</b> · Attack: <b>LMB</b> (3-hit combos) · Heavy / draw bow / cast / block: <b>hold RMB</b> · Interact / revive: <b>' + keyName(b.interact) + '</b> · Eat: <b>' + keyName(b.eat) + '</b> · Inventory & crafting: <b>' + keyName(b.inventory) + '</b> · Hotbar: <b>1–9</b> · Chat: <b>Enter</b> · Ping: <b>' + keyName(b.ping) + '</b> · Emote: <b>' + keyName(b.emote) + '</b>. Rebind everything under Controls & settings.</div>' +
+    '<h3>Controls</h3><div class="small">Look: mouse · Move: <b>' + [b.forward, b.left, b.back, b.right].map(keyName).join('') + '</b> · Sprint: <b>' + keyName(b.sprint) + '</b> · Jump: <b>' + keyName(b.jump) + '</b> · Dodge: <b>' + keyName(b.dodge) + '</b> · Attack: <b>LMB</b> (3-hit combos) · Heavy / draw bow / cast / block: <b>hold RMB</b> · Interact / revive: <b>' + keyName(b.interact) + '</b> · Eat: <b>' + keyName(b.eat) + '</b> · Drop one / Shift: stack: <b>' + keyName(b.drop) + '</b> · Inventory & crafting: <b>' + keyName(b.inventory) + '</b> · Hotbar: <b>1–9</b> · Chat: <b>Enter</b> · Ping: <b>' + keyName(b.ping) + '</b> · Emote: <b>' + keyName(b.emote) + '</b>. Rebind everything under Controls & settings.</div>' +
     '<h3>The loop</h3><div class="small">Days are for gathering and crafting, nights bring waves and — from night 2 — a night boss. Every level and chest offers a pick-of-3 <b>boon</b>. Three altar guardians drop the gems that repair the ship; sailing summons the Leviathan. Lose or win, you earn <b>Shards</b> for permanent Camp upgrades and hats.</div>' +
-    '<h3>Multiplayer</h3><div class="small">One player hosts and shares the 5-letter room code; friends join from the lobby. Everything is shared: the island, the fire, the loot. Downed friends can be revived by holding <b>' + keyName(b.interact) + '</b> next to them.</div>' +
+    '<h3>Multiplayer</h3><div class="small">One player hosts and shares the 5-letter room code; friends join from the lobby. Everything is shared: the island, the fire, the loot. Downed friends can be revived by holding <b>' + keyName(b.interact) + '</b> next to them. Craft a <b>Storage Chest</b> (8 wood, 2 sticks) and place it at camp: everyone can stow and take from it.</div>' +
     '<h3>The Dealer\'s Table</h3><div class="small">Bet coins on slots, a dice duel, the Wheel of Fates or blackjack. Wins pay coins and <b>boons</b> (the same skills as chests), jackpots unlock <b>hats</b>, busts <b>hex</b> you. Sketchy items rig the next game in your favour.</div>'; };
-  UI.showHostInfo = (code) => { $('hostinfo').classList.remove('hidden'); $('roomcode').textContent = code; };
+  UI.showHostInfo = (code) => { $('hostinfo').classList.remove('hidden'); $('roomcode').textContent = code; const link = code && code !== '—' ? G.Net.inviteLink(code) : ''; $('invitelink').textContent = link ? 'Invite link: ' + link : ''; $('copylink').style.display = link ? '' : 'none'; };
   UI.setLobbyPlayers = (names) => { $('players').innerHTML = 'Players: ' + names.map(n => '<b style="color:' + n.col + '">' + esc(n.name) + '</b>').join(', '); };
   UI.enterGame = (seed) => { $('lobby').classList.add('hidden'); $('hud').classList.remove('hidden'); $('seedlbl').textContent = 'seed ' + seed + ' · v' + (window.__VERSION || 'dev'); };
   const esc = (s) => String(s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
@@ -268,17 +276,49 @@
     if (!hot) {
       d.onclick = (e) => {
         const V = G.Main.view(); const me = V && V.players[V.me]; if (!me) return;
-        if (e.shiftKey) { if (me.inv[i]) G.Main.act({ a: 'drop', slot: i }); return; }
-        if (UI.drag === null) { if (me.inv[i]) { UI.drag = i; d.classList.add('drag'); } }
+        if (UI.chest !== null && UI.drag === null && me.inv[i]) { G.Main.act({ a: 'stow', i: UI.chest, slot: i, n: e.shiftKey ? 0 : (e.ctrlKey || e.metaKey ? 1 : 0) }); return; } // a chest is open: clicking a bag slot stows it
+        if (e.shiftKey) { if (me.inv[i]) G.Main.act({ a: 'drop', slot: i, n: 0 }); return; }
+        if (e.ctrlKey || e.metaKey || e.altKey) { if (me.inv[i]) G.Main.act({ a: 'drop', slot: i, n: 1 }); return; }
+        if (UI.drag === null) { if (me.inv[i]) { UI.drag = i; d.classList.add('drag'); $('dropzone').classList.add('armed'); } }
         else { G.Main.act({ a: 'move', from: UI.drag, to: i }); clearDrag(); }
       };
       d.oncontextmenu = (e) => { e.preventDefault(); clearDrag(); G.Main.act({ a: 'equip', slot: i }); };
-      d.onmouseenter = () => { const V = G.Main.view(); const me = V && V.players[V.me]; if (me && me.inv[i]) tip(d, me.inv[i].id, me.inv[i]); };
-      d.onmouseleave = hideTip;
+      d.onmouseenter = () => { UI.hoverSlot = i; const V = G.Main.view(); const me = V && V.players[V.me]; if (me && me.inv[i]) tip(d, me.inv[i].id, me.inv[i]); };
+      d.onmouseleave = () => { if (UI.hoverSlot === i) UI.hoverSlot = null; hideTip(); };
     }
     return d;
   }
-  function clearDrag() { UI.drag = null; document.querySelectorAll('.slot.drag').forEach(x => x.classList.remove('drag')); }
+  function clearDrag() { UI.drag = null; document.querySelectorAll('.slot.drag').forEach(x => x.classList.remove('drag')); $('dropzone').classList.remove('armed'); }
+  // ---- storage chest panel ----
+  UI.chest = null; UI.chestAt = null; UI.hoverSlot = null; UI.lastChest = '';
+  function chestObj() { const w = G.Main.world; const o = UI.chest !== null && w ? w.objs.get(UI.chest) : null; return o && o.inv ? o : null; }
+  function mkChestSlot(j) {
+    const d = document.createElement('div'); d.className = 'slot'; d.dataset.c = j;
+    const c = document.createElement('canvas'); c.width = 32; c.height = 32; d.appendChild(c);
+    const n = document.createElement('span'); n.className = 'n'; d.appendChild(n);
+    d.onclick = (e) => { const o = chestObj(); if (!o || !o.inv[j]) return; clearDrag(); G.Main.act({ a: 'take', i: UI.chest, slot: j, n: (e.ctrlKey || e.metaKey) ? 1 : 0 }); };
+    d.oncontextmenu = (e) => { e.preventDefault(); const o = chestObj(); if (!o || !o.inv[j]) return; G.Main.act({ a: 'take', i: UI.chest, slot: j, n: 1 }); };
+    d.onmouseenter = () => { const o = chestObj(); if (o && o.inv[j]) tip(d, o.inv[j].id, o.inv[j]); };
+    d.onmouseleave = hideTip;
+    return d;
+  }
+  UI.openChest = function (i, ev) {
+    UI.chest = i; UI.chestAt = ev && ev.x !== undefined ? { x: ev.x, y: ev.y } : { x: (i % G.WORLD) + .5, y: Math.floor(i / G.WORLD) + .5 }; UI.lastChest = '';
+    $('chestcol').classList.remove('hidden'); $('inv-hint').textContent = '(click a bag slot to stow it · Shift-click stows the stack · right-click to use/equip · Tab to close)';
+    if (!UI.open) UI.toggleInv(true); else UI.refreshChest();
+    UI.fitInv();
+  };
+  // the bag + chest + crafting columns can be wider than a small window: scale the panel down to fit instead of letting the columns overlap
+  UI.fitInv = function () { const el = $('inv'); if (!UI.open) return; el.style.transform = 'translate(-50%, -50%)'; const w = el.offsetWidth || 1, h = el.offsetHeight || 1; const s = Math.min(1, (innerWidth - 16) / w, (innerHeight - 16) / h); el.style.transform = 'translate(-50%, -50%)' + (s < 1 ? ' scale(' + s.toFixed(3) + ')' : ''); };
+  window.addEventListener('resize', () => UI.fitInv());
+  UI.closeChest = function () { if (UI.chest === null) return; UI.chest = null; UI.chestAt = null; $('chestcol').classList.add('hidden'); UI.fitInv(); $('inv-hint').textContent = '(click to move · right-click to use/equip · Shift-click drops the stack · Ctrl-click drops one · Tab to close)'; };
+  UI.refreshChest = function () {
+    if (UI.chest === null) return; const o = chestObj();
+    if (!o) { UI.closeChest(); return; }
+    const key = JSON.stringify(o.inv); if (key === UI.lastChest) return; UI.lastChest = key;
+    const g = $('chestgrid').children; for (let j = 0; j < g.length; j++) drawSlot(g[j], o.inv[j] || null);
+    $('chest-used').textContent = '(' + o.inv.filter(Boolean).length + '/' + o.inv.length + ' slots)';
+  };
   function tip(el, id, inst) {
     const d = I[id]; if (!d) return; const t = $('tip'); let s = '<b style="color:' + (inst && (inst.aff || inst.q >= 3) ? G.RARITY_COL[inst.q || 0] : (d.unique ? G.RARITY_COL[3] : 'var(--acc)')) + '">' + (inst ? G.itemName(inst) : d.name) + '</b>';
     if (inst && inst.aff) for (const a of inst.aff) s += '<div style="color:' + G.AFFIX[a].col + '">' + G.AFFIX[a].name + ': ' + G.AFFIX[a].desc + '</div>';
@@ -308,8 +348,8 @@
   }
   UI.toggleInv = function (force) {
     UI.open = force === undefined ? !UI.open : force;
-    $('inv').classList.toggle('hidden', !UI.open); clearDrag(); hideTip();
-    if (UI.open) { UI.lastInv = ''; UI.refreshCraft(true); G.Input.unlock(); UI.setResume(false); }
+    $('inv').classList.toggle('hidden', !UI.open); clearDrag(); hideTip(); if (!UI.open) UI.closeChest(); $('dropzone').classList.toggle('hidden', !UI.open); $('dropzone-key').textContent = G.Input.keyName(G.Input.binds.drop || 'x');
+    if (UI.open) { UI.lastInv = ''; UI.refreshCraft(true); G.Input.unlock(); UI.setResume(false); UI.fitInv(); }
     else if (G.Main.started) { G.Input.lock(); }
   };
   UI.setResume = function (show) { $('resume').classList.toggle('hidden', !show); UI.paused = show && G.Main.mode === 'host' && G.Net.count() === 0; $('resume-title').textContent = UI.paused ? 'Paused' : (G.Main.started ? 'Menu — the island keeps turning' : 'Click to play'); };
@@ -349,6 +389,7 @@
     if (pwKey !== UI.lastPw) { UI.lastPw = pwKey; const w = $('pws'); w.innerHTML = ''; for (const k in me.pw) { const d = document.createElement('div'); d.className = 'pwicon'; d.title = G.PW[k].name + ': ' + G.PW[k].desc; const c = document.createElement('canvas'); c.width = 16; c.height = 16; c.getContext('2d').drawImage(G.Sprites.powerup(k), 0, 0); d.appendChild(c); const s = document.createElement('span'); s.textContent = me.pw[k] > 1 ? me.pw[k] : ''; d.appendChild(s); w.appendChild(d); } }
     $('buffs').textContent = me.buffs.map(b => (I[b.id] ? I[b.id].name : b.id === 'hex' ? 'HEXED −15% dmg' : b.id) + ' ' + G.fmtTime(b.t)).join(' · ');
     if (UI.casOpen && UI.casAt && G.dist(me.x, me.y, UI.casAt.x, UI.casAt.y) > 4) UI.casino(false);
+    if (UI.chest !== null) { if (UI.chestAt && G.dist(me.x, me.y, UI.chestAt.x, UI.chestAt.y) > 4.5) UI.closeChest(); else UI.refreshChest(); }
     // clock
     const t = V.time; const phase = t < G.DUSK_AT ? 'Day' : t < G.NIGHT_AT ? 'Dusk' : 'Night';
     $('clock').querySelector('.day').textContent = 'Day ' + V.day + ' — ' + phase;

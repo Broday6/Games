@@ -13,7 +13,12 @@ biome guardians for their gems, repair the shipwreck and kill what rises when yo
 
 ### Play
 
-Open `driftwood/index.html` from any static host (see *Hosting* below). No install.
+**Play online:** <https://broday6.github.io/Games/driftwood/> — this is the copy to use for multiplayer.
+Or open `driftwood/index.html` from any static host (see *Hosting* below). No install.
+
+> The claude.ai artifact preview of the game runs in a sandbox that blocks the room server, so **room codes only
+> connect from the hosted link above, the downloaded `Driftwood-browser.html`, or the desktop app**. The preview's
+> lobby says so and links out.
 
 | Key | Action |
 |---|---|
@@ -24,6 +29,8 @@ Open `driftwood/index.html` from any static host (see *Hosting* below). No insta
 | **RMB** | draw bow (hold, release to fire) · raise shield (block; block in the first instant to parry) |
 | **E** | interact: open chest, use altar, deposit at the ship, open/close door · **hold E** near a downed friend to revive |
 | **F** | quick-eat the best food you carry |
+| **X** | drop one of the held item (**Shift+X** the whole stack; in the bag, **Ctrl-click** drops one, **Shift-click** the stack, or drag a stack onto the drop bar). Your own drops wait on the ground until you walk away once, so they don't snap straight back into your bag |
+| **E** at a Storage Chest | open it — click bag slots to stow, chest slots to take, **Take all** / **Stow matching** buttons. Craft one from 8 wood + 2 sticks; the whole party shares it and it spills its contents when broken |
 | **1–9** / wheel | hotbar · **Tab** or **I** inventory + crafting (**Shift-click** a recipe crafts 5, **Sort bag** merges and orders your stacks) · **Enter** chat · **T** ping · **M** mute |
 
 **The loop:** gather → craft a workbench → tools → furnace (iron bars) → anvil (iron/gold/obsidian gear). Gathering is quick: a tree or rock takes about 5 hits with the matching tier-1 tool (10 with fists), higher tiers fewer; ore veins need a pickaxe of their tier.
@@ -46,7 +53,8 @@ lobby to replay an island.
 
 Host-authoritative peer-to-peer over WebRTC — **no game server**.
 
-1. Host clicks **Create room**, shares the 5-letter code (or the link `…/index.html?room=CODE`).
+1. Host clicks **Create room**, then **Copy invite link** (or shares the 5-letter code). The link is
+   `https://broday6.github.io/Games/driftwood/?room=CODE`; opening it lands a friend in the Join tab with the code filled in.
 2. Friends enter the code under **Join a friend**. Up to 4 players. Friends can join mid-run.
 3. If the room server is unreachable (corporate network, blocked WebSocket…), expand **Manual invite**:
    host clicks *Make invite* and sends the text to the friend (Discord etc.), the friend pastes it,
@@ -54,7 +62,8 @@ Host-authoritative peer-to-peer over WebRTC — **no game server**.
    third party at all.
 
 Room codes use the free public [PeerJS](https://peerjs.com) signalling server only for the handshake; all
-game traffic is direct between browsers.
+game traffic is direct between browsers. Google STUN plus the free Open Relay TURN servers are configured, so players
+behind strict NATs (phone hotspots, campus networks) still connect — through the relay if a direct path cannot be found.
 
 ### Download (desktop game)
 
@@ -76,9 +85,12 @@ share the 5-letter room code, friends join — the networking library is bundled
 
 It is a static site — anything that serves files works.
 
-**GitHub Pages (recommended, free):** in this repo go to *Settings → Pages*, set *Source* to
-"Deploy from a branch", pick the branch and the `/ (root)` folder, save. A minute later the game is at
-`https://<user>.github.io/<repo>/driftwood/`. Nothing else to configure — multiplayer needs no backend.
+**GitHub Pages (recommended, free):** `.github/workflows/pages.yml` deploys on every push. It uses the official
+Pages actions when Pages is enabled and otherwise publishes a `gh-pages` branch, which GitHub serves automatically for
+public repos. If the site still does not appear, enable it once under *Settings → Pages* (Source: "Deploy from a
+branch", `gh-pages`, `/ (root)` — or "GitHub Actions"). The game is then at `https://<user>.github.io/<repo>/driftwood/`
+and the single-file build at `…/Driftwood-browser.html`. Nothing else to configure — multiplayer needs no backend.
+`node build.js` bakes the public URL into the bundle for invite links; override it with `DRIFTWOOD_URL=https://… node build.js`.
 
 **Single file:** `cd driftwood && node build.js` writes `dist/driftwood.html`, one self-contained page
 you can drop on any host (Netlify drop, itch.io, a USB stick…).

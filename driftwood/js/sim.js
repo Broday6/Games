@@ -137,10 +137,49 @@
   };
 
   // ---------------- drops ----------------
-  Sim.spawnDrop = function (S, item, n, x, y) {
+  Sim.spawnDrop = function (S, item, n, x, y, ex) {
     const a = Math.random() * Math.PI * 2, sp = 0.8 + Math.random() * 1.2;
-    S.drops.push({ id: G.uid(), item, n, x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: 0 });
+    const d = { id: G.uid(), item, n, x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: 0 };
+    if (ex) { if (ex.aff && ex.aff.length) { d.aff = ex.aff; d.q = ex.q || 0; } if (ex.owner) { d.owner = ex.owner; d.away = false; } if (ex.vx !== undefined) { d.vx = ex.vx; d.vy = ex.vy; } }
+    S.drops.push(d); return d;
   };
+  // Throw part of an inventory stack out in front of the player. The drop remembers who threw it and will not be
+  // magneted back until that player has walked away once, so dropping at your feet actually leaves the item there.
+  Sim.dropSlot = function (S, p, slot, n) {
+    const s = p.inv[slot | 0]; if (!s) return;
+    const take = n > 0 ? Math.min(n, s.n) : s.n;
+    const sp = 4.5, ox = Math.cos(p.face), oy = Math.sin(p.face);
+    Sim.spawnDrop(S, s.id, take, p.x + ox * 0.5, p.y + oy * 0.5, { aff: s.aff, q: s.q, owner: p.id, vx: ox * sp, vy: oy * sp });
+    s.n -= take; if (s.n <= 0) p.inv[slot | 0] = null;
+    Sim.ev(S, { t: 'sfx', n: 'swing', x: p.x, y: p.y, to: p.id });
+  };
+  Sim.spillStorage = function (S, o, x, y) { if (o && o.inv) for (const s of o.inv) if (s) Sim.spawnDrop(S, s.id, s.n, x, y, { aff: s.aff, q: s.q }); };
+  // ---- storage chests ----
+  Sim.storageAt = function (S, p, i) { const o = S.world.objs.get(i | 0); if (!o || !O[o.t].storage || !o.inv) return null; if (G.dist(p.x, p.y, (i % G.WORLD) + .5, Math.floor(i / G.WORLD) + .5) > 4) return null; return o; };
+  Sim.stow = function (S, p, i, slot, n) {
+    const o = Sim.storageAt(S, p, i); const s = p.inv[slot | 0]; if (!o || !s) return;
+    let left = n > 0 ? Math.min(n, s.n) : s.n; const want = left;
+    if (s.aff && s.aff.length) { const k = o.inv.indexOf(null); if (k < 0) return Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: 'chest is full', c: '#ff8080', to: p.id }); o.inv[k] = { id: s.id, n: 1, aff: s.aff, q: s.q || 0 }; left = 0; }
+    else {
+      const max = G.STACK(s.id);
+      for (let k = 0; k < o.inv.length && left > 0; k++) { const c = o.inv[k]; if (c && c.id === s.id && !c.aff && c.n < max) { const a = Math.min(max - c.n, left); c.n += a; left -= a; } }
+      for (let k = 0; k < o.inv.length && left > 0; k++) if (!o.inv[k]) { const a = Math.min(max, left); o.inv[k] = { id: s.id, n: a }; left -= a; }
+      if (left === want) return Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: 'chest is full', c: '#ff8080', to: p.id });
+    }
+    const moved = want - left; s.n -= moved; if (s.n <= 0) p.inv[slot | 0] = null;
+    G.setObj(S.world, i | 0, o); Sim.ev(S, { t: 'sfx', n: 'equip', x: p.x, y: p.y, to: p.id });
+  };
+  Sim.takeOut = function (S, p, i, slot, n) {
+    const o = Sim.storageAt(S, p, i); if (!o) return; const c = o.inv[slot | 0]; if (!c) return;
+    const want = n > 0 ? Math.min(n, c.n) : c.n;
+    const left = Sim.give(p, c.id, want, c.aff, c.q); const moved = want - left;
+    if (moved <= 0) return Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: 'bag is full', c: '#ff8080', to: p.id });
+    c.n -= moved; if (c.n <= 0) o.inv[slot | 0] = null;
+    G.setObj(S.world, i | 0, o); Sim.ev(S, { t: 'sfx', n: 'pickup', x: p.x, y: p.y, to: p.id });
+  };
+  Sim.takeAll = function (S, p, i) { const o = Sim.storageAt(S, p, i); if (!o) return; let any = false; for (let k = 0; k < o.inv.length; k++) { const c = o.inv[k]; if (!c) continue; const left = Sim.give(p, c.id, c.n, c.aff, c.q); if (left < c.n) any = true; if (left <= 0) o.inv[k] = null; else c.n = left; } if (!any) return Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: 'bag is full', c: '#ff8080', to: p.id }); G.setObj(S.world, i | 0, o); Sim.ev(S, { t: 'sfx', n: 'pickup', x: p.x, y: p.y, to: p.id }); };
+  // Quick stack: every bag stack (not the hotbar) whose item is already in the chest goes in
+  Sim.stowMatching = function (S, p, i) { const o = Sim.storageAt(S, p, i); if (!o) return; const have = new Set(o.inv.filter(Boolean).map(c => c.id)); for (let k = HOTBAR; k < INV; k++) { const s = p.inv[k]; if (s && !s.aff && have.has(s.id)) Sim.stow(S, p, i, k, 0); } };
   Sim.dropWeapon = function (S, roll, x, y) { const a = Math.random() * Math.PI * 2; S.drops.push({ id: G.uid(), item: roll.id, n: 1, aff: roll.aff && roll.aff.length ? roll.aff : null, q: roll.q, x, y, vx: Math.cos(a), vy: Math.sin(a), t: 0 }); Sim.ev(S, { t: 'boom', x, y, r: 0.6, c: G.RARITY_COL[roll.q] }); };
   // ---- XP, levels, boon offers (Hades-style pick of 3) ----
   Sim.giveXp = function (S, p, n) {
@@ -322,7 +361,11 @@
     switch (a.a) {
       case 'held': if (a.slot >= 0 && a.slot < HOTBAR) { p.held = a.slot; p.draw = 0; } break;
       case 'move': { const f = a.from | 0, t = a.to | 0; if (f >= 0 && f < INV && t >= 0 && t < INV && f !== t) { const A = p.inv[f], B = p.inv[t]; if (A && B && A.id === B.id && G.STACK(A.id) > 1) { const mv = Math.min(G.STACK(A.id) - B.n, A.n); B.n += mv; A.n -= mv; if (A.n <= 0) p.inv[f] = null; } else { p.inv[f] = B; p.inv[t] = A; } } break; }
-      case 'drop': { const s = p.inv[a.slot | 0]; if (s) { Sim.spawnDrop(S, s.id, s.n, p.x + Math.cos(p.face), p.y + Math.sin(p.face)); p.inv[a.slot | 0] = null; } break; }
+      case 'drop': Sim.dropSlot(S, p, a.slot | 0, a.n | 0); break;
+      case 'stow': Sim.stow(S, p, a.i | 0, a.slot | 0, a.n | 0); break;
+      case 'take': Sim.takeOut(S, p, a.i | 0, a.slot | 0, a.n | 0); break;
+      case 'takeall': Sim.takeAll(S, p, a.i | 0); break;
+      case 'stowall': Sim.stowMatching(S, p, a.i | 0); break;
       case 'eat': Sim.eat(S, p, a.slot | 0); break;
       case 'equip': Sim.equip(S, p, a.slot | 0); break;
       case 'unequip': { const it = p.armor[a.slot]; if (it && Sim.give(p, it, 1) === 0) p.armor[a.slot] = null; break; }
@@ -456,10 +499,10 @@
       for (const id in S.players) { const q = S.players[id]; if (Math.floor(q.x) === tx && Math.floor(q.y) === ty) return; }
       for (const e of S.enemies) if (!e.dead && Math.floor(e.x) === tx && Math.floor(e.y) === ty) return;
     }
-    const free = ['workbench', 'campfire', 'torch'];
+    const free = ['workbench', 'campfire', 'torch', 'storage'];
     if (!free.includes(d.obj) && !Sim.nearStation(S, p, 'workbench', 8)) return Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: 'needs a workbench nearby', c: '#ff8080', to: p.id });
     Sim.take(p, item, 1);
-    const o = { t: d.obj, hp: od.hp }; if (od.door) o.closed = true;
+    const o = { t: d.obj, hp: od.hp }; if (od.door) o.closed = true; if (od.storage) o.inv = new Array(od.storage).fill(null);
     if (od.floor) { G.setObj(w, i, o); w.tiles[i] = T.WATER; Sim.ev(S, { t: 'tile', i, v: T.WATER }); } else G.setObj(w, i, o);
     if (S.tutHold && d.obj === 'campfire') { S.tutHold = false; Sim.ev(S, { t: 'chat', sys: true, msg: 'The fire is lit — the day begins. Dusk comes in a few minutes; gather food and stay near the light tonight.' }); }
     if (od.light) Sim.rebuildLights(S);
@@ -471,12 +514,13 @@
     let best = null, bd = 2.2;
     for (let y = Math.floor(p.y - 2); y <= p.y + 2; y++) for (let x = Math.floor(p.x - 2); x <= p.x + 2; x++) {
       const o = w.objs.get(G.idx(x, y)); if (!o) continue; const d = O[o.t];
-      if (!(d.isChest || d.altar || d.boat || d.door || d.casino)) continue;
+      if (!(d.isChest || d.altar || d.boat || d.door || d.casino || d.storage)) continue;
       const dd = G.dist(p.x, p.y, x + .5, y + .5); if (dd < bd) { bd = dd; best = { o, d, x, y, i: G.idx(x, y) }; }
     }
     if (!best) return;
     const { o, d, x, y, i } = best;
     if (d.casino) { Sim.ev(S, { t: 'casino', to: p.id, x: x + .5, y: y + .5 }); Sim.ev(S, { t: 'sfx', n: 'chest', x: x + .5, y: y + .5 }); return; }
+    if (d.storage) { if (!o.inv) { o.inv = new Array(d.storage).fill(null); G.setObj(w, i, o); } Sim.ev(S, { t: 'storage', to: p.id, i, x: x + .5, y: y + .5 }); Sim.ev(S, { t: 'sfx', n: 'chest', x: x + .5, y: y + .5 }); return; }
     if (d.door) { o.closed = !o.closed; G.setObj(w, i, o); Sim.ev(S, { t: 'sfx', n: 'door', x: x + .5, y: y + .5 }); return; }
     if (d.isChest) {
       const cost = o.free ? 0 : Math.round(d.cost * (1 + (S.day - 1) * 0.25) * Sim.stats(p).chestDisc * (S.nev === 'bounty' ? 0.5 : 1));
@@ -608,6 +652,7 @@
     // pickup
     for (let i = S.drops.length - 1; i >= 0; i--) {
       const dr = S.drops[i]; const dd = G.dist(dr.x, dr.y, p.x, p.y);
+      if (dr.owner === p.id && !dr.away) { if (dd > st.pickup + 2 || dr.t > 20) dr.away = true; continue; } // your own drop waits until you have walked away once
       if (dd < st.pickup + 1.5 && dr.t > 0.3) { // drops are pulled in from a little further than the pickup radius so you never have to double back for a stick
         if (dd > 0.5) { const a = G.angleTo(dr.x, dr.y, p.x, p.y); dr.x += Math.cos(a) * dt * 9; dr.y += Math.sin(a) * dt * 9; continue; }
         if (dr.item === 'coin') { p.coins += dr.n; S.drops.splice(i, 1); Sim.ev(S, { t: 'sfx', n: 'coin', x: p.x, y: p.y, to: p.id }); }
@@ -659,7 +704,7 @@
       Sim.ev(S, { t: 'wobble', i }); Sim.ev(S, { t: 'hitstop', to: p.id });
       if (o.hp <= 0) {
         const tx = (i % G.WORLD) + .5, ty = Math.floor(i / G.WORLD) + .5;
-        if (od.built) { const itemId = Object.keys(I).find(k => I[k].type === 'place' && I[k].obj === o.t); if (itemId) Sim.spawnDrop(S, itemId, 1, tx, ty); if (od.floor) { w.tiles[i] = T.WATER; } }
+        if (od.built) { const itemId = Object.keys(I).find(k => I[k].type === 'place' && I[k].obj === o.t); if (itemId) Sim.spawnDrop(S, itemId, 1, tx, ty); Sim.spillStorage(S, o, tx, ty); if (od.floor) { w.tiles[i] = T.WATER; } }
         else Sim.dropLoot(S, od.drops, tx, ty, 1 + 0.2 * (p.pw.scavenger || 0));
         if (od.regrow) G.setObj(w, i, { t: o.t, hp: od.hp, grow: od.regrow, stub: true }); else G.setObj(w, i, null);
         if (od.light) Sim.rebuildLights(S);
@@ -701,7 +746,7 @@
       for (let s = 0; s < sub && !dead; s++) {
         pr.x += pr.vx * sdt; pr.y += pr.vy * sdt;
         const o = w.objs.get(G.idx(pr.x, pr.y));
-        if (!G.inWorld(pr.x, pr.y) || (o && O[o.t].solid && !O[o.t].tall && !O[o.t].floor)) { dead = true; if (pr.owner && pr.type !== 'arrow') { Sim.explode(S, pr); break; } if (o && O[o.t].built && pr.type !== 'arrow') { o.hp -= pr.dmg * 0.5; if (o.hp <= 0) G.setObj(w, G.idx(pr.x, pr.y), null); else G.setObj(w, G.idx(pr.x, pr.y), o); } break; }
+        if (!G.inWorld(pr.x, pr.y) || (o && O[o.t].solid && !O[o.t].tall && !O[o.t].floor)) { dead = true; if (pr.owner && pr.type !== 'arrow') { Sim.explode(S, pr); break; } if (o && O[o.t].built && pr.type !== 'arrow') { o.hp -= pr.dmg * 0.5; if (o.hp <= 0) { Sim.spillStorage(S, o, Math.floor(pr.x) + .5, Math.floor(pr.y) + .5); G.setObj(w, G.idx(pr.x, pr.y), null); } else G.setObj(w, G.idx(pr.x, pr.y), o); } break; }
         if (pr.type === 'arrow') {
           for (const e of S.enemies) { if (e.dead || e.hidden || e.owner || (pr.hitIds && pr.hitIds.includes(e.id))) continue; if (G.dist(e.x, e.y, pr.x, pr.y) < e.r + pr.r) { Sim.hitEnemy(S, e, pr.dmg, S.players[pr.owner], { kb: 3, poison: pr.poison }); (pr.hitIds || (pr.hitIds = [])).push(e.id); if (pr.pierce > 0) pr.pierce--; else dead = true; break; } }
         } else if (pr.owner) { // player spell: explodes on contact
