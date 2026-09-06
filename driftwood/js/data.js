@@ -42,6 +42,7 @@
   food('bread', 'Bread', '#d9a862', 22, 8, { stam: 25, dur: 180 });
   food('stew', 'Hearty Stew', '#a05a3a', 40, 20, { hp: 40, stam: 20, dur: 300 });
   food('wheat', 'Wheat', '#d8c25a', 3, 0);
+  food('bandage', 'Bandage', '#f0e8d8', 0, 16); I.bandage.desc = 'Field dressing: heals 16 HP, no food value.';
   const TIERS = ['wood', 'stone', 'iron', 'gold', 'obsidian'];
   const TIERCOL = ['#a0702e', '#9a9ca1', '#c8c8d0', '#ffd24a', '#7a5aa0'];
   const TNAME = ['Wooden', 'Stone', 'Iron', 'Golden', 'Obsidian'];
@@ -161,7 +162,7 @@
   // ---- recipes ----
   const R = [];
   const rec = (out, n, needs, station) => R.push({ out, n, needs, station: station || null });
-  rec('stick', 4, { wood: 1 }); rec('rope', 1, { fiber: 3 }); rec('torch_hand', 2, { stick: 1, coal: 1 });
+  rec('stick', 4, { wood: 1 }); rec('rope', 1, { fiber: 3 }); rec('bandage', 1, { fiber: 2, stick: 1 }); rec('torch_hand', 2, { stick: 1, coal: 1 });
   rec('torch_hand', 1, { stick: 1, wood: 1 });
   rec('axe_wood', 1, { wood: 5, stick: 2 }); rec('pick_wood', 1, { wood: 5, stick: 2 }); rec('sword_wood', 1, { wood: 6, stick: 1 });
   rec('workbench', 1, { wood: 10, stone: 4 });
@@ -359,7 +360,10 @@
     slotsBets: [10, 25, 50, 100], diceBets: [10, 25, 50, 100], bjBets: [10, 25, 50, 100], wheelBets: [30, 60, 120],
     // wheel segments per bet tier: [common boon, rare boon, epic boon, legendary boon, coins x3, bust]
     wheel: [[0.40, 0.18, 0.04, 0.00, 0.14, 0.24], [0.30, 0.28, 0.10, 0.02, 0.12, 0.18], [0.18, 0.30, 0.20, 0.06, 0.10, 0.16]],
-    wheelNames: ['Common boon', 'Rare boon', 'Epic boon', 'Legendary boon', 'Coins ×3', 'BUST — hexed'],
+    wheelNames: ['Common boon', 'Rare boon', 'Epic boon', 'Legendary boon', 'Coins', 'BUST — hexed'],
+    wheelCoin: [5, 6, 8], // the coins segment pays more on the tiers where it is rarer
+    // slots pay by rarity: three cherries are common (2.7%) and pay ×5, three sevens are 1-in-4600 and pay ×250
+    pay3: { cherry: 3, bell: 8, bar: 20, star: 50, seven: 200 }, pay2: { cherry: 0.5, bell: 1, bar: 2, star: 3, seven: 8 }, // tuned to ~91% return on coins; boons and the hat come on top
     hex: { atk: -0.15, dur: 120 },
     // one-use odds riggers sold at the table (inspired by casino party games' 'sketchy items')
     rigs: [
@@ -369,5 +373,9 @@
       { id: 'peek', name: "Dealer's Peek", cost: 50, desc: 'see the dealer\'s hidden blackjack card next hand' },
     ],
   };
+  // dice bets: exact probabilities from every 2d6-vs-2d6 outcome; payouts are ~92% return / probability so the long shots pay the most
+  G.DICE_MODES = [{ id: 'beat', name: 'Beat the dealer', desc: 'your total beats the dealer\'s (ties push)' }, { id: 'high', name: 'Win by 4+', desc: 'beat the dealer by four or more' }, { id: 'double', name: 'Doubles', desc: 'your two dice match' }, { id: 'boxcars', name: 'Boxcars', desc: 'you roll 6 + 6' }];
+  (function () { const c = { beat: 0, high: 0, double: 0, boxcars: 0, push: 0 }; let n = 0; for (let a = 1; a <= 6; a++) for (let b = 1; b <= 6; b++) for (let x = 1; x <= 6; x++) for (let y = 1; y <= 6; y++) { n++; const m = a + b, d = x + y; if (m > d) c.beat++; if (m - d >= 4) c.high++; if (m === d) c.push++; if (a === b) c.double++; if (a === 6 && b === 6) c.boxcars++; }
+    for (const md of G.DICE_MODES) { md.p = c[md.id] / n; md.pay = Math.max(2, Math.round(0.92 / md.p * 2) / 2); } G.DICE_MODES[0].push = c.push / n; })();
   G.PLAYER_COLORS = ['#ff5a5a', '#5aa0ff', '#5aff8a', '#ffd25a', '#d05aff', '#5affff', '#ff9a5a', '#ffffff'];
 })(window.G);

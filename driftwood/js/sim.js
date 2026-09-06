@@ -364,29 +364,33 @@
       if (p.rig.chip && isLoss(reels)) { delete p.rig.chip; used = 'chip'; reels = [weightedSymbol(), weightedSymbol(), weightedSymbol()]; }
       const [a1, b1, c1] = reels; let win = 0, msg = '', boon = -1, hex = 0, hat = false;
       if (a1 === b1 && b1 === c1) {
-        if (a1 === 'seven') { win = bet * 20; boon = 2; hat = true; msg = 'JACKPOT! Triple seven'; bigWin(S, p, 'hit the JACKPOT on the slots!'); }
+        if (a1 === 'seven') { win = bet * CAS.pay3.seven; boon = 2; hat = true; msg = 'JACKPOT! Triple seven pays ×' + CAS.pay3.seven; bigWin(S, p, 'hit the JACKPOT on the slots!'); }
         else if (a1 === 'skull') { win = 0; hex = 120; msg = 'Three skulls… the table takes its due'; }
-        else { win = bet * 6; boon = a1 === 'star' ? 1 : 0; msg = 'Three of a kind!'; }
+        else { win = Math.round(bet * CAS.pay3[a1]); boon = a1 === 'star' ? 1 : a1 === 'bar' ? 0 : -1; msg = 'Three of a kind — pays ×' + CAS.pay3[a1] + (boon >= 0 ? ' and a boon' : ''); if (a1 === 'star') bigWin(S, p, 'lined up three stars on the slots!'); }
       } else if (a1 === b1 || b1 === c1 || a1 === c1) {
         const pair = a1 === b1 ? a1 : b1 === c1 ? b1 : a1;
-        if (pair === 'skull') { win = 0; hex = 45; msg = 'A pair of skulls — hexed'; } else if (pair === 'seven') { win = bet * 4; msg = 'Two sevens!'; } else { win = bet * 2; msg = 'A pair — double your bet'; }
+        if (pair === 'skull') { win = 0; hex = 45; msg = 'A pair of skulls — hexed'; } else { win = Math.round(bet * CAS.pay2[pair]); msg = 'A pair — pays ×' + CAS.pay2[pair]; }
       } else msg = 'No luck. The reels mock you.';
       p.coins += win; if (hex) hexPlayer(S, p, hex); if (boon >= 0) Sim.offerPerks(S, p, boon, 'Slots'); if (hat) unlockHat(S, p);
       return gres(S, p, { g, bet, reels, win, msg: (used ? 'Lucky Chip re-spin! ' : '') + msg, boon, hex, used });
     }
     if (g === 'dice') {
       const d6 = () => 1 + Math.floor(Math.random() * 6); const mine = [d6(), d6()], dealer = [d6(), d6()]; let used = null; let bonus = 0; if (p.rig.dice) { delete p.rig.dice; used = 'dice'; bonus = 2; } const ms = mine[0] + mine[1] + bonus, ds = dealer[0] + dealer[1]; let win = 0, msg = used ? 'Loaded dice (+2)! ' : '', boon = -1, hex = 0;
-      if (ms > ds) { win = bet * 2; msg += 'You out-roll the dealer'; } else if (ms === ds) { win = bet; msg += 'Push — bet returned'; } else msg += 'The dealer wins';
+      const mode = G.DICE_MODES.find(m => m.id === a.mode) || G.DICE_MODES[0]; const pay = mode.pay;
+      if (mode.id === 'beat') { if (ms > ds) { win = bet * pay; msg += 'You out-roll the dealer — ×' + pay; } else if (ms === ds) { win = bet; msg += 'Push — bet returned'; } else msg += 'The dealer wins'; }
+      else if (mode.id === 'high') { if (ms - ds >= 4) { win = bet * pay; msg += 'Crushed the dealer by ' + (ms - ds) + ' — ×' + pay; } else msg += ms > ds ? 'You win, but not by four' : 'The dealer holds'; }
+      else if (mode.id === 'double') { if (mine[0] === mine[1]) { win = bet * pay; msg += 'Doubles! ×' + pay; } else msg += 'No doubles'; }
+      else { if (mine[0] === 6 && mine[1] === 6) { win = bet * pay; msg += 'BOXCARS! ×' + pay; bigWin(S, p, 'rolled boxcars at the Dice Duel!'); } else msg += 'Not boxcars'; }
       if (mine[0] === 6 && mine[1] === 6) { boon = 0; msg += ' — BOXCARS! A boon is yours'; } if (mine[0] === 1 && mine[1] === 1) { hex = 60; msg += ' — snake eyes, hexed'; }
       p.coins += win; if (hex) hexPlayer(S, p, hex); if (boon >= 0) Sim.offerPerks(S, p, boon, 'Dice Duel');
-      return gres(S, p, { g, bet, mine, dealer, win, msg, boon, hex, used, bonus });
+      return gres(S, p, { g, bet, mine, dealer, win, msg, boon, hex, used, bonus, mode: mode.id });
     }
     if (g === 'wheel') {
       const tier = CAS.wheelBets.indexOf(bet); const odds = CAS.wheel[tier]; let r = Math.random(), seg = odds.length - 1; for (let i = 0; i < odds.length; i++) { r -= odds[i]; if (r <= 0) { seg = i; break; } }
       let win = 0, msg = CAS.wheelNames[seg], boon = -1, hex = 0, used = null;
       if (seg === 5 && p.rig.statue) { delete p.rig.statue; used = 'statue'; seg = 0; msg = 'Holy Statue saves you — common boon instead of a bust'; }
       if (seg <= 3) { boon = seg; Sim.offerPerks(S, p, seg, 'Wheel of Fates'); if (seg === 3) bigWin(S, p, 'spun a LEGENDARY boon on the Wheel of Fates!'); }
-      else if (seg === 4) { win = bet * 3; } else { hex = CAS.hex.dur; hexPlayer(S, p, hex); }
+      else if (seg === 4) { win = bet * CAS.wheelCoin[tier]; msg = 'Coins ×' + CAS.wheelCoin[tier]; } else { hex = CAS.hex.dur; hexPlayer(S, p, hex); }
       p.coins += win;
       return gres(S, p, { g, bet, seg, win, msg, boon, hex, used });
     }
@@ -604,7 +608,7 @@
     // pickup
     for (let i = S.drops.length - 1; i >= 0; i--) {
       const dr = S.drops[i]; const dd = G.dist(dr.x, dr.y, p.x, p.y);
-      if (dd < st.pickup && dr.t > 0.3) {
+      if (dd < st.pickup + 1.5 && dr.t > 0.3) { // drops are pulled in from a little further than the pickup radius so you never have to double back for a stick
         if (dd > 0.5) { const a = G.angleTo(dr.x, dr.y, p.x, p.y); dr.x += Math.cos(a) * dt * 9; dr.y += Math.sin(a) * dt * 9; continue; }
         if (dr.item === 'coin') { p.coins += dr.n; S.drops.splice(i, 1); Sim.ev(S, { t: 'sfx', n: 'coin', x: p.x, y: p.y, to: p.id }); }
         else { const left = Sim.give(p, dr.item, dr.n, dr.aff, dr.q); if (left < dr.n) { Sim.ev(S, { t: 'sfx', n: dr.aff ? 'pw' : 'pickup', x: p.x, y: p.y, to: p.id }); Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.9, s: '+' + (dr.n - left) + ' ' + G.itemName({ id: dr.item, aff: dr.aff }), c: dr.aff ? G.RARITY_COL[dr.q || 0] : '#e0e0e0', to: p.id, small: !dr.aff }); } if (left === 0) S.drops.splice(i, 1); else dr.n = left; }

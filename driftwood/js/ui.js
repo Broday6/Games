@@ -55,7 +55,7 @@
     // hotbar / inventory grids
     const hb = $('hotbar'); for (let i = 0; i < 9; i++) hb.appendChild(mkSlot(i, true));
     const grid = $('invgrid'); for (let i = 0; i < 27; i++) grid.appendChild(mkSlot(i, false));
-    const arm = $('armor'); ['head', 'chest', 'legs', 'trinket'].forEach(s => { const d = document.createElement('div'); d.className = 'slot'; d.dataset.l = s; d.dataset.armor = s; const c = document.createElement('canvas'); c.width = 16; c.height = 16; d.appendChild(c); d.oncontextmenu = (e) => { e.preventDefault(); G.Main.act({ a: 'unequip', slot: s }); }; d.onclick = () => G.Main.act({ a: 'unequip', slot: s }); d.onmouseenter = () => { const V = G.Main.view(); const me = V && V.players[V.me]; if (me && me.armor[s]) tip(d, me.armor[s]); }; d.onmouseleave = hideTip; arm.appendChild(d); });
+    const arm = $('armor'); ['head', 'chest', 'legs', 'trinket'].forEach(s => { const d = document.createElement('div'); d.className = 'slot'; d.dataset.l = s; d.dataset.armor = s; const c = document.createElement('canvas'); c.width = 32; c.height = 32; d.appendChild(c); d.oncontextmenu = (e) => { e.preventDefault(); G.Main.act({ a: 'unequip', slot: s }); }; d.onclick = () => G.Main.act({ a: 'unequip', slot: s }); d.onmouseenter = () => { const V = G.Main.view(); const me = V && V.players[V.me]; if (me && me.armor[s]) tip(d, me.armor[s]); }; d.onmouseleave = hideTip; arm.appendChild(d); });
     // chat
     $('chatin').addEventListener('keydown', (e) => { if (e.key === 'Enter') { const v = $('chatin').value.trim(); if (v) G.Main.act({ a: 'chat', msg: v }); closeChat(); e.preventDefault(); } else if (e.key === 'Escape') { closeChat(); } e.stopPropagation(); });
     G.Input.onKey = (k, e) => {
@@ -140,6 +140,9 @@
   [...$('cas-tabs').children].forEach(b => b.onclick = () => { UI.casGame = b.dataset.g; [...$('cas-tabs').children].forEach(x => x.classList.toggle('sel', x === b)); UI.casRender(); });
   const betRow = (bets, key, onPick) => { const row = document.createElement('div'); row.className = 'bets'; const l = document.createElement('span'); l.className = 'small'; l.textContent = 'Bet:'; row.appendChild(l); if (UI.casBet[key] === undefined) UI.casBet[key] = bets[0]; bets.forEach(b => { const x = document.createElement('button'); x.textContent = b + ' ⬤'; x.className = UI.casBet[key] === b ? 'sel' : ''; x.onclick = () => { UI.casBet[key] = b; UI.casRender(); }; row.appendChild(x); }); return row; };
   const bigBtn = (txt, fn) => { const b = document.createElement('button'); b.className = 'bigbtn'; b.textContent = txt; b.onclick = fn; return b; };
+  const pct = (p) => p >= 0.1 ? Math.round(p * 100) + '%' : p >= 0.01 ? (p * 100).toFixed(1) + '%' : '1 in ' + Math.round(1 / p).toLocaleString();
+  // every game shows its real odds and what each outcome pays; the rarer the outcome, the bigger the multiplier
+  const oddsTable = (rows, foot) => { const t = document.createElement('table'); t.className = 'oddst'; t.innerHTML = '<tr><th>outcome</th><th>chance</th><th>pays</th></tr>' + rows.map(r => '<tr' + (r.bad ? ' class="bad"' : '') + '><td>' + r.o + '</td><td>' + r.c + '</td><td>' + r.p + '</td></tr>').join('') + (foot ? '<tr class="foot"><td colspan="3">' + foot + '</td></tr>' : ''); return t; };
   // slot symbols drawn as little vector icons so the reels look like a machine, not a text field
   const SYM_COL = { cherry: '#ff3b5c', bell: '#ffd24a', bar: '#3b8bff', star: '#7cf57c', skull: '#d8d8e8', seven: '#ff8a2a' };
   UI.drawSym = function (x, id, cx, cy, s) {
@@ -168,26 +171,31 @@
     C.rigs.forEach(r => { const b = document.createElement('button'); const have = me && me.rig && me.rig[r.id]; b.className = have ? 'sel' : ''; b.textContent = r.name + (have ? ' ✓' : ' · ' + r.cost + ' ⬤'); b.title = r.desc; b.disabled = !!have; b.onclick = () => casAct({ a: 'gamble', g: 'buy', item: r.id }); rigRow.appendChild(b); });
     if (g === 'slots') {
       const reels = document.createElement('div'); reels.className = 'reels'; reels.id = 'reels'; for (let i = 0; i < 3; i++) { const r = document.createElement('canvas'); r.className = 'reel'; r.width = 156; r.height = 156; const id = UI.casLast && UI.casLast.reels ? UI.casLast.reels[i] : ['cherry', 'bell', 'seven'][i]; UI.reelDraw(r, SYM_ORDER.indexOf(id), SYM_ORDER); reels.appendChild(r); } body.appendChild(reels);
-      const pay = document.createElement('div'); pay.className = 'paytable'; [['seven', '×20 + epic boon + hat'], ['star', '×6 + rare boon'], ['bell', '×6 + boon'], ['bar', '×6 + boon'], ['cherry', '×6 + boon'], ['skull', 'hex!']].forEach(([id, txt]) => { const c = document.createElement('canvas'); c.width = 44; c.height = 44; UI.drawSym(c.getContext('2d'), id, 22, 22, 30); const w = document.createElement('div'); w.appendChild(c); const t = document.createElement('span'); t.textContent = txt; w.appendChild(t); pay.appendChild(w); }); body.appendChild(pay);
+      const tot = G.SLOT_SYMBOLS.reduce((a, s) => a + s.w, 0); const sy = (id) => G.SLOT_SYMBOLS.find(s => s.id === id); const p3 = (id) => Math.pow(sy(id).w / tot, 3), p2 = (id) => 3 * Math.pow(sy(id).w / tot, 2) * (1 - sy(id).w / tot);
+      const pay = document.createElement('div'); pay.className = 'paytable'; [['seven', '×' + C.pay3.seven + ' · epic boon · hat'], ['star', '×' + C.pay3.star + ' · rare boon'], ['bar', '×' + C.pay3.bar + ' · boon'], ['bell', '×' + C.pay3.bell], ['cherry', '×' + C.pay3.cherry], ['skull', 'hex!']].forEach(([id, txt]) => { const c = document.createElement('canvas'); c.width = 44; c.height = 44; UI.drawSym(c.getContext('2d'), id, 22, 22, 30); const w = document.createElement('div'); w.appendChild(c); const t = document.createElement('span'); t.textContent = txt; w.appendChild(t); pay.appendChild(w); }); body.appendChild(pay);
       body.appendChild(betRow(C.slotsBets, 'slots')); body.appendChild(bigBtn('SPIN', () => casAct({ a: 'gamble', g: 'slots', bet: UI.casBet.slots })));
-      const o = document.createElement('div'); o.className = 'odds'; o.innerHTML = 'Pair pays <b>×2</b> · two 7s <b>×4</b> · three of a kind <b>×6</b> (+ a boon) · <b>777</b> pays <b>×20</b>, an <b>epic boon</b> and a <b>hat</b> · skulls hex you (−15% damage for a while).'; body.appendChild(o);
+      let rtp = 0; const rows = []; for (const id of ['seven', 'star', 'bar', 'bell', 'cherry']) { rows.push({ o: 'three ' + id + (id === 'seven' ? 's (JACKPOT)' : 's'), c: pct(p3(id)), p: '×' + C.pay3[id] }); rtp += p3(id) * C.pay3[id]; }
+      for (const id of ['seven', 'star', 'bar', 'bell', 'cherry']) { rows.push({ o: 'pair of ' + id + 's', c: pct(p2(id)), p: '×' + C.pay2[id] }); rtp += p2(id) * C.pay2[id]; }
+      rows.push({ o: 'skull pair / triple', c: pct(p2('skull') + p3('skull')), p: 'hexed', bad: true });
+      body.appendChild(oddsTable(rows, 'return to player ≈ ' + Math.round(rtp * 100) + '% of coins bet, plus the boons and the hat'));
     } else if (g === 'dice') {
       const d = document.createElement('div'); d.className = 'dice'; d.id = 'dice'; const L = UI.casLast && UI.casLast.mine ? UI.casLast : { mine: [0, 0], dealer: [0, 0] }; d.innerHTML = '<div class="side">you<span>' + DIE[L.mine[0]] + DIE[L.mine[1]] + '</span></div><div style="font-size:18px;color:var(--muted)">vs</div><div class="side">dealer<span>' + DIE[L.dealer[0]] + DIE[L.dealer[1]] + '</span></div>'; body.appendChild(d);
-      body.appendChild(betRow(C.diceBets, 'dice')); body.appendChild(bigBtn('ROLL', () => casAct({ a: 'gamble', g: 'dice', bet: UI.casBet.dice })));
-      const o = document.createElement('div'); o.className = 'odds'; o.innerHTML = 'Higher total wins <b>×2</b>, ties push. <b>Boxcars</b> (6+6) also grants a common boon · <b>snake eyes</b> hexes you.'; body.appendChild(o);
+      if (!UI.casDiceMode) UI.casDiceMode = 'beat'; const mr = document.createElement('div'); mr.className = 'bets'; const ml = document.createElement('span'); ml.className = 'small'; ml.textContent = 'Bet on:'; mr.appendChild(ml); G.DICE_MODES.forEach(m => { const b = document.createElement('button'); b.textContent = m.name + ' ×' + m.pay; b.title = m.desc; b.className = UI.casDiceMode === m.id ? 'sel' : ''; b.onclick = () => { UI.casDiceMode = m.id; UI.casRender(); }; mr.appendChild(b); }); body.appendChild(mr);
+      body.appendChild(betRow(C.diceBets, 'dice')); body.appendChild(bigBtn('ROLL', () => casAct({ a: 'gamble', g: 'dice', bet: UI.casBet.dice, mode: UI.casDiceMode })));
+      body.appendChild(oddsTable(G.DICE_MODES.map(m => ({ o: m.name + ' — ' + m.desc, c: pct(m.p), p: '×' + m.pay + (m.push ? ' (tie ' + pct(m.push) + ': bet back)' : '') })).concat([{ o: 'boxcars in any mode: common boon · snake eyes: hexed', c: pct(1 / 36), p: 'boon / hex' }]), 'return to player ≈ 92% on every bet; the longer the shot, the bigger the multiplier'));
     } else if (g === 'wheel') {
       const wrap = document.createElement('div'); wrap.className = 'wheelwrap'; const cv = document.createElement('canvas'); cv.width = 340; cv.height = 340; cv.id = 'wheelcv'; wrap.appendChild(cv);
       const tier = Math.max(0, C.wheelBets.indexOf(UI.casBet.wheel === undefined ? C.wheelBets[0] : UI.casBet.wheel)); const odds = C.wheel[tier];
-      const o = document.createElement('div'); o.className = 'odds'; o.innerHTML = '<b>Bet ' + C.wheelBets[tier] + '</b> odds:<br>' + C.wheelNames.map((n, i) => '<span style="color:' + WHEEL_COL[i] + '">■</span> ' + n + ' <b>' + Math.round(odds[i] * 100) + '%</b>').join('<br>'); wrap.appendChild(o); body.appendChild(wrap);
+      const o = document.createElement('div'); o.className = 'odds'; o.innerHTML = '<b>Bet ' + C.wheelBets[tier] + '</b> odds:<br>' + C.wheelNames.map((n, i) => '<span style="color:' + WHEEL_COL[i] + '">■</span> ' + (i === 4 ? 'Coins ×' + C.wheelCoin[tier] : n) + ' <b>' + Math.round(odds[i] * 100) + '%</b>').join('<br>') + '<br><span class="small">bigger bets shift the wheel toward rarer boons</span>'; wrap.appendChild(o); body.appendChild(wrap);
       body.appendChild(betRow(C.wheelBets, 'wheel')); body.appendChild(bigBtn('SPIN THE WHEEL', () => casAct({ a: 'gamble', g: 'wheel', bet: UI.casBet.wheel })));
       UI.drawWheel(cv, odds, UI.casWheelAng || 0);
     } else if (g === 'bj') {
       const L = UI.casLast && UI.casLast.g === 'bj' && UI.casLast.hand ? UI.casLast : null;
-      const hand = (lbl, cards, val) => { const h = document.createElement('div'); h.className = 'hand'; h.innerHTML = '<div class="lbl">' + lbl + (val !== undefined ? ' — ' + val : '') + '</div>'; const cs = document.createElement('div'); cs.className = 'cards'; (cards || []).forEach(c => { const d = document.createElement('div'); d.className = 'card' + (c === '??' ? ' back' : /[♥♦]/.test(c) ? ' red' : ''); d.textContent = c; cs.appendChild(d); }); h.appendChild(cs); return h; };
+      const hand = (lbl, cards, val) => { const h = document.createElement('div'); h.className = 'hand'; h.innerHTML = '<div class="lbl">' + lbl + (typeof val === 'number' ? ' — ' + val : (cards && cards.length ? '' : ' — place a bet and deal')) + '</div>'; const cs = document.createElement('div'); cs.className = 'cards'; (cards || []).forEach(c => { const d = document.createElement('div'); d.className = 'card' + (c === '??' ? ' back' : /[♥♦]/.test(c) ? ' red' : ''); d.textContent = c; cs.appendChild(d); }); h.appendChild(cs); return h; };
       body.appendChild(hand('Dealer', L ? L.dealer : [], L && L.dval)); body.appendChild(hand('You', L ? L.hand : [], L && L.val));
       if (L && !L.done) { const row = document.createElement('div'); row.className = 'bets'; row.appendChild(bigBtn('HIT', () => casAct({ a: 'bj', op: 'hit' }))); row.appendChild(bigBtn('STAND', () => casAct({ a: 'bj', op: 'stand' }))); body.appendChild(row); }
       else { body.appendChild(betRow(C.bjBets, 'bj')); body.appendChild(bigBtn('DEAL', () => casAct({ a: 'bj', op: 'deal', bet: UI.casBet.bj }))); }
-      const o = document.createElement('div'); o.className = 'odds'; o.innerHTML = 'Dealer stands on 17. Win pays <b>×2</b>, push returns your bet, a natural <b>blackjack</b> pays <b>5:2</b> and grants a <b>rare boon</b>.'; body.appendChild(o);
+      body.appendChild(oddsTable([{ o: 'natural blackjack (A + ten)', c: '4.8%', p: '×2.5 · rare boon' }, { o: 'beat the dealer (stands on 17)', c: '≈ 42%', p: '×2' }, { o: 'push', c: '≈ 9%', p: 'bet back' }, { o: 'dealer wins', c: '≈ 49%', p: '—', bad: true }], 'play the dealer\'s up-card: stand on 12+ against a 4–6, hit soft hands under 18'));
     }
     body.appendChild(rigRow);
   };
@@ -254,7 +262,7 @@
   // ---------- slots ----------
   function mkSlot(i, hot) {
     const d = document.createElement('div'); d.className = 'slot'; d.dataset.i = i;
-    const c = document.createElement('canvas'); c.width = 16; c.height = 16; d.appendChild(c);
+    const c = document.createElement('canvas'); c.width = 32; c.height = 32; d.appendChild(c);
     const n = document.createElement('span'); n.className = 'n'; d.appendChild(n);
     if (hot || i < 9) { const k = document.createElement('span'); k.className = 'k'; k.textContent = i + 1; d.appendChild(k); }
     if (!hot) {
@@ -275,8 +283,11 @@
     const d = I[id]; if (!d) return; const t = $('tip'); let s = '<b style="color:' + (inst && (inst.aff || inst.q >= 3) ? G.RARITY_COL[inst.q || 0] : (d.unique ? G.RARITY_COL[3] : 'var(--acc)')) + '">' + (inst ? G.itemName(inst) : d.name) + '</b>';
     if (inst && inst.aff) for (const a of inst.aff) s += '<div style="color:' + G.AFFIX[a].col + '">' + G.AFFIX[a].name + ': ' + G.AFFIX[a].desc + '</div>';
     if (d.desc) s += '<div style="color:#ffd24a">' + d.desc + '</div>';
-    if (d.type === 'weapon' || d.type === 'tool') s += '<div class="d">' + Math.round(d.dmg) + ' dmg · ' + d.spd + '/s · reach ' + d.reach + (d.tool ? ' · ' + d.tool + ' tier ' + d.tier : '') + '</div>';
-    if (d.type === 'armor') s += '<div class="d">' + (d.def ? '+' + d.def + ' defense ' : '') + '(' + d.slot + ') — right-click to equip</div>';
+    const V = G.Main.view(); const me = V && V.players[V.me];
+    if (d.type === 'weapon' || d.type === 'tool') { const dps = d.dmg * d.spd; const held = me && me.inv[me.held] && I[me.inv[me.held].id]; const hd = held && (held.type === 'weapon' || held.type === 'tool') && held.id !== d.id ? held : null; const cmp = hd ? (dps - hd.dmg * hd.spd) : 0;
+      s += '<div class="d">' + Math.round(d.dmg) + ' dmg · ' + d.spd + '/s = <b>' + dps.toFixed(1) + ' dps</b>' + (hd ? ' <span style="color:' + (cmp >= 0 ? '#80ffb0' : '#ff9090') + '">(' + (cmp >= 0 ? '+' : '') + cmp.toFixed(1) + ' vs ' + hd.name + ')</span>' : '') + '</div><div class="d">reach ' + d.reach + ' · knockback ' + (d.kb || 0) + (d.crit ? ' · crit ' + Math.round(d.crit * 100) + '%' : '') + (d.burn ? ' · burns' : '') + (d.frost ? ' · chills' : '') + (d.tool ? ' · ' + d.tool + ' tier ' + d.tier : '') + (d.big ? ' · two-handed' : '') + '</div>'; }
+    if (d.type === 'armor') { const worn = me && me.armor && me.armor[d.slot] ? I[me.armor[d.slot]] : null; const cmp = worn && worn.id !== d.id ? (d.def || 0) - (worn.def || 0) : null;
+      s += '<div class="d">' + (d.def ? '+' + d.def + ' defense ' : '') + (cmp !== null ? '<span style="color:' + (cmp >= 0 ? '#80ffb0' : '#ff9090') + '">(' + (cmp >= 0 ? '+' : '') + cmp + ' vs ' + worn.name + ')</span> ' : '') + '(' + d.slot + ') — right-click to equip</div>'; }
     if (d.type === 'staff') s += '<div class="d">' + d.dmg + ' spell damage · hold RMB to charge, release to cast (' + d.cost + ' stamina)</div>';
     if (d.type === 'weapon' || d.type === 'tool') s += '<div class="d">hold RMB for a heavy attack · 3rd hit in a row is a combo finisher</div>';
     if (d.type === 'food') s += '<div class="d">+' + d.hunger + ' food, +' + d.hp + ' HP' + (d.buff ? ' · buff: ' + (d.buff.hp ? '+' + d.buff.hp + ' max HP ' : '') + (d.buff.stam ? '+' + d.buff.stam + ' stamina regen ' : '') + 'for ' + Math.round(d.buff.dur / 60) + ' min' : '') + ' — right-click or Q to eat</div>';
@@ -290,7 +301,7 @@
   }
   function hideTip() { $('tip').classList.add('hidden'); }
   function drawSlot(el, s) {
-    const c = el.querySelector('canvas'), x = c.getContext('2d'); x.clearRect(0, 0, 16, 16);
+    const c = el.querySelector('canvas'), x = c.getContext('2d'); x.clearRect(0, 0, 32, 32);
     if (s) { x.drawImage(G.Sprites.item(s.id), 0, 0); }
     const n = el.querySelector('.n'); if (n) n.textContent = s && s.n > 1 ? s.n : '';
     el.classList.remove('q1', 'q2', 'q3'); if (s && (s.aff || s.q >= 3 || (I[s.id] && I[s.id].unique))) el.classList.add('q' + Math.max(1, s.q || 3));
@@ -363,7 +374,7 @@
       list.innerHTML = '';
       G.RECIPES.forEach((r, ri) => {
         const d = document.createElement('div'); d.className = 'recipe'; d.dataset.r = ri;
-        const c = document.createElement('canvas'); c.width = 16; c.height = 16; c.getContext('2d').drawImage(G.Sprites.item(r.out), 0, 0); d.appendChild(c);
+        const c = document.createElement('canvas'); c.width = 32; c.height = 32; c.getContext('2d').drawImage(G.Sprites.item(r.out), 0, 0); d.appendChild(c);
         const nm = document.createElement('span'); nm.textContent = I[r.out].name + (r.n > 1 ? ' ×' + r.n : ''); d.appendChild(nm);
         const nd = document.createElement('span'); nd.className = 'needs'; nd.innerHTML = Object.keys(r.needs).map(k => '<span data-k="' + k + '">' + r.needs[k] + ' ' + I[k].name + '</span>').join(', ') + (r.station ? '<div class="st">@ ' + G.OBJS[r.station].name + '</div>' : ''); d.appendChild(nd);
         d.onclick = (e) => { if (d.classList.contains('no')) { const V = G.Main.view(); const me = V && V.players[V.me]; const miss = me ? Object.keys(r.needs).filter(k => G.Sim.count(me, k) < r.needs[k]).map(k => (r.needs[k] - G.Sim.count(me, k)) + ' more ' + I[k].name) : []; UI.toast(miss.length ? 'Missing: ' + miss.join(', ') : 'Needs a ' + (I[r.station] ? I[r.station].name : r.station) + ' nearby', '', '#ff9090'); G.Audio.play('no'); return; } const n = e.shiftKey ? 5 : 1; for (let k = 0; k < n; k++) G.Main.act({ a: 'craft', r: ri }); }; d.onmouseenter = () => tip(d, r.out); d.onmouseleave = hideTip;

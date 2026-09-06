@@ -45,3 +45,16 @@ blue instead of damage-red; tutorial casino step works for joined clients (`gamb
 - Content: no music beyond the ambient drone; wolves and the drone have no attack/death clips (synthesised poses would help); enemy
   wind-up telegraphs on glTF models are the 2-D "!" only.
 - UX: buff icons are text; no colour-blind palette; the jump is cosmetic (not networked); slopes are decorative (no speed effect).
+
+## Round 3 (post-launch polish)
+
+- **Post-hit judder fixed.** The camera kick re-armed every frame while the 150 ms hit flash lasted (kick fell below its re-arm threshold in
+  ~37 ms), so one hit produced four rapid pitch jerks. It now fires once, on the rising edge of the flash; shake is smaller and decays faster.
+- **Casino odds are public and payouts scale with rarity.** Slots pay per symbol (×3 cherries → ×200 sevens) with the return-to-player
+  printed; Dice Duel has four bet modes with payouts computed from the exact 2d6 outcome table; the Wheel's coin segment pays more on the
+  tiers where it is rarer; blackjack lists its odds.
+- **Icons, tooltips, items.** 32-px shaded icons for every item; tooltips with DPS and comparison against held/worn gear; Bandage.
+- **Feel.** Enemies ramp red through the wind-up on glTF rigs too; drops are pulled in from further away.
+- **Smoothness.** VAOs for chunk draws, bufferSubData into fixed stores, chunk eviction after 15 s unseen, pooled model world matrices,
+  and prefab instancing that writes straight into the chunk array: a tree break went from ~270 ms to ~4 ms, a cold 35-chunk build from
+  ~950 ms to ~100 ms.

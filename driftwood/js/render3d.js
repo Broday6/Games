@@ -9,7 +9,7 @@
   const CH = 16, WATER_Y = 0.0, HSCALE = 6.5, EYE = 1.0;
   const VF = 10; // floats per vertex: pos3 nrm3 col3 em1
   const chunks = {}; // key -> { vbo, n, wvbo, wn, obo, on }
-  let dynBuf = null, dyn = { arr: new Float32Array(VF * 3 * 60000), n: 0 };
+  let dynBuf = null, handBuf = null, dyn = { arr: new Float32Array(VF * 3 * 60000), n: 0 };
   let vp = new Float32Array(16), proj = new Float32Array(16), view = new Float32Array(16);
   const lightPacked = { lp: new Float32Array(64), lc: new Float32Array(48) };
   let lights = [], fog = [0.7, 0.8, 0.9], nowT = 0, sunDir = [0, 1, 0], sunCol = [1, 1, 1], moonDir = [0, 1, 0], ambient = 1, camBasis = null;
@@ -65,16 +65,16 @@
       float d = distance(wp.xyz, uCam); vFog = clamp((d - uFogNear) / (uFogNear < 10.0 ? 12.0 : 40.0), 0.0, 1.0); }`;
   const MFS = `precision mediump float;
     uniform vec3 uFog; uniform float uAlpha; uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uAmb; uniform vec4 uLights[16]; uniform vec3 uLightCol[16]; uniform int uNL; uniform highp vec3 uCam;
-    uniform vec4 uColor; uniform sampler2D uTex; uniform float uHasTex; uniform float uEm; uniform float uFlash;
+    uniform vec4 uColor; uniform sampler2D uTex; uniform float uHasTex; uniform float uEm; uniform vec4 uFlash;
     varying vec3 vNrm; varying vec3 vPos; varying vec2 vUV; varying float vFog;
     void main(){ vec3 n = normalize(vNrm); if(!gl_FrontFacing) n = -n;
       vec3 L = uAmb * (0.7 + 0.3 * n.y); float nd = max(0.0, dot(n, uSunDir)); float band = smoothstep(0.02, 0.34, nd) * 0.5 + smoothstep(0.42, 0.78, nd) * 0.5; L += uSunCol * band;
       for(int i=0;i<10;i++){ if(i>=uNL) break; vec3 d = uLights[i].xyz - vPos; float dist = length(d); float a = clamp(1.0 - dist/uLights[i].w, 0.0, 1.0); float att = floor(a * a * 6.0 + 0.5) / 6.0; L += uLightCol[i] * att * 1.9 * max(0.3, dot(n, d/dist)); }
       L = min(L, vec3(1.55));
-      vec3 base = uColor.rgb; if(uHasTex > 0.5) base *= texture2D(uTex, vUV).rgb; base = mix(base, vec3(1.0), uFlash);
+      vec3 base = uColor.rgb; if(uHasTex > 0.5) base *= texture2D(uTex, vUV).rgb; base = mix(base, uFlash.rgb, uFlash.a);
       vec3 vd = normalize(uCam - vPos); float rim = pow(1.0 - max(dot(n, vd), 0.0), 3.0) * 0.09;
       vec3 c = base * max(L, vec3(uEm)) + base * rim * (uSunCol * 0.5 + uAmb * 0.5); c = mix(c, uFog, vFog); gl_FragColor = vec4(c, uAlpha); }`;
-  let mprog = null; const modelReqs = []; const animStates = {};
+  let mprog = null; const modelReqs = []; const animStates = {}; const worldPool = {}; // world matrices reused per entity key instead of re-allocated every frame
   // post pass: the scene is drawn to an offscreen colour+depth target, then outlined (depth discontinuities) and graded — the toon look
   let post = null, postProg = null;
   const POST_FS = `precision mediump float; varying vec2 vP; uniform sampler2D uCol; uniform sampler2D uDepth; uniform vec2 uInvRes; uniform float uNear; uniform float uFar; uniform float uOutline; uniform float uSat; uniform float uDebug; uniform float uHurt;
@@ -145,7 +145,7 @@
     try { const mv = gl.getParameter(gl.MAX_VERTEX_UNIFORM_VECTORS) || 128; MAXJ = mv >= 512 ? 48 : mv >= 256 ? 32 : 16; mprog = program(MVS_SRC(MAXJ), MFS, ['aPos', 'aNrm', 'aUV', 'aJ', 'aW'], ['uVP', 'uModel', 'uCam', 'uFogNear', 'uFog', 'uAlpha', 'uSunDir', 'uSunCol', 'uAmb', 'uLights', 'uLightCol', 'uNL', 'uColor', 'uTex', 'uHasTex', 'uEm', 'uSkin', 'uJoints']); } catch (e) { console.warn('model shader failed', e); mprog = null; }
     skyBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    dynBuf = gl.createBuffer();
+    dynBuf = gl.createBuffer(); handBuf = gl.createBuffer(); vaoExt = gl.getExtension('OES_vertex_array_object');
     buildPrefabs();
     R.resize(); let rsT = null; window.addEventListener('resize', () => { clearTimeout(rsT); rsT = setTimeout(R.resize, 120); });
     // GPU context loss: stop drawing, then rebuild every GL object when the browser hands the context back
@@ -157,7 +157,7 @@
     skyProg = program(SKY_VS, SKY_FS, ['aP'], ['uRight', 'uUp', 'uFwd', 'uSunDir', 'uMoonDir', 'uTanH', 'uAspect', 'uDusk', 'uNight', 'uTime']);
     if (mprog) mprog = program(MVS_SRC(MAXJ), MFS, ['aPos', 'aNrm', 'aUV', 'aJ', 'aW'], ['uVP', 'uModel', 'uCam', 'uFogNear', 'uFog', 'uAlpha', 'uSunDir', 'uSunCol', 'uAmb', 'uLights', 'uLightCol', 'uNL', 'uColor', 'uTex', 'uHasTex', 'uEm', 'uFlash', 'uJ', 'uSkin']);
     postProg = null; skyBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW); dynBuf = gl.createBuffer(); shadBuf = trailBuf = glowBuf = null;
-    for (const k in chunks) delete chunks[k]; buildQ.length = 0; cold = true; miniBase = null;
+    for (const k in chunks) delete chunks[k]; buildQ.length = 0; cold = true; miniBase = null; vaoMap.clear(); bufCap.clear(); vaoExt = gl.getExtension('OES_vertex_array_object'); handBuf = gl.createBuffer();
     for (const k in G.Assets.models) { const m = G.Assets.models[k]; if (!m) continue; for (const pr of (m.prims || [])) pr.gl = null; m.texCache = null; }
     gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); post = null; R.resize();
   };
@@ -285,9 +285,16 @@
     const a = xf(m, -w / 2, 0, 0), b = xf(m, w / 2, 0, 0), c = xf(m, l + w / 6, h, 0), d = xf(m, l - w / 6, h, 0);
     vert(t, a, n, cb, em); vert(t, b, n, cb, em); vert(t, c, n, ct, em); vert(t, a, n, cb, em); vert(t, c, n, ct, em); vert(t, d, n, ct, em);
   }
-  function inst(t, prefab, m) { // copy a prefab (local space Float32Array) transformed by m
-    const n = prefab.length / VF; grow(t, n);
-    for (let i = 0; i < n; i++) { const o = i * VF; const p = xf(m, prefab[o], prefab[o + 1], prefab[o + 2]); const nn = xfn(m, prefab[o + 3], prefab[o + 4], prefab[o + 5]); vert(t, p, nn, [prefab[o + 6], prefab[o + 7], prefab[o + 8]], prefab[o + 9]); }
+  function inst(t, prefab, m) { // copy a prefab (local space Float32Array) transformed by m — straight into the target array, no per-vertex temporaries (this is the hot loop of every chunk build)
+    const n = prefab.length / VF; grow(t, n); const a = t.arr; let o = t.n * VF;
+    const m0 = m[0], m1 = m[1], m2 = m[2], m4 = m[4], m5 = m[5], m6 = m[6], m8 = m[8], m9 = m[9], m10 = m[10], m12 = m[12], m13 = m[13], m14 = m[14];
+    for (let i = 0, k = 0; i < n; i++, k += VF, o += VF) {
+      const x = prefab[k], y = prefab[k + 1], z = prefab[k + 2], nx = prefab[k + 3], ny = prefab[k + 4], nz = prefab[k + 5];
+      a[o] = m0 * x + m4 * y + m8 * z + m12; a[o + 1] = m1 * x + m5 * y + m9 * z + m13; a[o + 2] = m2 * x + m6 * y + m10 * z + m14;
+      const tx = m0 * nx + m4 * ny + m8 * nz, ty = m1 * nx + m5 * ny + m9 * nz, tz = m2 * nx + m6 * ny + m10 * nz; const l = Math.sqrt(tx * tx + ty * ty + tz * tz) || 1; a[o + 3] = tx / l; a[o + 4] = ty / l; a[o + 5] = tz / l;
+      a[o + 6] = prefab[k + 6]; a[o + 7] = prefab[k + 7]; a[o + 8] = prefab[k + 8]; a[o + 9] = prefab[k + 9];
+    }
+    t.n += n;
   }
   const hexCache = new Map(); const hex = (c) => { let v = hexCache.get(c); if (!v) { const n = parseInt(c.slice(1), 16); v = [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]; hexCache.set(c, v); } return v; }; // colours come from a fixed table: parse once, never mutate the result
   const sh = (c, k) => c.map(v => G.clamp(v * k, 0, 1));
@@ -468,7 +475,8 @@
     if (enemyModel(e, m, V, R.dt || 0.016, corpse)) return;
     const d = G.ENEMIES[e.t]; const col = hex(d.col); const anim = nowT * 8 + e.id; const moving = /chase|charge|lunge|circle|pounce/.test(e.st);
     const isWind = /wind$/.test(e.st); const wob = isWind ? 1 + Math.sin(nowT * 25) * 0.05 : 1;
-    const FL = !!e.flash; const sq = FL ? 1 : 0; const fm = M(m, mS(wob * (d.boss ? 0.85 : 0.78) * (1 + 0.08 * sq), wob * (d.boss ? 0.85 : 0.78) * (1 - 0.1 * sq), wob * (d.boss ? 0.85 : 0.78) * (1 + 0.08 * sq))); const C = (c) => FL ? [1, 1, 1] : c;
+    const FL = !!e.flash; const sq = FL ? 1 : 0; const fm = M(m, mS(wob * (d.boss ? 0.85 : 0.78) * (1 + 0.08 * sq), wob * (d.boss ? 0.85 : 0.78) * (1 - 0.1 * sq), wob * (d.boss ? 0.85 : 0.78) * (1 + 0.08 * sq)));
+    const tk = isWind ? (1 - G.clamp((e.tm || 0) / (d.windup || 0.6), 0, 1)) * 0.6 : 0; const C = (c) => FL ? [1, 1, 1] : tk > 0 ? [c[0] + (1 - c[0]) * tk, c[1] * (1 - tk * 0.8), c[2] * (1 - tk * 0.8)] : c; // wind-up ramps the body red
     const striking = e.st === 'strike' || (e.st === 'cool' && (e.tm || 0) > 0.7); const sw = isWind ? null : (striking ? 0.5 : null);
     switch (e.t) {
       case 'slime': case 'slime_small': { const r = e.t === 'slime' ? 0.45 : 0.25; const b = Math.abs(Math.sin(nowT * 5 + e.id)); sphS(t, M(fm, mT(0, r * 0.7 + b * 0.15, 0), mS(1 + b * 0.1, 0.7 + b * 0.25, 1 + b * 0.1)), r, 12, 7, C(col), FL ? 1 : 0.15); for (const z of [-0.3, 0.3]) { sphS(t, M(fm, mT(r * 0.75, r * 0.85, z * r)), r * 0.2, 7, 4, [1, 1, 1]); sphS(t, M(fm, mT(r * 0.9, r * 0.85, z * r)), r * 0.1, 5, 3, hex('#14121a')); } break; }
@@ -545,7 +553,7 @@
         else if (dh > 0.955) { const px = X + 0.2 + h2(X, Y + 31) * 0.6, py = Y + 0.2 + h2(X + 31, Y) * 0.6, pz = R.groundZ(world, px, py); box(ob, M(mT(px, pz, py), mRY(h2(X, Y + 41) * 3)), 0.16, 0.08, 0.12, hex('#8a8e96'), 0, 0.03); box(ob, M(mT(px + 0.12, pz, py + 0.08), mRY(h2(X, Y + 43) * 3)), 0.09, 0.05, 0.08, hex('#a0a4ac'), 0, 0.02); } }
     }
     const mk = (src) => { const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, src.arr.subarray(0, src.n * VF), gl.STATIC_DRAW); return b; };
-    if (reuse) { gl.deleteBuffer(reuse.obo); gl.deleteBuffer(reuse.sbo); return { vbo: reuse.vbo, n: reuse.n, wvbo: reuse.wvbo, wn: reuse.wn, obo: mk(ob), on: ob.n, sbo: mk(sb), sn: sb.n }; }
+    if (reuse) { freeBuf(reuse.obo); freeBuf(reuse.sbo); return { vbo: reuse.vbo, n: reuse.n, wvbo: reuse.wvbo, wn: reuse.wn, obo: mk(ob), on: ob.n, sbo: mk(sb), sn: sb.n }; }
     return { vbo: mk(t), n: t.n, wvbo: mk(w), wn: w.n, obo: mk(ob), on: ob.n, sbo: mk(sb), sn: sb.n };
   }
   function staticObject(t, world, o, X, Y) {
@@ -569,11 +577,14 @@
       const old = chunks[q.k]; chunks[q.k] = buildChunk(world, q.cxI, q.cyI, old && old.objDirty ? old : undefined); buildQ.shift(); if (performance.now() - t0 > budget) break; }
     cold = false;
   }
-  function dropChunk(k) { const c = chunks[k]; if (!c) return; gl.deleteBuffer(c.vbo); gl.deleteBuffer(c.wvbo); gl.deleteBuffer(c.obo); gl.deleteBuffer(c.sbo); delete chunks[k]; }
+  function dropChunk(k) { const c = chunks[k]; if (!c) return; freeBuf(c.vbo); freeBuf(c.wvbo); freeBuf(c.obo); freeBuf(c.sbo); delete chunks[k]; }
+  let frameNo = 0;
+  function evictChunks() { if (frameNo % 240 !== 0) return; let n = 0; for (const k in chunks) n++; if (n <= 90) return; for (const k in chunks) { const c = chunks[k]; if (frameNo - (c.seen || 0) > 900) dropChunk(k); } } // GPU memory stays bounded on a long walk across the island
   function objDirty(k) { const c = chunks[k]; if (c) c.objDirty = true; }
   const forTile = (i, f) => { const X = i % W, Y = Math.floor(i / W); for (const [ox, oy] of [[0, 0], [1, 0], [0, 1], [1, 1], [-1, 0], [0, -1]]) f(Math.floor((X + ox) / CH) + ',' + Math.floor((Y + oy) / CH)); };
   R.dirtyTile = (i) => objDirty(Math.floor((i % W) / CH) + ',' + Math.floor(Math.floor(i / W) / CH)); // an object changed: rebuild just the objects/grass/shadows of its own chunk (object geometry never crosses chunk buffers)
   R.dirtyTerrain = (i) => forTile(i, dropChunk); // a tile changed (floor placed): full rebuild
+  R.chunkStats = () => ({ queued: buildQ.length, built: Object.keys(chunks).length, cold });
   R.resetWorld = () => { for (const k in chunks) dropChunk(k); buildQ.length = 0; cold = true; miniBase = null; };
   // the client/host mutate world.objs directly; detect changes cheaply by hashing object state per chunk each frame
   const chunkSig = {};
@@ -583,6 +594,14 @@
     const k = cxI + ',' + cyI; if (chunkSig[k] !== undefined && chunkSig[k] !== sig) objDirty(k); chunkSig[k] = sig;
   }
 
+  // chunk buffers draw through a vertex array object when the extension exists (2 GL calls per draw instead of 9); dynamic buffers keep a fixed store and use bufferSubData
+  let vaoExt = null; const vaoMap = new Map(); const bufCap = new Map();
+  function drawStatic(buf, n) {
+    if (vaoExt) { let v = vaoMap.get(buf); if (!v) { v = vaoExt.createVertexArrayOES(); vaoExt.bindVertexArrayOES(v); gl.bindBuffer(gl.ARRAY_BUFFER, buf); bindAttribs(prog); vaoMap.set(buf, v); } else vaoExt.bindVertexArrayOES(v); gl.drawArrays(gl.TRIANGLES, 0, n); vaoExt.bindVertexArrayOES(null); }
+    else { gl.bindBuffer(gl.ARRAY_BUFFER, buf); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, n); }
+  }
+  function freeBuf(buf) { if (!buf) return; const v = vaoMap.get(buf); if (v) { vaoExt.deleteVertexArrayOES(v); vaoMap.delete(buf); } gl.deleteBuffer(buf); }
+  function upload(buf, src) { gl.bindBuffer(gl.ARRAY_BUFFER, buf); const bytes = src.n * VF * 4; const cap = bufCap.get(buf) || 0; if (bytes > cap) { const nc = Math.min(src.arr.byteLength, Math.max(bytes, cap * 2, 65536)); gl.bufferData(gl.ARRAY_BUFFER, nc, gl.DYNAMIC_DRAW); bufCap.set(buf, nc); } gl.bufferSubData(gl.ARRAY_BUFFER, 0, src.arr.subarray(0, src.n * VF)); }
   function bindAttribs(p) {
     const st = VF * 4;
     gl.enableVertexAttribArray(p.a.aPos); gl.vertexAttribPointer(p.a.aPos, 3, gl.FLOAT, false, st, 0);
@@ -635,12 +654,13 @@
     R.hitMark = Math.max(0, (R.hitMark || 0) - dt); R.killMark = Math.max(0, (R.killMark || 0) - dt); R.hitCrit = Math.max(0, (R.hitCrit || 0) - dt); R.flashWhite = Math.max(0, (R.flashWhite || 0) - dt);
     R.mvS = G.lerp(R.mvS || 0, L.moving ? 1 : 0, Math.min(1, dt * 8));
     if (R.hitstop > 0) R.hitstop -= dt;
-    if (R.shake > 0) R.shake = Math.max(0, R.shake - dt * 10);
+    if (R.shake > 0) R.shake = Math.max(0, R.shake - dt * 14);
     if (me) { R.cam.x = me.x; R.cam.y = me.y; R.cam.z = R.groundZ(world, me.x, me.y) + (me.downed ? 0.35 : EYE) + (L.jumpZ || 0) + (L.bob || 0) - (L.land || 0); }
     R.cam.yaw = L.yaw; R.cam.pitch = L.pitch;
-    if (me && me.flash && R.kick < 0.02) R.kick = 0.035; R.kick = Math.max(0, R.kick - dt * 0.4);
+    // kick once per hit, on the rising edge of the flash (re-kicking every frame while flash lasted made the camera judder after a hit)
+    const fl = !!(me && me.flash); if (fl && !R.wasFlash) R.kick = Math.max(R.kick, 0.03); R.wasFlash = fl; R.kick = Math.max(0, R.kick - dt * 0.25);
     R.roll = 0; // dodging keeps the camera upright (no roll)
-    const shx = Math.sin(nowT * 41) * R.shake * 0.007, shy = Math.cos(nowT * 31 + 1) * R.shake * 0.007; // smooth 2-D wobble reads as a punch, not jitter
+    const shx = Math.sin(nowT * 41) * R.shake * 0.0045, shy = Math.cos(nowT * 31 + 1) * R.shake * 0.0045; // smooth 2-D wobble reads as a punch, not jitter
     R.dip = Math.max(0, (R.dip || 0) - dt * 0.09); const yaw = R.cam.yaw + shx, pitch = G.clamp(R.cam.pitch + shy - R.kick - R.dip, -1.5, 1.5);
     const fx = Math.cos(yaw) * Math.cos(pitch), fz = Math.sin(pitch), fy = Math.sin(yaw) * Math.cos(pitch);
     const baseFov = (G.Input && G.Input.settings ? G.Input.settings.fov : 80); R.fovCur = G.lerp(R.fovCur || baseFov, baseFov + (L.sprinting ? 4 : 0), Math.min(1, dt * 6)); const fov = R.fovCur * Math.PI / 180;
@@ -692,13 +712,13 @@
       const dx = (cX + .5) * CH - R.cam.x, dy = (cy + .5) * CH - R.cam.y; if (dx * Math.cos(yaw) + dy * Math.sin(yaw) < -CH * 1.2) continue;
       if (scanObjs) checkChunkDirty(world, cX, cy);
       const c = chunk(world, cX, cy); if (!c) continue; vis.push(c);
-      gl.bindBuffer(gl.ARRAY_BUFFER, c.vbo); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, c.n);
-      if (c.on && Math.abs(cX - ccx) <= 2 && Math.abs(cy - ccy) <= 2) { gl.bindBuffer(gl.ARRAY_BUFFER, c.obo); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, c.on); }
+      c.seen = frameNo; drawStatic(c.vbo, c.n);
+      if (c.on && Math.abs(cX - ccx) <= 2 && Math.abs(cy - ccy) <= 2) drawStatic(c.obo, c.on);
     }
-    pumpChunks(world);
+    pumpChunks(world); frameNo++; evictChunks();
     // ---- dynamic ----
     dyn.n = 0; buildDynamic(V, me, L);
-    gl.bindBuffer(gl.ARRAY_BUFFER, dynBuf); gl.bufferData(gl.ARRAY_BUFFER, dyn.arr.subarray(0, dyn.n * VF), gl.DYNAMIC_DRAW); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, dyn.n);
+    upload(dynBuf, dyn); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, dyn.n);
     // ---- glTF character models ----
     drawModels(); gl.useProgram(prog);
     // ---- sky (after the opaque world so the depth test culls it behind terrain) ----
@@ -712,19 +732,19 @@
     gl.useProgram(prog);
     // ---- water ----
     gl.enable(gl.BLEND); gl.depthMask(false); gl.uniform1f(prog.u.uWater, 1); gl.uniform1f(prog.u.uAlpha, 0.75);
-    for (const c of vis) { if (!c.wn) continue; gl.bindBuffer(gl.ARRAY_BUFFER, c.wvbo); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, c.wn); }
+    for (const c of vis) { if (!c.wn) continue; drawStatic(c.wvbo, c.wn); }
     gl.uniform1f(prog.u.uWater, 0);
     // blob shadows (static per chunk + dynamic entities)
     gl.uniform1f(prog.u.uAlpha, 0.38);
-    for (const c of vis) { if (!c.sn) continue; gl.bindBuffer(gl.ARRAY_BUFFER, c.sbo); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, c.sn); }
-    if (shad.n) { if (!shadBuf) shadBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, shadBuf); gl.bufferData(gl.ARRAY_BUFFER, shad.arr.subarray(0, shad.n * VF), gl.DYNAMIC_DRAW); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, shad.n); }
-    if (trail.n) { gl.uniform1f(prog.u.uAlpha, 0.45); if (!trailBuf) trailBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, trailBuf); gl.bufferData(gl.ARRAY_BUFFER, trail.arr.subarray(0, trail.n * VF), gl.DYNAMIC_DRAW); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, trail.n); }
+    for (const c of vis) { if (!c.sn) continue; drawStatic(c.sbo, c.sn); }
+    if (shad.n) { if (!shadBuf) shadBuf = gl.createBuffer(); upload(shadBuf, shad); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, shad.n); }
+    if (trail.n) { gl.uniform1f(prog.u.uAlpha, 0.45); if (!trailBuf) trailBuf = gl.createBuffer(); upload(trailBuf, trail); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, trail.n); }
     // additive light glows
-    if (glow.n) { gl.blendFunc(gl.SRC_ALPHA, gl.ONE); gl.uniform1f(prog.u.uAlpha, 0.22); if (!glowBuf) glowBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, glowBuf); gl.bufferData(gl.ARRAY_BUFFER, glow.arr.subarray(0, glow.n * VF), gl.DYNAMIC_DRAW); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, glow.n); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); }
+    if (glow.n) { gl.blendFunc(gl.SRC_ALPHA, gl.ONE); gl.uniform1f(prog.u.uAlpha, 0.22); if (!glowBuf) glowBuf = gl.createBuffer(); upload(glowBuf, glow); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, glow.n); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); }
     gl.uniform1f(prog.u.uWater, 0); gl.uniform1f(prog.u.uAlpha, 1); gl.depthMask(true); gl.disable(gl.BLEND);
     // ---- first-person arms (drawn last, depth cleared so they never clip into walls) ----
     // first-person hands: squeezed into the nearest depth slice so they draw over the world without clearing the scene depth the outline pass needs
-    if (me && !me.dead && !me.downed) { gl.depthRange(0, 0.04); dyn.n = 0; buildHands(me, L); gl.bindBuffer(gl.ARRAY_BUFFER, dynBuf); gl.bufferData(gl.ARRAY_BUFFER, dyn.arr.subarray(0, dyn.n * VF), gl.DYNAMIC_DRAW); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, dyn.n); gl.depthRange(0, 1); }
+    if (me && !me.dead && !me.downed) { gl.depthRange(0, 0.04); dyn.n = 0; buildHands(me, L); upload(handBuf, dyn); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, dyn.n); gl.depthRange(0, 1); }
     if (post) drawPost();
     drawOverlay(V, me, dt, L, darkness);
     drawMinimap(V);
@@ -918,7 +938,7 @@
           const b = primBuffers(pr); const mat = model.materials[pr.mat] || { color: [0.8, 0.8, 0.8, 1], tex: -1, name: '' };
           const tinted = rq.tint && ((spec.tint && mat.name === spec.tint) || spec.tint === '*' || flatNode); const tk = spec.tintMode === 'mul' && !flatNode ? 1.6 : 1;
           const col = tinted ? [rq.tint[0] * tk, rq.tint[1] * tk, rq.tint[2] * tk, 1] : mat.color;
-          gl.uniform4fv(mprog.u.uColor, col); gl.uniform1f(mprog.u.uFlash, rq.flash ? 0.85 : 0);
+          gl.uniform4fv(mprog.u.uColor, col); if (rq.flash) gl.uniform4f(mprog.u.uFlash, 1, 1, 1, 0.85); else gl.uniform4f(mprog.u.uFlash, 1, 0.22, 0.18, (rq.tell || 0) * 0.55); // white on hit, a red ramp through the wind-up so the telegraph reads on textured rigs
           const tex = mat.tex >= 0 && !spec.flat && !flatNode ? modelTexture(model, mat.tex) : null; gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1f(mprog.u.uHasTex, tex ? 1 : 0);
           if (nd.skin >= 0 && pr.joints && b.jmap) { // GPU skin: palette of world*ibm for the joints this part uses
             const skin = model.skins[nd.skin]; let jm = skinJM.get(nd.skin); if (!jm) { jm = new Float32Array(skin.joints.length * 16); for (let j = 0; j < skin.joints.length; j++) { G.GLTF.mul(jmTmp, rq.worlds[skin.joints[j]], skin.ibm.subarray(j * 16, j * 16 + 16)); jm.set(jmTmp, j * 16); } skinJM.set(nd.skin, jm); }
@@ -987,7 +1007,8 @@
     const sc = model.scale * (st.scale || 1); const hover = spec.hover ? spec.hover + Math.sin(nowT * 3 + (st.seed || 0)) * 0.12 : 0;
     const root = st.rootM ? M(st.rootM, mT(0, -model.base * sc + hover, 0), mS(sc)) : M(mT(x, gz - model.base * sc + hover, y), mRY((spec.yaw || 0) - face), mS(sc));
     G.GLTF.computeWorld(model, pose, root);
-    const rq = { model, tint, worlds: model.nodes.map(n => new Float32Array(n.world)), flash: !!st.flash }; modelReqs.push(rq);
+    const wp = worldPool[key] || (worldPool[key] = model.nodes.map(() => new Float32Array(16))); if (wp.length !== model.nodes.length) { worldPool[key] = model.nodes.map(() => new Float32Array(16)); } const ws = worldPool[key]; for (let i = 0; i < ws.length; i++) ws[i].set(model.nodes[i].world);
+    const rq = { model, tint, worlds: ws, flash: !!st.flash, tell: st.wind ? (st.windF || 0) : 0 }; modelReqs.push(rq);
     if (st.hat && st.hat !== 'none' && spec.headgear) rq.hide = new Set(spec.headgear); // our hat replaces the pack's own helmet/hat
     const it = st.held; const hn = spec.hand !== undefined ? model.byName[spec.hand] : undefined;
     if (it && hn !== undefined && G.ITEMS[it.id]) { const hw = rq.worlds[hn]; const ho = spec.handOffset || [0, 0, 0]; const hr = spec.handRot || [0, 0, 0];
@@ -1101,7 +1122,7 @@
     inst(dyn, PF.casino, M(mT(5.2, 0, -1.2), mRY(-2.0)));
     const C = G.CLASSES.find(c => c.id === o.cls); const held = C && C.items && C.items.length ? { id: C.items[0][0], n: 1 } : null;
     drawBlob(dyn, 'preview', 0, 0, 0, ang, hex(o.col), { face: o.skin, held, hat: o.hat, emote: (nowT % 9) < 2.2, moving: false, anim: 0 }, dt);
-    gl.bindBuffer(gl.ARRAY_BUFFER, dynBuf); gl.bufferData(gl.ARRAY_BUFFER, dyn.arr.subarray(0, dyn.n * VF), gl.DYNAMIC_DRAW); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, dyn.n);
+    upload(dynBuf, dyn); bindAttribs(prog); gl.drawArrays(gl.TRIANGLES, 0, dyn.n);
     drawModels(); gl.useProgram(prog);
     if (post) drawPost();
     if (ox) { ox.setTransform(1, 0, 0, 1, 0, 0); ox.clearRect(0, 0, ov.width, ov.height); }

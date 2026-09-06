@@ -243,3 +243,11 @@ input:focus, textarea:focus { outline: none; border-color: var(--acc); }
 #hud, #inv, #boon { zoom: var(--ui, 1); }
 @media (prefers-reduced-motion: reduce) { .recipe.tut, .reels.win .reel, .bar.low { animation: none !important; } .slot { transition: none; } }
 body.rm .recipe.tut, body.rm .reels.win .reel, body.rm .bar.low { animation: none !important; }
+
+.oddst { width: 100%; border-collapse: collapse; font-size: 11px; margin: 6px 0 2px; color: var(--txt); }
+.oddst th { text-align: left; color: var(--dim); font-weight: 600; padding: 2px 6px; border-bottom: 1px solid var(--line); }
+.oddst td { padding: 2px 6px; border-bottom: 1px solid rgba(58,53,80,0.5); }
+.oddst td:nth-child(2), .oddst th:nth-child(2) { text-align: right; color: #ffd24a; white-space: nowrap; }
+.oddst td:nth-child(3), .oddst th:nth-child(3) { text-align: right; color: #80ffb0; white-space: nowrap; }
+.oddst tr.bad td { color: #ff9090; } .oddst tr.foot td { color: var(--dim); font-style: italic; border: none; padding-top: 4px; }
+.slot canvas, .recipe canvas, #armor .slot canvas { image-rendering: auto; }

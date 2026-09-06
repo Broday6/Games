@@ -101,6 +101,11 @@ packs down to the clips we use. Swap or add enemy models by dropping a `.glb` in
 
 ### The Dealer's Table (gambling)
 
+Every game shows its real odds and what each outcome pays, and the rarer the outcome the bigger the multiplier: three cherries (2.7%)
+pay ×3, three sevens (1 in 4,600) pay ×200 plus an epic boon and a hat; the Dice Duel lets you bet on beating the dealer (×2), winning by
+four or more (×6), doubles (×5.5) or boxcars (×33), with payouts derived from the exact 2d6-vs-2d6 probabilities at ~92% return; the
+Wheel's coin segment pays more on the tiers where it is rarer. The slots table prints its return-to-player so nothing is hidden.
+
 A neon slot cabinet stands by the shipwreck and next to every altar. Press **E** to sit down and bet coins on **Slots**, a **Dice Duel**,
 the **Wheel of Fates** or **Blackjack**. Wins pay coins; better results grant **boons** (the same pick-of-3 skills you get from chests
 and levels — the wheel shows the exact odds per bet), triple-7 jackpots also unlock a **hat**, skulls and busts **hex** you (−15%
@@ -130,6 +135,11 @@ look-at label shows how many hits a resource has left. Items are modelled with w
 bevelled axe heads, two-pronged picks, cylinder crossguards with knobs and pommels, and fullered blades.
 
 ### Feedback and feel
+
+Item icons are 32-pixel shaded vector drawings with a drop shadow and outline (logs, ingots, ore chunks, bread, bandages, bevelled
+axes, fullered swords, emblemed shields, helm/plate/greaves silhouettes). Tooltips show damage per second, reach, knockback, crit and
+specials, and compare against what you hold or wear. Enemies ramp red through their wind-up on every model, procedural or glTF. Drops
+are pulled in from further away. A Bandage (2 fiber + 1 stick) heals 16 without food value.
 
 Every hit you land is confirmed three ways: the crosshair blooms (gold on a crit, a red X on a kill), the enemy flashes white and
 squashes for a frame (textured models too — the flash used to be a no-op on them), and the hand freezes on the impact frame while the
@@ -162,7 +172,9 @@ vignettes are drawn in the post shader (the old per-frame canvas gradient was a 
 pitch nudge and dodging no longer rolls the camera. Toon outlines fade out past ~10 m so distant grass stays green instead of turning
 into black spikes.
 
-Chunks stream: a chunk that comes into view (or whose objects changed) is queued and built nearest-first within a 5 ms per-frame budget,
+Chunks stream through vertex array objects (2 GL calls per draw instead of 9), dynamic geometry uploads with bufferSubData into fixed
+stores, chunks unseen for 15 s are evicted, and prefab instancing writes straight into the chunk array (a tree break now costs ~4 ms
+instead of ~270). A chunk that comes into view (or whose objects changed) is queued and built nearest-first within a 5 ms per-frame budget,
 so crossing a chunk border no longer stalls the frame; breaking a tree rebuilds only that chunk's object buffer. The sky is drawn after
 the opaque world so the depth test discards it behind terrain, per-frame allocations were cut by two thirds (colour parsing is cached,
 light and ghost buffers are reused), particle emitters are frame-rate independent and capped, the post target is freed on resize, and a
