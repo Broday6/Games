@@ -1,0 +1,428 @@
+// DRIFTWOOD — DOM UI: lobby, HUD, inventory, crafting, chat, end screen
+(function (G) {
+  'use strict';
+  const UI = { open: false, drag: null, color: G.PLAYER_COLORS[0], lastInv: '', lastPw: '', chatOpen: false, cls: 'castaway', lastOffer: null };
+  // ---- persistent meta (per browser) ----
+  UI.loadMeta = () => { try { return Object.assign({ shards: 0, up: {}, log: { bestDay: 0, kills: 0, bosses: 0, wins: 0, runs: 0, chests: 0 } }, JSON.parse(localStorage.getItem('driftwood_meta') || '{}')); } catch (e) { return { shards: 0, up: {}, log: { bestDay: 0, kills: 0, bosses: 0, wins: 0, runs: 0, chests: 0 } }; } };
+  UI.saveMeta = (m) => { try { localStorage.setItem('driftwood_meta', JSON.stringify(m)); } catch (e) { } };
+  UI.classUnlocked = (c, meta) => !c.unlock || (meta.log[c.unlock.key] || 0) >= c.unlock.n;
+  G.UI = UI;
+  const $ = (id) => document.getElementById(id);
+  const I = G.ITEMS;
+
+  UI.init = function () {
+    // swatches
+    const sw = $('swatches');
+    G.PLAYER_COLORS.forEach((c, i) => { const d = document.createElement('div'); d.className = 'swatch' + (i === 0 ? ' sel' : ''); d.style.background = c; d.onclick = () => { UI.color = c; [...sw.children].forEach(x => x.classList.remove('sel')); d.classList.add('sel'); }; sw.appendChild(d); });
+    try { const saved = JSON.parse(localStorage.getItem('driftwood') || '{}'); if (saved.hat && G.HAT[saved.hat]) UI.hat = saved.hat; if (saved.skin && G.SKINS.some(k => k.id === saved.skin)) UI.skin = saved.skin; if (saved.name) $('name').value = saved.name; if (saved.color) { UI.color = saved.color; [...sw.children].forEach((x, i) => x.classList.toggle('sel', G.PLAYER_COLORS[i] === saved.color)); } if (saved.cls) UI.cls = saved.cls; } catch (e) { }
+    $('inv-sort').onclick = () => G.Main.act({ a: 'sort' });
+    $('verline').textContent = 'Driftwood v' + (window.__VERSION || 'dev') + ' · free & open · CC-BY art credited under Credits';
+    UI.renderClasses(); UI.renderHats(); UI.renderSkins(); $('btn-howto').onclick = () => $('howto').classList.remove('hidden'); $('howto-done').onclick = () => $('howto').classList.add('hidden'); UI.renderHowto(); $('tut-close').onclick = () => { const m = UI.loadMeta(); m.tutorialOff = true; UI.saveMeta(m); $('tutorial').classList.add('hidden'); }; $('btn-camp').onclick = () => UI.showCamp(null); $('camp-done').onclick = () => { $('camp').classList.add('hidden'); if (G.Main.started) location.reload(); };
+    $('btn-settings').onclick = () => UI.showSettings(); $('menu-settings').onclick = () => UI.showSettings(); $('settings-done').onclick = () => UI.hideSettings();
+    $('menu-resume').onclick = () => { UI.setResume(false); UI.paused = false; G.Input.lock(); }; $('resume').onclick = (e) => { if (e.target.id === 'resume') { UI.setResume(false); UI.paused = false; G.Input.lock(); } }; $('menu-quit').onclick = () => UI.confirm('<p>Quit to the lobby? This run ends and cannot be resumed.</p>', () => location.reload(), 'Quit', 'Keep playing');
+    $('menu-howto').onclick = () => { $('howto').classList.remove('hidden'); }; $('menu-credits').onclick = () => UI.credits(); $('btn-credits').onclick = () => UI.credits(); $('credits-done').onclick = () => $('credits').classList.add('hidden');
+    $('fatal-dismiss').onclick = () => $('fatal').classList.add('hidden'); $('fatal-reload').onclick = () => location.reload(); $('fatal-copy').onclick = () => { try { navigator.clipboard.writeText($('fatal-detail').textContent).then(() => UI.toast('Copied', '')).catch(() => { }); } catch (e) { } };
+    document.addEventListener('visibilitychange', () => { if (document.hidden && G.Main.started && G.Main.mode === 'host' && G.Net.count() === 0 && !UI.paused) { G.Input.unlock(); UI.setResume(true); UI.toast('Paused', 'the tab went to the background'); } });
+    document.addEventListener('pointerlockerror', () => { $('lock-hint').classList.remove('hidden'); if (G.Main.started) UI.setResume(true); setTimeout(() => $('lock-hint').classList.add('hidden'), 4000); });
+    $('binds-reset').onclick = () => { G.Input.resetBinds(); UI.renderBinds(); };
+    const S = G.Input.settings; const sync = () => { $('set-vol').value = S.volume === undefined ? 0.5 : S.volume; $('vol-v').textContent = Math.round((S.volume === undefined ? 0.5 : S.volume) * 100) + '%'; $('set-uiscale').value = S.uiScale || 'auto'; $('set-fps').checked = !!S.fps; $('set-motion').checked = !!S.reduceMotion; $('set-sens').value = S.sens; $('sens-v').textContent = S.sens.toFixed(1) + '×'; $('set-fov').value = S.fov; $('fov-v').textContent = S.fov + '°'; $('set-q').value = S.quality; $('q-v').textContent = Math.round(S.quality * 100) + '%'; $('set-inv').checked = !!S.invertY; $('set-shake').checked = !!S.shake; $('set-bob').checked = !!S.bob; $('set-toon').checked = S.toon !== false; $('set-autoq').checked = S.autoq !== false; $('set-sprint').checked = !!S.sprintToggle; const mm = UI.loadMeta(); $('set-tut').checked = !mm.tutorialOff; };
+    sync();
+    $('set-sens').oninput = () => { S.sens = +$('set-sens').value; G.Input.saveSettings(); sync(); }; $('set-fov').oninput = () => { S.fov = +$('set-fov').value; G.Input.saveSettings(); sync(); }; $('set-q').oninput = () => { S.quality = +$('set-q').value; G.Input.saveSettings(); sync(); };
+    $('set-vol').oninput = () => { S.volume = +$('set-vol').value; G.Audio.setVolume(S.volume); G.Input.saveSettings(); sync(); }; $('set-fps').onchange = () => { S.fps = $('set-fps').checked; G.Input.saveSettings(); $('fps').classList.toggle('hidden', !S.fps); };
+    $('set-uiscale').onchange = () => { S.uiScale = $('set-uiscale').value; G.Input.saveSettings(); UI.applyScale(); }; $('set-motion').onchange = () => { S.reduceMotion = $('set-motion').checked; if (S.reduceMotion) S.shake = false; G.Input.saveSettings(); UI.applyMotion(); sync(); };
+    $('set-fullscreen').onclick = () => { try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); } catch (e) { } };
+    window.addEventListener('keydown', (e) => { if (e.key === 'F11' && !window.__ELECTRON) { e.preventDefault(); $('set-fullscreen').click(); } });
+    UI.applyScale(); UI.applyMotion(); G.Audio.setVolume(S.volume === undefined ? 0.5 : S.volume); $('fps').classList.toggle('hidden', !S.fps);
+    $('set-inv').onchange = () => { S.invertY = $('set-inv').checked; G.Input.saveSettings(); }; $('set-shake').onchange = () => { S.shake = $('set-shake').checked; G.Input.saveSettings(); }; $('set-bob').onchange = () => { S.bob = $('set-bob').checked; G.Input.saveSettings(); }; $('set-toon').onchange = () => { S.toon = $('set-toon').checked; G.Input.saveSettings(); }; $('set-tut').onchange = () => { const m = UI.loadMeta(); m.tutorialOff = !$('set-tut').checked; if ($('set-tut').checked) { m.tutorialDone = false; UI.tutStep = 0; } UI.saveMeta(m); UI.tutMeta = null; UI.tutLast = ''; }; $('set-autoq').onchange = () => { S.autoq = $('set-autoq').checked; G.Input.saveSettings(); if (!S.autoq) { G.Render.qScale = 1; G.Render.resize(); } }; $('set-sprint').onchange = () => { S.sprintToggle = $('set-sprint').checked; G.Input.sprintLatch = false; G.Input.saveSettings(); };
+    // tabs
+    const tabs = { host: $('tab-host'), join: $('tab-join'), solo: $('tab-solo') };
+    for (const k in tabs) tabs[k].onclick = () => { for (const j in tabs) { tabs[j].classList.toggle('sel', j === k); $('pane-' + j).classList.toggle('hidden', j !== k); } $('manual-host').classList.toggle('hidden', k === 'join'); $('manual-client').classList.toggle('hidden', k !== 'join'); };
+    $('manual-client').classList.add('hidden');
+    $('randseed').onclick = () => $('seed').value = Math.random().toString(36).slice(2, 8).toUpperCase();
+    const name = () => { const n = $('name').value.trim() || 'Castaway'; try { localStorage.setItem('driftwood', JSON.stringify({ name: n, color: UI.color, cls: UI.cls })); } catch (e) { } return n; };
+    $('btn-host').onclick = () => { $('btn-host').disabled = true; G.Main.host(name(), UI.color, $('seed').value.trim()); };
+    $('btn-start').onclick = () => G.Main.startHostGame();
+    $('btn-join').onclick = () => { const code = $('joincode').value.trim().toUpperCase(); if (code.length < 5) return UI.status('Enter the 5-letter room code.'); $('btn-join').disabled = true; G.Main.join(name(), UI.color, code); };
+    $('btn-solo').onclick = () => G.Main.solo(name(), UI.color, $('seed2').value.trim());
+    $('btn-tut').onclick = () => G.Main.tutorialRun(name(), UI.color);
+    $('copylink').onclick = () => { const link = G.Net.inviteLink($('roomcode').textContent); if (!link) return UI.status('No public link for this copy of the game — share the code instead.'); const fail = () => UI.status('Copy failed — the link is ' + link); try { navigator.clipboard.writeText(link).then(() => UI.status('Invite link copied! Friends who open it land straight in your room.')).catch(fail); } catch (e) { fail(); } };
+    if (G.Net.blockedHere()) { const u = G.Net.hostedUrl(); const n = $('hostednote'); n.classList.remove('hidden'); n.innerHTML = '<b style="color:var(--acc)">Playing with friends?</b> This preview runs inside claude.ai, whose sandbox blocks the room server, so room codes cannot connect from here. ' + (u ? 'Open <a href="' + u + '" target="_blank" rel="noopener" style="color:var(--acc)">the web version</a> (same game, opens in a new tab) to host or join online' : 'Download the desktop app or the browser file from the Releases page to host or join online') + ' — or play solo right here.'; }
+    $('copycode').onclick = () => { const code = $('roomcode').textContent; const fail = () => UI.status('Copy failed — the code is ' + code + ', type it to your friend.'); try { navigator.clipboard.writeText(code).then(() => UI.status('Code copied!')).catch(fail); } catch (e) { fail(); } };
+    $('joincode').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-join').click(); });
+    // manual signalling
+    $('mk-invite').onclick = async () => { $('mk-invite').disabled = true; try { G.Main.ensureHostForManual(name(), UI.color, $('seed').value.trim()); $('invite-out').value = await G.Net.manualCreateInvite(); UI.status('Invite ready — send it to your friend, then paste their reply below.'); try { navigator.clipboard.writeText($('invite-out').value); } catch (e) { } } catch (e) { UI.status('Could not create invite: ' + e.message); } $('mk-invite').disabled = false; };
+    $('accept-reply').onclick = async () => { try { await G.Net.manualAcceptReply($('reply-in').value); $('reply-in').value = ''; UI.status('Reply accepted — connecting…'); } catch (e) { UI.status('Bad reply code.'); } };
+    $('mk-reply').onclick = async () => { try { G.Main.prepareClient(name(), UI.color); $('reply-out').value = await G.Net.manualAcceptInvite($('invite-in').value); UI.status('Reply ready — send it back to the host and wait.'); try { navigator.clipboard.writeText($('reply-out').value); } catch (e) { } } catch (e) { UI.status('Bad invite code.'); } };
+    $('btn-again').onclick = () => { $('end').classList.add('hidden'); UI.showCamp(UI.lastRun); };
+    // hotbar / inventory grids
+    const hb = $('hotbar'); for (let i = 0; i < 9; i++) hb.appendChild(mkSlot(i, true));
+    const grid = $('invgrid'); for (let i = 0; i < 27; i++) grid.appendChild(mkSlot(i, false));
+    const cg = $('chestgrid'); for (let i = 0; i < 18; i++) cg.appendChild(mkChestSlot(i));
+    $('chest-takeall').onclick = () => { if (UI.chest !== null) G.Main.act({ a: 'takeall', i: UI.chest }); };
+    $('chest-stowall').onclick = () => { if (UI.chest !== null) G.Main.act({ a: 'stowall', i: UI.chest }); };
+    $('dropzone').onclick = () => { if (UI.drag !== null) { G.Main.act({ a: 'drop', slot: UI.drag, n: 0 }); clearDrag(); } };
+    $('inv').addEventListener('mouseleave', () => { UI.hoverSlot = null; });
+    const arm = $('armor'); ['head', 'chest', 'legs', 'trinket'].forEach(s => { const d = document.createElement('div'); d.className = 'slot'; d.dataset.l = s; d.dataset.armor = s; const c = document.createElement('canvas'); c.width = 32; c.height = 32; d.appendChild(c); d.oncontextmenu = (e) => { e.preventDefault(); G.Main.act({ a: 'unequip', slot: s }); }; d.onclick = () => G.Main.act({ a: 'unequip', slot: s }); d.onmouseenter = () => { const V = G.Main.view(); const me = V && V.players[V.me]; if (me && me.armor[s]) tip(d, me.armor[s]); }; d.onmouseleave = hideTip; arm.appendChild(d); });
+    // chat
+    $('chatin').addEventListener('keydown', (e) => { if (e.key === 'Enter') { const v = $('chatin').value.trim(); if (v) G.Main.act({ a: 'chat', msg: v }); closeChat(); e.preventDefault(); } else if (e.key === 'Escape') { closeChat(); } e.stopPropagation(); });
+    G.Input.onKey = (k, e) => {
+      if (UI.chatOpen) return false;
+      if (!$('settings').classList.contains('hidden')) { if (k === 'Escape') UI.hideSettings(); return true; }
+      const B = G.Input.binds;
+      if (k === B.chat && G.Main.started) { openChat(); return true; }
+      if (k === B.inventory && G.Main.started) { UI.toggleInv(); return true; }
+      if (k === 'Escape' || k === B.menu) { if (UI.casOpen) { UI.casino(false); return true; } if (UI.open) { UI.toggleInv(false); return true; } if (!$('confirm').classList.contains('hidden')) { $('confirm').classList.add('hidden'); return true; } if (G.Main.started && !$('resume').classList.contains('hidden') && !UI.open) { UI.setResume(false); UI.paused = false; G.Input.lock(); return true; } if (G.Main.started && k !== 'Escape') { G.Input.unlock(); UI.setResume(true); return true; } }
+      if (k === B.mute) { const m = G.Audio.toggleMute(); UI.toast(m ? 'Muted' : 'Sound on', ''); return true; }
+      if (k === B.emote && G.Main.started) { G.Main.act({ a: 'emote' }); return true; }
+      if (k === B.drop && G.Main.started && !UI.casOpen) { const V = G.Main.view(); const me = V && V.players[V.me]; if (!me) return true; const slot = UI.open ? (UI.drag !== null ? UI.drag : UI.hoverSlot) : me.held; if (slot !== null && slot !== undefined && me.inv[slot]) { G.Main.act({ a: 'drop', slot, n: e.shiftKey ? 0 : 1 }); if (UI.drag === slot) clearDrag(); } return true; }
+      if (UI.lastOffer && e.altKey && /^Digit[1-4]$/.test(e.code || '')) { G.Main.act({ a: 'pick', i: +e.code.slice(5) - 1 }); return true; } // physical key so Option+1 on macOS works too
+      return false;
+    };
+    G.Net.onStatus = UI.status;
+  };
+  UI.status = (s) => { $('status').textContent = s || ''; };
+  UI.applyScale = function () { const S = G.Input.settings; let k = S.uiScale && S.uiScale !== 'auto' ? +S.uiScale : Math.max(1, Math.min(1.5, window.innerHeight / 1080)); document.documentElement.style.setProperty('--ui', k.toFixed(2)); };
+  window.addEventListener('resize', () => UI.applyScale && UI.applyScale());
+  UI.applyMotion = function () { document.body.classList.toggle('rm', !!G.Input.settings.reduceMotion); };
+  UI.credits = function () { const b = $('credits-body'); const show = (t) => { b.textContent = t; $('credits').classList.remove('hidden'); }; if (window.__LICENSES) show(window.__LICENSES); else fetch('assets/LICENSES.md').then(r => r.text()).then(show).catch(() => show('See assets/LICENSES.md in the repository.')); if (G.Main.started) G.Input.unlock(); };
+  UI.fatal = function (title, msg, detail) { $('fatal-title').textContent = title || 'Something broke'; $('fatal-msg').textContent = msg || ''; $('fatal-detail').textContent = detail || ''; $('fatal').classList.remove('hidden'); try { G.Input.unlock(); } catch (e) { } };
+  UI.hostLost = function (room) { const c = $('confirm'); c.innerHTML = '<p><b style="color:#ff6060">Connection to the host was lost.</b><br>The host left or the network dropped. This run is over for you.</p><div class="row" style="justify-content:center"><button id="cy" class="primary">Back to the lobby</button>' + (room ? '<button id="cn">Try rejoining ' + esc(room) + '</button>' : '') + '</div>'; c.classList.remove('hidden'); $('cy').onclick = () => location.reload(); if (room) $('cn').onclick = () => { location.search = '?room=' + encodeURIComponent(room); }; G.Input.unlock(); };
+  // ---- hats (cosmetics): free ones, ones won at the Dealer's Table, ones bought with shards ----
+  UI.hat = 'none';
+  UI.ownedHats = (meta) => { const m = meta || UI.loadMeta(); const owned = new Set(['none', 'cap', 'beanie']); (m.hats || []).forEach(h => owned.add(h)); return owned; };
+  UI.renderHats = function () {
+    const meta = UI.loadMeta(); const owned = UI.ownedHats(meta); const box = $('hats'); if (!box) return; box.innerHTML = '';
+    if (!owned.has(UI.hat)) UI.hat = 'none';
+    G.HATS.forEach(h => { const d = document.createElement('div'); const ok = owned.has(h.id); d.className = 'hat' + (h.id === UI.hat ? ' sel' : '') + (ok ? '' : ' locked'); d.textContent = h.name + (ok ? '' : ' · ' + h.cost + ' shards'); d.title = ok ? 'wear it' : 'buy for ' + h.cost + ' shards (or win it at the Dealer\'s Table)';
+      d.onclick = () => { if (ok) { UI.hat = h.id; UI.saveLobby(); UI.renderHats(); } else { const m = UI.loadMeta(); if (m.shards < h.cost) { UI.toast('Not enough shards', h.name + ' costs ' + h.cost + ' shards — earn them by finishing runs, or win hats at the Dealer\'s Table.', '#ff6060'); return; } m.shards -= h.cost; m.hats = (m.hats || []).concat([h.id]); UI.saveMeta(m); UI.hat = h.id; UI.saveLobby(); UI.renderHats(); UI.renderClasses(); UI.toast('New hat', h.name + ' is yours.'); } };
+      box.appendChild(d); });
+  };
+  UI.saveLobby = function () { try { const saved = JSON.parse(localStorage.getItem('driftwood') || '{}'); saved.hat = UI.hat; saved.skin = UI.skin; localStorage.setItem('driftwood', JSON.stringify(saved)); } catch (e) { } };
+  UI.skin = 'happy';
+  UI.renderSkins = function () { const box = $('skins'); if (!box) return; box.innerHTML = ''; G.SKINS.forEach(k => { const d = document.createElement('div'); d.className = 'hat' + (k.id === UI.skin ? ' sel' : ''); d.textContent = k.name; d.onclick = () => { UI.skin = k.id; UI.saveLobby(); UI.renderSkins(); }; box.appendChild(d); }); const tag = $('preview-name'); if (tag) tag.textContent = (G.SKINS.find(k => k.id === UI.skin) || {}).name || ''; };
+  UI.unlockHat = function (id) { if (!G.HAT[id]) return; const m = UI.loadMeta(); if ((m.hats || []).includes(id) || ['none', 'cap', 'beanie'].includes(id)) { m.shards += 40; UI.saveMeta(m); UI.toast('Duplicate hat', 'You already own the ' + G.HAT[id].name + ' — 40 shards instead.'); return; } m.hats = (m.hats || []).concat([id]); UI.saveMeta(m); UI.toast('New hat unlocked!', G.HAT[id].name + ' — wear it from the lobby.', '#ff4fd8'); };
+  UI.renderClasses = function () {
+    const meta = UI.loadMeta(); const box = $('classes'); box.innerHTML = '';
+    if (!UI.classUnlocked(G.CLASSES.find(c => c.id === UI.cls) || G.CLASSES[0], meta)) UI.cls = 'castaway';
+    G.CLASSES.forEach(c => { const d = document.createElement('div'); const ok = UI.classUnlocked(c, meta); d.className = 'cls' + (c.id === UI.cls ? ' sel' : '') + (ok ? '' : ' locked'); d.innerHTML = '<b>' + c.name + '</b><span>' + (ok ? c.desc : 'Unlock: ' + c.unlock.txt) + '</span>'; if (ok) d.onclick = () => { UI.cls = c.id; UI.renderClasses(); }; box.appendChild(d); });
+    const ranks = Object.values(meta.up).reduce((a, b) => a + b, 0);
+    $('metaline').textContent = meta.shards + ' shards · ' + ranks + ' upgrade ranks · best day ' + meta.log.bestDay + ' · ' + meta.log.wins + ' escapes';
+  };
+  UI.showCamp = function (run) {
+    const meta = UI.loadMeta(); $('camp').classList.remove('hidden'); $('hud').classList.add('hidden'); $('end').classList.add('hidden'); $('lobby').classList.add('hidden'); $('boon').classList.add('hidden');
+    $('camp-run').innerHTML = run ? '<div>' + (run.win ? '<b style="color:var(--acc)">You escaped the island.</b>' : '<b style="color:#e03030">The island kept you.</b>') + ' Days: <b>' + run.day + '</b> · Bosses: <b>' + run.bosses + '</b> · Kills: <b>' + run.kills + '</b> · Level <b>' + run.lvl + '</b> · Seed <b>' + esc(run.seed) + '</b></div><div>Shards earned: <b style="color:var(--acc)">+' + run.shards + '</b></div>' : '<div>Total: <b>' + meta.log.runs + '</b> runs · best day <b>' + meta.log.bestDay + '</b> · <b>' + meta.log.kills + '</b> kills · <b>' + meta.log.bosses + '</b> guardians slain · <b>' + meta.log.wins + '</b> escapes</div>';
+    const draw = () => {
+      const m = UI.loadMeta(); $('shards').textContent = m.shards; const list = $('camp-list'); list.innerHTML = '';
+      G.META.forEach(u => { const r = m.up[u.id] || 0; const d = document.createElement('div'); d.className = 'meta' + (r >= u.max ? ' max' : ''); const cost = r < u.max ? u.cost[r] : null; d.innerHTML = '<div class="i"><b>' + u.name + '</b><span>' + u.desc + '</span></div><div class="r">' + '◆'.repeat(r) + '◇'.repeat(u.max - r) + '</div>'; const b = document.createElement('button'); b.textContent = cost === null ? 'MAX' : cost + ' ◈'; b.disabled = cost === null || m.shards < cost; b.onclick = () => { const mm = UI.loadMeta(); if ((mm.up[u.id] || 0) < u.max && mm.shards >= u.cost[mm.up[u.id] || 0]) { mm.shards -= u.cost[mm.up[u.id] || 0]; mm.up[u.id] = (mm.up[u.id] || 0) + 1; UI.saveMeta(mm); G.Audio.play('craft'); draw(); UI.renderClasses(); } }; d.appendChild(b); list.appendChild(d); });
+      $('camplog').textContent = 'Classes unlock from the log: ' + G.CLASSES.filter(c => c.unlock).map(c => c.name + (UI.classUnlocked(c, m) ? ' ✓' : ' (' + c.unlock.txt + ')')).join(' · ');
+    };
+    draw();
+  };
+  UI.recordRun = function (V, win, shards) {
+    const meta = UI.loadMeta(); const me = V.players[V.me] || {};
+    meta.shards += shards; meta.log.runs++; meta.log.bestDay = Math.max(meta.log.bestDay, V.day); meta.log.kills += me.kills || 0; meta.log.bosses += V.stats.bosses || 0; meta.log.chests += V.stats.chests || 0; if (win) meta.log.wins++;
+    UI.saveMeta(meta);
+    return { win, day: V.day, bosses: V.stats.bosses || 0, kills: me.kills || 0, lvl: me.lvl || 1, seed: V.world.seed, shards };
+  };
+  UI.boon = function (me) {
+    const o = me.offer !== undefined ? me.offer : (me.offers && me.offers.length ? me.offers[0] : null); const key = o ? JSON.stringify(o) : null;
+    if (key !== UI.lastOffer) {
+      UI.lastOffer = key; $('boon').classList.toggle('hidden', !o);
+      if (o) {
+        $('boon-title').textContent = (o.why ? o.why + ' — ' : '') + 'choose a boon';
+        const box = $('boon-opts'); box.innerHTML = '';
+        o.opts.forEach((id, i) => { const p = G.PW[id]; const d = document.createElement('div'); d.className = 'boonopt'; d.style.borderColor = G.RARITY_COL[p.rarity]; const c = document.createElement('canvas'); c.width = 16; c.height = 16; c.getContext('2d').drawImage(G.Sprites.powerup(id), 0, 0); d.appendChild(c); const b = document.createElement('b'); b.textContent = p.name + (me.pw[id] ? ' ×' + (me.pw[id] + 1) : ''); b.style.color = G.RARITY_COL[p.rarity]; d.appendChild(b); const sp = document.createElement('span'); sp.textContent = p.desc; d.appendChild(sp); const k = document.createElement('div'); k.className = 'k'; k.textContent = G.RARITY_NAME[p.rarity] + ' · Alt+' + (i + 1); d.appendChild(k); d.onclick = () => G.Main.act({ a: 'pick', i }); box.appendChild(d); });
+      }
+    }
+    if (o) { const left = Math.max(0, 25 - (me.offerT || 0)); $('boon-timer').textContent = 'Alt+1…4 to pick · auto-pick in ' + Math.round(left) + 's · the game keeps running'; $('boon-bar').firstElementChild.style.width = (left / 25 * 100) + '%'; if (left < 5 && Math.floor(left) !== UI.boonTick) { UI.boonTick = Math.floor(left); G.Audio.play('tick'); } }
+  };
+  // ---- the Dealer's Table ----
+  UI.casOpen = false; UI.casGame = 'slots'; UI.casBet = {}; UI.casPending = null;
+  const casAct = (a) => G.Main.act(a);
+  UI.casino = function (open, ev) {
+    UI.casOpen = !!open; $('casino').classList.toggle('hidden', !open);
+    if (open) { UI.casAt = ev ? { x: ev.x, y: ev.y } : null; G.Input.unlock(); UI.setResume(false); G.Main.act({ a: 'sit', v: 1 }); $('cas-log').textContent = 'Pick a game. Every bet is paid in coins; boons are the same skills you get from chests and levels.'; UI.casRender(); }
+    else { UI.casPending = null; if (G.Main.started) G.Main.act({ a: 'sit', v: 0 }); if (G.Main.started && !UI.open) G.Input.lock(); }
+  };
+  $('cas-leave').onclick = () => UI.casino(false);
+  [...$('cas-tabs').children].forEach(b => b.onclick = () => { UI.casGame = b.dataset.g; [...$('cas-tabs').children].forEach(x => x.classList.toggle('sel', x === b)); UI.casRender(); });
+  const betRow = (bets, key, onPick) => { const row = document.createElement('div'); row.className = 'bets'; const l = document.createElement('span'); l.className = 'small'; l.textContent = 'Bet:'; row.appendChild(l); if (UI.casBet[key] === undefined) UI.casBet[key] = bets[0]; bets.forEach(b => { const x = document.createElement('button'); x.textContent = b + ' ⬤'; x.className = UI.casBet[key] === b ? 'sel' : ''; x.onclick = () => { UI.casBet[key] = b; UI.casRender(); }; row.appendChild(x); }); return row; };
+  const bigBtn = (txt, fn) => { const b = document.createElement('button'); b.className = 'bigbtn'; b.textContent = txt; b.onclick = fn; return b; };
+  const pct = (p) => p >= 0.1 ? Math.round(p * 100) + '%' : p >= 0.01 ? (p * 100).toFixed(1) + '%' : '1 in ' + Math.round(1 / p).toLocaleString();
+  // every game shows its real odds and what each outcome pays; the rarer the outcome, the bigger the multiplier
+  const oddsTable = (rows, foot) => { const t = document.createElement('table'); t.className = 'oddst'; t.innerHTML = '<tr><th>outcome</th><th>chance</th><th>pays</th></tr>' + rows.map(r => '<tr' + (r.bad ? ' class="bad"' : '') + '><td>' + r.o + '</td><td>' + r.c + '</td><td>' + r.p + '</td></tr>').join('') + (foot ? '<tr class="foot"><td colspan="3">' + foot + '</td></tr>' : ''); return t; };
+  // slot symbols drawn as little vector icons so the reels look like a machine, not a text field
+  const SYM_COL = { cherry: '#ff3b5c', bell: '#ffd24a', bar: '#3b8bff', star: '#7cf57c', skull: '#d8d8e8', seven: '#ff8a2a' };
+  UI.drawSym = function (x, id, cx, cy, s) {
+    x.save(); x.translate(cx, cy); x.lineWidth = s * 0.08; x.lineJoin = 'round'; x.strokeStyle = '#1a1020'; x.fillStyle = SYM_COL[id] || '#fff';
+    const circ = (px, py, r) => { x.beginPath(); x.arc(px, py, r, 0, Math.PI * 2); x.fill(); x.stroke(); };
+    if (id === 'cherry') { x.strokeStyle = '#2f8a3a'; x.lineWidth = s * 0.09; x.beginPath(); x.moveTo(-s * 0.2, s * 0.15); x.quadraticCurveTo(-s * 0.05, -s * 0.45, s * 0.25, -s * 0.4); x.moveTo(s * 0.2, s * 0.18); x.quadraticCurveTo(s * 0.15, -s * 0.3, s * 0.25, -s * 0.4); x.stroke(); x.strokeStyle = '#1a1020'; x.lineWidth = s * 0.07; circ(-s * 0.2, s * 0.22, s * 0.2); circ(s * 0.2, s * 0.25, s * 0.2); x.fillStyle = 'rgba(255,255,255,0.5)'; x.beginPath(); x.arc(-s * 0.26, s * 0.16, s * 0.05, 0, 7); x.fill(); }
+    else if (id === 'bell') { x.beginPath(); x.moveTo(-s * 0.32, s * 0.22); x.quadraticCurveTo(-s * 0.3, -s * 0.3, 0, -s * 0.36); x.quadraticCurveTo(s * 0.3, -s * 0.3, s * 0.32, s * 0.22); x.closePath(); x.fill(); x.stroke(); x.fillStyle = '#c99a1a'; circ(0, s * 0.32, s * 0.09); x.fillStyle = '#fff6c0'; x.beginPath(); x.arc(0, -s * 0.4, s * 0.07, 0, 7); x.fill(); }
+    else if (id === 'bar') { for (let k = -1; k <= 1; k++) { x.fillStyle = k ? '#2f6fd6' : '#3b8bff'; x.beginPath(); x.roundRect(-s * 0.4, k * s * 0.26 - s * 0.1, s * 0.8, s * 0.2, s * 0.05); x.fill(); x.stroke(); } x.fillStyle = '#fff'; x.font = 'bold ' + (s * 0.17) + 'px monospace'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('BAR', 0, s * 0.01); }
+    else if (id === 'star') { x.beginPath(); for (let k = 0; k < 10; k++) { const r = k % 2 ? s * 0.18 : s * 0.42, a = -Math.PI / 2 + k * Math.PI / 5; x.lineTo(Math.cos(a) * r, Math.sin(a) * r); } x.closePath(); x.fill(); x.stroke(); }
+    else if (id === 'skull') { x.beginPath(); x.arc(0, -s * 0.06, s * 0.3, 0, Math.PI * 2); x.fill(); x.stroke(); x.fillStyle = SYM_COL.skull; x.beginPath(); x.roundRect(-s * 0.18, s * 0.12, s * 0.36, s * 0.22, s * 0.05); x.fill(); x.stroke(); x.fillStyle = '#1a1020'; x.beginPath(); x.arc(-s * 0.12, -s * 0.08, s * 0.08, 0, 7); x.arc(s * 0.12, -s * 0.08, s * 0.08, 0, 7); x.fill(); x.fillRect(-s * 0.03, s * 0.06, s * 0.06, s * 0.08); for (const k of [-0.1, 0, 0.1]) x.fillRect(k * s - s * 0.02, s * 0.22, s * 0.04, s * 0.1); }
+    else if (id === 'seven') { x.font = 'bold ' + (s * 0.9) + 'px monospace'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.lineWidth = s * 0.1; x.strokeText('7', 0, s * 0.04); x.fillText('7', 0, s * 0.04); }
+    x.restore();
+  };
+  const SYM_ORDER = ['cherry', 'bell', 'bar', 'star', 'skull', 'seven'];
+  // a reel canvas shows one symbol; during a spin it scrolls a strip of symbols downward and eases onto the result
+  UI.reelDraw = function (cv, offset, ids) { const x = cv.getContext('2d'); const w = cv.width, h = cv.height; x.clearRect(0, 0, w, h); const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#d8d8e0'); g.addColorStop(0.5, '#ffffff'); g.addColorStop(1, '#d8d8e0'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+    const n = ids.length; for (let k = -1; k <= 1; k++) { const idx = ((Math.floor(offset) + k) % n + n) % n; const yy = h / 2 + (k - (offset - Math.floor(offset))) * h; UI.drawSym(x, ids[idx], w / 2, yy, w * 0.62); }
+    x.fillStyle = 'rgba(0,0,0,0.18)'; x.fillRect(0, 0, w, h * 0.12); x.fillRect(0, h * 0.88, w, h * 0.12); x.strokeStyle = 'rgba(255,210,74,0.9)'; x.lineWidth = 2; x.strokeRect(0, h * 0.28, w, h * 0.44); };
+  const sym = (id) => (G.SLOT_SYMBOLS.find(s => s.id === id) || { ch: '?' }).ch;
+  const DIE = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+  const WHEEL_COL = ['#c0c0c0', '#5aa0ff', '#d05aff', '#ffd24a', '#5aff8a', '#ff4060'];
+  UI.casRender = function () {
+    const me = G.Main.V && G.Main.V.players[G.Main.V.me]; const coins = me ? me.coins : 0; $('cas-coins').textContent = '⬤ ' + coins;
+    const body = $('cas-body'); body.innerHTML = ''; const g = UI.casGame; const C = G.CASINO;
+    const rigRow = document.createElement('div'); rigRow.className = 'bets rigs'; const rl = document.createElement('span'); rl.className = 'small'; rl.textContent = 'Sketchy items:'; rigRow.appendChild(rl);
+    C.rigs.forEach(r => { const b = document.createElement('button'); const have = me && me.rig && me.rig[r.id]; b.className = have ? 'sel' : ''; b.textContent = r.name + (have ? ' ✓' : ' · ' + r.cost + ' ⬤'); b.title = r.desc; b.disabled = !!have; b.onclick = () => casAct({ a: 'gamble', g: 'buy', item: r.id }); rigRow.appendChild(b); });
+    if (g === 'slots') {
+      const reels = document.createElement('div'); reels.className = 'reels'; reels.id = 'reels'; for (let i = 0; i < 3; i++) { const r = document.createElement('canvas'); r.className = 'reel'; r.width = 156; r.height = 156; const id = UI.casLast && UI.casLast.reels ? UI.casLast.reels[i] : ['cherry', 'bell', 'seven'][i]; UI.reelDraw(r, SYM_ORDER.indexOf(id), SYM_ORDER); reels.appendChild(r); } body.appendChild(reels);
+      const tot = G.SLOT_SYMBOLS.reduce((a, s) => a + s.w, 0); const sy = (id) => G.SLOT_SYMBOLS.find(s => s.id === id); const p3 = (id) => Math.pow(sy(id).w / tot, 3), p2 = (id) => 3 * Math.pow(sy(id).w / tot, 2) * (1 - sy(id).w / tot);
+      const pay = document.createElement('div'); pay.className = 'paytable'; [['seven', '×' + C.pay3.seven + ' · epic boon · hat'], ['star', '×' + C.pay3.star + ' · rare boon'], ['bar', '×' + C.pay3.bar + ' · boon'], ['bell', '×' + C.pay3.bell], ['cherry', '×' + C.pay3.cherry], ['skull', 'hex!']].forEach(([id, txt]) => { const c = document.createElement('canvas'); c.width = 44; c.height = 44; UI.drawSym(c.getContext('2d'), id, 22, 22, 30); const w = document.createElement('div'); w.appendChild(c); const t = document.createElement('span'); t.textContent = txt; w.appendChild(t); pay.appendChild(w); }); body.appendChild(pay);
+      body.appendChild(betRow(C.slotsBets, 'slots')); body.appendChild(bigBtn('SPIN', () => casAct({ a: 'gamble', g: 'slots', bet: UI.casBet.slots })));
+      let rtp = 0; const rows = []; for (const id of ['seven', 'star', 'bar', 'bell', 'cherry']) { rows.push({ o: 'three ' + id + (id === 'seven' ? 's (JACKPOT)' : 's'), c: pct(p3(id)), p: '×' + C.pay3[id] }); rtp += p3(id) * C.pay3[id]; }
+      for (const id of ['seven', 'star', 'bar', 'bell', 'cherry']) { rows.push({ o: 'pair of ' + id + 's', c: pct(p2(id)), p: '×' + C.pay2[id] }); rtp += p2(id) * C.pay2[id]; }
+      rows.push({ o: 'skull pair / triple', c: pct(p2('skull') + p3('skull')), p: 'hexed', bad: true });
+      body.appendChild(oddsTable(rows, 'return to player ≈ ' + Math.round(rtp * 100) + '% of coins bet, plus the boons and the hat'));
+    } else if (g === 'dice') {
+      const d = document.createElement('div'); d.className = 'dice'; d.id = 'dice'; const L = UI.casLast && UI.casLast.mine ? UI.casLast : { mine: [0, 0], dealer: [0, 0] }; d.innerHTML = '<div class="side">you<span>' + DIE[L.mine[0]] + DIE[L.mine[1]] + '</span></div><div style="font-size:18px;color:var(--muted)">vs</div><div class="side">dealer<span>' + DIE[L.dealer[0]] + DIE[L.dealer[1]] + '</span></div>'; body.appendChild(d);
+      if (!UI.casDiceMode) UI.casDiceMode = 'beat'; const mr = document.createElement('div'); mr.className = 'bets'; const ml = document.createElement('span'); ml.className = 'small'; ml.textContent = 'Bet on:'; mr.appendChild(ml); G.DICE_MODES.forEach(m => { const b = document.createElement('button'); b.textContent = m.name + ' ×' + m.pay; b.title = m.desc; b.className = UI.casDiceMode === m.id ? 'sel' : ''; b.onclick = () => { UI.casDiceMode = m.id; UI.casRender(); }; mr.appendChild(b); }); body.appendChild(mr);
+      body.appendChild(betRow(C.diceBets, 'dice')); body.appendChild(bigBtn('ROLL', () => casAct({ a: 'gamble', g: 'dice', bet: UI.casBet.dice, mode: UI.casDiceMode })));
+      body.appendChild(oddsTable(G.DICE_MODES.map(m => ({ o: m.name + ' — ' + m.desc, c: pct(m.p), p: '×' + m.pay + (m.push ? ' (tie ' + pct(m.push) + ': bet back)' : '') })).concat([{ o: 'boxcars in any mode: common boon · snake eyes: hexed', c: pct(1 / 36), p: 'boon / hex' }]), 'return to player ≈ 92% on every bet; the longer the shot, the bigger the multiplier'));
+    } else if (g === 'wheel') {
+      const wrap = document.createElement('div'); wrap.className = 'wheelwrap'; const cv = document.createElement('canvas'); cv.width = 340; cv.height = 340; cv.id = 'wheelcv'; wrap.appendChild(cv);
+      const tier = Math.max(0, C.wheelBets.indexOf(UI.casBet.wheel === undefined ? C.wheelBets[0] : UI.casBet.wheel)); const odds = C.wheel[tier];
+      const o = document.createElement('div'); o.className = 'odds'; o.innerHTML = '<b>Bet ' + C.wheelBets[tier] + '</b> odds:<br>' + C.wheelNames.map((n, i) => '<span style="color:' + WHEEL_COL[i] + '">■</span> ' + (i === 4 ? 'Coins ×' + C.wheelCoin[tier] : n) + ' <b>' + Math.round(odds[i] * 100) + '%</b>').join('<br>') + '<br><span class="small">bigger bets shift the wheel toward rarer boons</span>'; wrap.appendChild(o); body.appendChild(wrap);
+      body.appendChild(betRow(C.wheelBets, 'wheel')); body.appendChild(bigBtn('SPIN THE WHEEL', () => casAct({ a: 'gamble', g: 'wheel', bet: UI.casBet.wheel })));
+      UI.drawWheel(cv, odds, UI.casWheelAng || 0);
+    } else if (g === 'bj') {
+      const L = UI.casLast && UI.casLast.g === 'bj' && UI.casLast.hand ? UI.casLast : null;
+      const hand = (lbl, cards, val) => { const h = document.createElement('div'); h.className = 'hand'; h.innerHTML = '<div class="lbl">' + lbl + (typeof val === 'number' ? ' — ' + val : (cards && cards.length ? '' : ' — place a bet and deal')) + '</div>'; const cs = document.createElement('div'); cs.className = 'cards'; (cards || []).forEach(c => { const d = document.createElement('div'); d.className = 'card' + (c === '??' ? ' back' : /[♥♦]/.test(c) ? ' red' : ''); d.textContent = c; cs.appendChild(d); }); h.appendChild(cs); return h; };
+      body.appendChild(hand('Dealer', L ? L.dealer : [], L && L.dval)); body.appendChild(hand('You', L ? L.hand : [], L && L.val));
+      if (L && !L.done) { const row = document.createElement('div'); row.className = 'bets'; row.appendChild(bigBtn('HIT', () => casAct({ a: 'bj', op: 'hit' }))); row.appendChild(bigBtn('STAND', () => casAct({ a: 'bj', op: 'stand' }))); body.appendChild(row); }
+      else { body.appendChild(betRow(C.bjBets, 'bj')); body.appendChild(bigBtn('DEAL', () => casAct({ a: 'bj', op: 'deal', bet: UI.casBet.bj }))); }
+      body.appendChild(oddsTable([{ o: 'natural blackjack (A + ten)', c: '4.8%', p: '×2.5 · rare boon' }, { o: 'beat the dealer (stands on 17)', c: '≈ 42%', p: '×2' }, { o: 'push', c: '≈ 9%', p: 'bet back' }, { o: 'dealer wins', c: '≈ 49%', p: '—', bad: true }], 'play the dealer\'s up-card: stand on 12+ against a 4–6, hit soft hands under 18'));
+    }
+    body.appendChild(rigRow);
+  };
+  UI.drawWheel = function (cv, odds, ang) {
+    const x = cv.getContext('2d'); const r = cv.width / 2; x.clearRect(0, 0, cv.width, cv.height); let a0 = ang;
+    odds.forEach((o, i) => { if (o <= 0) return; const a1 = a0 + o * Math.PI * 2; x.beginPath(); x.moveTo(r, r); x.arc(r, r, r - 6, a0, a1); x.closePath(); x.fillStyle = WHEEL_COL[i]; x.fill(); x.strokeStyle = '#1a1020'; x.lineWidth = 3; x.stroke(); a0 = a1; });
+    x.beginPath(); x.arc(r, r, 18, 0, Math.PI * 2); x.fillStyle = '#1a1020'; x.fill(); x.fillStyle = '#ffd24a'; x.beginPath(); x.moveTo(r, 4); x.lineTo(r - 14, 34); x.lineTo(r + 14, 34); x.closePath(); x.fill();
+  };
+  UI.gres = function (ev) {
+    if (ev.err) { $('cas-log').textContent = ev.err; return; }
+    if (ev.g === 'buy') { $('cas-log').textContent = ev.msg; setTimeout(() => UI.casRender(), 60); G.Audio.play('chest'); return; }
+    UI.casLast = ev; if (!UI.casOpen) { UI.casino(true); }
+    const tab = ev.g; if (UI.casGame !== tab) { UI.casGame = tab; [...$('cas-tabs').children].forEach(x => x.classList.toggle('sel', x.dataset.g === tab)); }
+    const done = () => { UI.casRender(); $('cas-coins').textContent = '⬤ ' + ev.coins; $('cas-log').textContent = ev.msg + (ev.win ? ' — +' + ev.win + ' coins' : '') + (ev.boon >= 0 ? ' — pick your boon!' : ''); if (ev.win > ev.bet) G.Audio.play('pw'); else if (ev.hex) G.Audio.play('hurt'); };
+    if (ev.g === 'slots') { UI.casRender(); const rs = $('reels'); if (!rs) return done(); $('cas-log').textContent = 'Spinning…'; const t0 = performance.now(); const durs = [1100, 1500, 1900]; const targets = ev.reels.map(id => SYM_ORDER.indexOf(id)); const turns = [5, 7, 9]; let lastTick = 0;
+      const step = () => { const now = performance.now(); let all = true; [...rs.children].forEach((r, i) => { const k = Math.min(1, (now - t0) / durs[i]); const e = 1 - Math.pow(1 - k, 3); const off = e * (turns[i] * SYM_ORDER.length + targets[i]); UI.reelDraw(r, k >= 1 ? targets[i] : off, SYM_ORDER); if (k < 1) all = false; r.classList.toggle('lit', k >= 1); }); if (now - lastTick > 90 && !all) { lastTick = now; G.Audio.play('tick'); } if (!all) requestAnimationFrame(step); else { rs.classList.toggle('win', ev.win > 0); done(); } }; step(); return; }
+    if (ev.g === 'wheel') { UI.casRender(); const cv = $('wheelcv'); if (!cv) return done(); const odds = G.CASINO.wheel[Math.max(0, G.CASINO.wheelBets.indexOf(ev.bet))]; let start = 0; for (let i = 0; i < ev.seg; i++) start += odds[i]; const mid = start + odds[ev.seg] / 2; const target = -Math.PI / 2 - mid * Math.PI * 2 - Math.PI * 2 * 4; const from = UI.casWheelAng || 0; const t0 = performance.now(); const dur = 2200; $('cas-log').textContent = 'The wheel spins…';
+      const step = () => { const k = Math.min(1, (performance.now() - t0) / dur); const e = 1 - Math.pow(1 - k, 3); UI.casWheelAng = from + (target - from) * e; const c = $('wheelcv'); if (c) UI.drawWheel(c, odds, UI.casWheelAng); if (k < 1) requestAnimationFrame(step); else done(); }; step(); return; }
+    done();
+  };
+  // ---- tutorial: a checklist that follows the player's progress; hidden once every step was completed or the player closes it ----
+  const keyName = (k) => { k = k || ''; if (k === ' ' || k === 'Space') return 'Space'; k = k.replace(/^Key/, '').replace(/^Digit/, '').replace('ShiftLeft', 'Shift').replace('ControlLeft', 'Ctrl'); return k.length === 1 ? k.toUpperCase() : k; };
+  G.keyName = keyName; G.keyOf = (action) => keyName((G.Input.binds || {})[action] || action); // prompts everywhere use the player's real binds
+  const fillKeys = (txt) => txt.replace(/\{(\w+)\}/g, (m, k) => '<b>' + keyName((G.Input.binds || {})[k] || k) + '</b>');
+  UI.tutStep = 0; UI.tutLast = '';
+  UI.tutorial = function (V) {
+    const box = $('tutorial'); const me = V && V.players[V.me]; const meta = UI.tutMeta || (UI.tutMeta = UI.loadMeta());
+    UI.tutHidden = !me || meta.tutorialOff || meta.tutorialDone; if (UI.tutHidden) { box.classList.add('hidden'); return; }
+    const T = G.TUTORIAL; while (UI.tutStep < T.length && T[UI.tutStep].done(V, me)) { UI.tutStep++; UI.tutLast = ''; if (UI.tutStep < T.length) UI.toast('Tutorial', 'Step done! Next: ' + T[UI.tutStep].txt.replace(/\{(\w+)\}/g, (m, k) => keyName((G.Input.binds || {})[k] || k)).slice(0, 90), '#80ffd0'); }
+    if (UI.tutStep >= T.length) { meta.tutorialDone = true; UI.saveMeta(meta); UI.toast('Tutorial complete', 'You know everything you need. Good luck out there.', '#80ffd0'); box.classList.add('hidden'); return; }
+    const key = UI.tutStep + ':' + JSON.stringify(G.Input.binds || {}); if (key === UI.tutLast) return; UI.tutLast = key; box.classList.remove('hidden');
+    $('tut-body').innerHTML = (UI.tutStep > 0 ? '<div class="tstep done">✓ ' + UI.tutStep + ' of ' + T.length + ' done</div>' : '') + T.map((t, i) => (i < UI.tutStep || i > UI.tutStep + 2) ? '' : '<div class="tstep' + (i === UI.tutStep ? ' cur' : '') + '">' + (i + 1) + '. ' + (i === UI.tutStep ? fillKeys(t.txt) : fillKeys(t.txt.split('.')[0]) + '…') + '</div>').join('');
+  };
+  UI.renderHowto = function () { const b = G.Input.binds || {}; $('howto-body').innerHTML = '<ol>' + G.TUTORIAL.map(t => '<li>' + fillKeys(t.txt) + '</li>').join('') + '</ol>' +
+    '<h3>Controls</h3><div class="small">Look: mouse · Move: <b>' + [b.forward, b.left, b.back, b.right].map(keyName).join('') + '</b> · Sprint: <b>' + keyName(b.sprint) + '</b> · Jump: <b>' + keyName(b.jump) + '</b> · Dodge: <b>' + keyName(b.dodge) + '</b> · Attack: <b>LMB</b> (3-hit combos) · Heavy / draw bow / cast / block: <b>hold RMB</b> · Interact / revive: <b>' + keyName(b.interact) + '</b> · Eat: <b>' + keyName(b.eat) + '</b> · Drop one / Shift: stack: <b>' + keyName(b.drop) + '</b> · Inventory & crafting: <b>' + keyName(b.inventory) + '</b> · Hotbar: <b>1–9</b> · Chat: <b>Enter</b> · Ping: <b>' + keyName(b.ping) + '</b> · Emote: <b>' + keyName(b.emote) + '</b>. Rebind everything under Controls & settings.</div>' +
+    '<h3>The loop</h3><div class="small">Days are for gathering and crafting, nights bring waves and — from night 2 — a night boss. Every level and chest offers a pick-of-3 <b>boon</b>. Three altar guardians drop the gems that repair the ship; sailing summons the Leviathan. Lose or win, you earn <b>Shards</b> for permanent Camp upgrades and hats.</div>' +
+    '<h3>Multiplayer</h3><div class="small">One player hosts and shares the 5-letter room code; friends join from the lobby. Everything is shared: the island, the fire, the loot. Downed friends can be revived by holding <b>' + keyName(b.interact) + '</b> next to them. Craft a <b>Storage Chest</b> (8 wood, 2 sticks) and place it at camp: everyone can stow and take from it.</div>' +
+    '<h3>The Dealer\'s Table</h3><div class="small">Bet coins on slots, a dice duel, the Wheel of Fates or blackjack. Wins pay coins and <b>boons</b> (the same skills as chests), jackpots unlock <b>hats</b>, busts <b>hex</b> you. Sketchy items rig the next game in your favour.</div>'; };
+  UI.showHostInfo = (code) => { $('hostinfo').classList.remove('hidden'); $('roomcode').textContent = code; const link = code && code !== '—' ? G.Net.inviteLink(code) : ''; $('invitelink').textContent = link ? 'Invite link: ' + link : ''; $('copylink').style.display = link ? '' : 'none'; };
+  UI.setLobbyPlayers = (names) => { $('players').innerHTML = 'Players: ' + names.map(n => '<b style="color:' + n.col + '">' + esc(n.name) + '</b>').join(', '); };
+  UI.enterGame = (seed) => { $('lobby').classList.add('hidden'); $('hud').classList.remove('hidden'); $('seedlbl').textContent = 'seed ' + seed + ' · v' + (window.__VERSION || 'dev'); };
+  const esc = (s) => String(s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+
+  function openChat() { UI.chatOpen = true; $('chatin').classList.remove('hidden'); G.Input.unlock(); UI.setResume(false); $('chatin').focus(); setTimeout(() => $('chatin').focus(), 30); G.Input.locked = true; }
+  function closeChat() { UI.chatOpen = false; $('chatin').value = ''; $('chatin').classList.add('hidden'); $('chatin').blur(); G.Input.locked = false; if (G.Main.started) G.Input.lock(); }
+  UI.chat = function (ev) {
+    const log = $('chatlog'); const d = document.createElement('div');
+    if (ev.sys) { d.className = 'sys'; d.textContent = '» ' + ev.msg; } else { d.innerHTML = '<b style="color:' + ev.col + '">' + esc(ev.from) + ':</b> ' + esc(ev.msg); }
+    log.appendChild(d); while (log.children.length > 8) log.removeChild(log.firstChild);
+    setTimeout(() => d.classList.add('old'), 9000);
+  };
+  let toastT = null;
+  UI.toast = function (title, desc, col) { const t = $('toast'); t.innerHTML = '<div style="color:' + (col || '#ffd24a') + '">' + esc(title) + '</div><div class="d">' + esc(desc || '') + '</div>'; t.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => t.style.opacity = 0, 3000); };
+  UI.confirm = function (html, onYes, yes, no) { const c = $('confirm'); c.innerHTML = html + '<div class="row" style="justify-content:center"><button id="cy" class="primary">' + esc(yes || 'Set sail') + '</button><button id="cn">' + esc(no || 'Not yet') + '</button></div>'; c.classList.remove('hidden'); $('cy').onclick = () => { c.classList.add('hidden'); onYes(); }; $('cn').onclick = () => c.classList.add('hidden'); };
+  UI.end = function (win, V, shards) {
+    const run = UI.recordRun(V, win, shards || 0); UI.lastRun = run;
+    const e = $('end'); e.classList.remove('hidden'); e.querySelector('h1').textContent = win ? 'YOU ESCAPED THE ISLAND' : 'THE ISLAND KEEPS YOU';
+    e.querySelector('h1').style.color = win ? '#ffd24a' : '#e03030';
+    const me = V.players[V.me];
+    e.querySelector('.stats').innerHTML = `<div>Days survived: <b>${V.day}</b></div><div>Time: <b>${G.fmtTime(V.elapsed || 0)}</b></div><div>Party kills: <b>${V.stats.kills}</b> · Chests opened: <b>${V.stats.chests}</b> · Deaths: <b>${V.stats.deaths}</b></div><div>Your kills: <b>${me ? me.kills : 0}</b> · Powerups: <b>${me ? Object.values(me.pw).reduce((a, b) => a + b, 0) : 0}</b></div><div>Seed: <b>${esc(V.world.seed)}</b> — type it in the lobby to replay this island.</div>`;
+    $('hud').classList.add('hidden');
+  };
+
+  // ---------- slots ----------
+  function mkSlot(i, hot) {
+    const d = document.createElement('div'); d.className = 'slot'; d.dataset.i = i;
+    const c = document.createElement('canvas'); c.width = 32; c.height = 32; d.appendChild(c);
+    const n = document.createElement('span'); n.className = 'n'; d.appendChild(n);
+    if (hot || i < 9) { const k = document.createElement('span'); k.className = 'k'; k.textContent = i + 1; d.appendChild(k); }
+    if (!hot) {
+      d.onclick = (e) => {
+        const V = G.Main.view(); const me = V && V.players[V.me]; if (!me) return;
+        if (UI.chest !== null && UI.drag === null && me.inv[i]) { G.Main.act({ a: 'stow', i: UI.chest, slot: i, n: e.shiftKey ? 0 : (e.ctrlKey || e.metaKey ? 1 : 0) }); return; } // a chest is open: clicking a bag slot stows it
+        if (e.shiftKey) { if (me.inv[i]) G.Main.act({ a: 'drop', slot: i, n: 0 }); return; }
+        if (e.ctrlKey || e.metaKey || e.altKey) { if (me.inv[i]) G.Main.act({ a: 'drop', slot: i, n: 1 }); return; }
+        if (UI.drag === null) { if (me.inv[i]) { UI.drag = i; d.classList.add('drag'); $('dropzone').classList.add('armed'); } }
+        else { G.Main.act({ a: 'move', from: UI.drag, to: i }); clearDrag(); }
+      };
+      d.oncontextmenu = (e) => { e.preventDefault(); clearDrag(); G.Main.act({ a: 'equip', slot: i }); };
+      d.onmouseenter = () => { UI.hoverSlot = i; const V = G.Main.view(); const me = V && V.players[V.me]; if (me && me.inv[i]) tip(d, me.inv[i].id, me.inv[i]); };
+      d.onmouseleave = () => { if (UI.hoverSlot === i) UI.hoverSlot = null; hideTip(); };
+    }
+    return d;
+  }
+  function clearDrag() { UI.drag = null; document.querySelectorAll('.slot.drag').forEach(x => x.classList.remove('drag')); $('dropzone').classList.remove('armed'); }
+  // ---- storage chest panel ----
+  UI.chest = null; UI.chestAt = null; UI.hoverSlot = null; UI.lastChest = '';
+  function chestObj() { const w = G.Main.world; const o = UI.chest !== null && w ? w.objs.get(UI.chest) : null; return o && o.inv ? o : null; }
+  function mkChestSlot(j) {
+    const d = document.createElement('div'); d.className = 'slot'; d.dataset.c = j;
+    const c = document.createElement('canvas'); c.width = 32; c.height = 32; d.appendChild(c);
+    const n = document.createElement('span'); n.className = 'n'; d.appendChild(n);
+    d.onclick = (e) => { const o = chestObj(); if (!o || !o.inv[j]) return; clearDrag(); G.Main.act({ a: 'take', i: UI.chest, slot: j, n: (e.ctrlKey || e.metaKey) ? 1 : 0 }); };
+    d.oncontextmenu = (e) => { e.preventDefault(); const o = chestObj(); if (!o || !o.inv[j]) return; G.Main.act({ a: 'take', i: UI.chest, slot: j, n: 1 }); };
+    d.onmouseenter = () => { const o = chestObj(); if (o && o.inv[j]) tip(d, o.inv[j].id, o.inv[j]); };
+    d.onmouseleave = hideTip;
+    return d;
+  }
+  UI.openChest = function (i, ev) {
+    UI.chest = i; UI.chestAt = ev && ev.x !== undefined ? { x: ev.x, y: ev.y } : { x: (i % G.WORLD) + .5, y: Math.floor(i / G.WORLD) + .5 }; UI.lastChest = '';
+    $('chestcol').classList.remove('hidden'); $('inv-hint').textContent = '(click a bag slot to stow it · Shift-click stows the stack · right-click to use/equip · Tab to close)';
+    if (!UI.open) UI.toggleInv(true); else UI.refreshChest();
+    UI.fitInv();
+  };
+  // the bag + chest + crafting columns can be wider than a small window: scale the panel down to fit instead of letting the columns overlap
+  UI.fitInv = function () { const el = $('inv'); if (!UI.open) return; el.style.transform = 'translate(-50%, -50%)'; const w = el.offsetWidth || 1, h = el.offsetHeight || 1; const s = Math.min(1, (innerWidth - 16) / w, (innerHeight - 16) / h); el.style.transform = 'translate(-50%, -50%)' + (s < 1 ? ' scale(' + s.toFixed(3) + ')' : ''); };
+  window.addEventListener('resize', () => UI.fitInv());
+  UI.closeChest = function () { if (UI.chest === null) return; UI.chest = null; UI.chestAt = null; $('chestcol').classList.add('hidden'); UI.fitInv(); $('inv-hint').textContent = '(click to move · right-click to use/equip · Shift-click drops the stack · Ctrl-click drops one · Tab to close)'; };
+  UI.refreshChest = function () {
+    if (UI.chest === null) return; const o = chestObj();
+    if (!o) { UI.closeChest(); return; }
+    const key = JSON.stringify(o.inv); if (key === UI.lastChest) return; UI.lastChest = key;
+    const g = $('chestgrid').children; for (let j = 0; j < g.length; j++) drawSlot(g[j], o.inv[j] || null);
+    $('chest-used').textContent = '(' + o.inv.filter(Boolean).length + '/' + o.inv.length + ' slots)';
+  };
+  function tip(el, id, inst) {
+    const d = I[id]; if (!d) return; const t = $('tip'); let s = '<b style="color:' + (inst && (inst.aff || inst.q >= 3) ? G.RARITY_COL[inst.q || 0] : (d.unique ? G.RARITY_COL[3] : 'var(--acc)')) + '">' + (inst ? G.itemName(inst) : d.name) + '</b>';
+    if (inst && inst.aff) for (const a of inst.aff) s += '<div style="color:' + G.AFFIX[a].col + '">' + G.AFFIX[a].name + ': ' + G.AFFIX[a].desc + '</div>';
+    if (d.desc) s += '<div style="color:#ffd24a">' + d.desc + '</div>';
+    const V = G.Main.view(); const me = V && V.players[V.me];
+    if (d.type === 'weapon' || d.type === 'tool') { const dps = d.dmg * d.spd; const held = me && me.inv[me.held] && I[me.inv[me.held].id]; const hd = held && (held.type === 'weapon' || held.type === 'tool') && held.id !== d.id ? held : null; const cmp = hd ? (dps - hd.dmg * hd.spd) : 0;
+      s += '<div class="d">' + Math.round(d.dmg) + ' dmg · ' + d.spd + '/s = <b>' + dps.toFixed(1) + ' dps</b>' + (hd ? ' <span style="color:' + (cmp >= 0 ? '#80ffb0' : '#ff9090') + '">(' + (cmp >= 0 ? '+' : '') + cmp.toFixed(1) + ' vs ' + hd.name + ')</span>' : '') + '</div><div class="d">reach ' + d.reach + ' · knockback ' + (d.kb || 0) + (d.crit ? ' · crit ' + Math.round(d.crit * 100) + '%' : '') + (d.burn ? ' · burns' : '') + (d.frost ? ' · chills' : '') + (d.tool ? ' · ' + d.tool + ' tier ' + d.tier : '') + (d.big ? ' · two-handed' : '') + '</div>'; }
+    if (d.type === 'armor') { const worn = me && me.armor && me.armor[d.slot] ? I[me.armor[d.slot]] : null; const cmp = worn && worn.id !== d.id ? (d.def || 0) - (worn.def || 0) : null;
+      s += '<div class="d">' + (d.def ? '+' + d.def + ' defense ' : '') + (cmp !== null ? '<span style="color:' + (cmp >= 0 ? '#80ffb0' : '#ff9090') + '">(' + (cmp >= 0 ? '+' : '') + cmp + ' vs ' + worn.name + ')</span> ' : '') + '(' + d.slot + ') — right-click to equip</div>'; }
+    if (d.type === 'staff') s += '<div class="d">' + d.dmg + ' spell damage · hold RMB to charge, release to cast (' + d.cost + ' stamina)</div>';
+    if (d.type === 'weapon' || d.type === 'tool') s += '<div class="d">hold RMB for a heavy attack · 3rd hit in a row is a combo finisher</div>';
+    if (d.type === 'food') s += '<div class="d">+' + d.hunger + ' food, +' + d.hp + ' HP' + (d.buff ? ' · buff: ' + (d.buff.hp ? '+' + d.buff.hp + ' max HP ' : '') + (d.buff.stam ? '+' + d.buff.stam + ' stamina regen ' : '') + 'for ' + Math.round(d.buff.dur / 60) + ' min' : '') + ' — right-click or Q to eat</div>';
+    if (d.type === 'bow') s += '<div class="d">' + d.dmg + ' dmg · hold RMB to draw, release to fire · needs arrows</div>';
+    if (d.type === 'shield') s += '<div class="d">blocks ' + Math.round(d.block * 100) + '% · hold RMB · block in the first instant to PARRY</div>';
+    if (d.type === 'place') s += '<div class="d">place with LMB' + (G.OBJS[d.obj].claim ? ' · light: monsters won\'t spawn nearby' : '') + (G.OBJS[d.obj].station ? ' · crafting station' : '') + (G.OBJS[d.obj].wall ? ' · ' + G.OBJS[d.obj].hp + ' HP' : '') + '</div>';
+    if (d.type === 'key') s += '<div class="d">use at the ' + G.OBJS[d.altar].name + ' to summon its guardian</div>';
+    if (d.type === 'gem') s += '<div class="d">a guardian\'s heart — bring it to the ship</div>';
+    if (d.type === 'material') s += '<div class="d">crafting material</div>';
+    t.innerHTML = s; t.classList.remove('hidden'); const r = el.getBoundingClientRect(); t.style.left = Math.min(window.innerWidth - 240, r.right + 6) + 'px'; t.style.top = r.top + 'px';
+  }
+  function hideTip() { $('tip').classList.add('hidden'); }
+  function drawSlot(el, s) {
+    const c = el.querySelector('canvas'), x = c.getContext('2d'); x.clearRect(0, 0, 32, 32);
+    if (s) { x.drawImage(G.Sprites.item(s.id), 0, 0); }
+    const n = el.querySelector('.n'); if (n) n.textContent = s && s.n > 1 ? s.n : '';
+    el.classList.remove('q1', 'q2', 'q3'); if (s && (s.aff || s.q >= 3 || (I[s.id] && I[s.id].unique))) el.classList.add('q' + Math.max(1, s.q || 3));
+  }
+  UI.toggleInv = function (force) {
+    UI.open = force === undefined ? !UI.open : force;
+    $('inv').classList.toggle('hidden', !UI.open); clearDrag(); hideTip(); if (!UI.open) UI.closeChest(); $('dropzone').classList.toggle('hidden', !UI.open); $('dropzone-key').textContent = G.Input.keyName(G.Input.binds.drop || 'x');
+    if (UI.open) { UI.lastInv = ''; UI.refreshCraft(true); G.Input.unlock(); UI.setResume(false); UI.fitInv(); }
+    else if (G.Main.started) { G.Input.lock(); }
+  };
+  UI.setResume = function (show) { $('resume').classList.toggle('hidden', !show); UI.paused = show && G.Main.mode === 'host' && G.Net.count() === 0; $('resume-title').textContent = UI.paused ? 'Paused' : (G.Main.started ? 'Menu — the island keeps turning' : 'Click to play'); };
+  UI.showSettings = function () { $('settings').classList.remove('hidden'); UI.renderBinds(); G.Input.unlock(); };
+  UI.hideSettings = function () { $('settings').classList.add('hidden'); G.Input.capture = null; if (G.Main.started) UI.setResume(true); };
+  UI.renderBinds = function () {
+    const list = $('bindlist'); list.innerHTML = '';
+    for (const a in G.Input.DEFAULT_BINDS) { const d = document.createElement('div'); d.className = 'bind'; const lbl = document.createElement('span'); lbl.textContent = G.Input.BIND_NAMES[a]; d.appendChild(lbl); const b = document.createElement('button'); b.textContent = G.Input.keyName(G.Input.binds[a]); b.onclick = () => { document.querySelectorAll('.bind button').forEach(x => x.classList.remove('listening')); b.classList.add('listening'); b.textContent = 'press a key…'; G.Input.capture = a; G.Input.onCaptured = () => UI.renderBinds(); }; d.appendChild(b); list.appendChild(d); }
+  };
+  UI.objective = function (V) {
+    const gems = ['emerald', 'sapphire', 'ruby'].filter(g => V.boat[g] >= 1).length; const dead = Object.keys(V.bosses).filter(k => V.bosses[k] === 'dead').length;
+    let txt;
+    if (V.phase === 'siege') txt = 'Hold the dock!'; else if (V.phase === 'final') txt = 'Slay the Leviathan';
+    else if (V.boat.done) txt = 'The ship is ready — set sail from the wreck when everyone is ready';
+    else if (gems >= 3) txt = 'Bring 60 wood, 20 iron bars, 10 rope to the wreck (' + V.boat.wood + '/60 · ' + V.boat.iron_bar + '/20 · ' + V.boat.rope + '/10)';
+    else txt = 'Guardian gems ' + gems + '/3 · bosses slain ' + dead + '/10' + (V.day === 1 ? ' · craft a workbench, torch and campfire before dark' : '');
+    return txt;
+  };
+
+  // ---------- HUD refresh ----------
+  UI.update = function (V, hint) {
+    const me = V.players[V.me]; if (!me) return;
+    const set = (id, v, max, txt) => { const b = $(id); b.firstElementChild.style.width = Math.max(0, Math.min(100, v / max * 100)) + '%'; b.lastElementChild.textContent = txt; };
+    set('hpbar', me.hp, me.maxHp, 'HP ' + Math.ceil(me.hp) + '/' + me.maxHp + (me.swCd > 0 ? ' · second wind ' + me.swCd + 's' : ''));
+    set('stbar', me.stam, 100, me.stam < 15 ? 'Stamina — exhausted' : 'Stamina');
+    set('fdbar', me.hunger, 100, me.hunger < 25 ? 'Food — STARVING' : 'Food');
+    $('hpbar').classList.toggle('low', me.hp < me.maxHp * 0.3); $('stbar').classList.toggle('low', me.stam < 15); $('fdbar').classList.toggle('low', me.hunger < 25);
+    if (me.hunger < 25 && !UI.warnedFood) { UI.warnedFood = true; UI.toast('You are starving', 'eat something (' + G.keyOf('eat') + ') — berries, wheat or cooked meat', '#ffb060'); } else if (me.hunger >= 40) UI.warnedFood = false;
+    const others = Object.values(V.players).filter(q => q.id !== me.id); const pk = others.map(q => q.id + q.name + Math.round(q.hp) + (q.downed ? 'd' : '') + (q.dead ? 'x' : '')).join('|');
+    if (pk !== UI.lastParty) { UI.lastParty = pk; $('party').innerHTML = others.map(q => '<div class="pm' + (q.downed ? ' down' : '') + '"><span class="nm" style="color:' + esc(q.col) + '">' + esc(q.name) + (q.dead ? ' ☠' : q.downed ? ' ↓' : '') + '</span><div class="hb"><div style="width:' + Math.max(0, Math.min(100, q.hp / q.maxHp * 100)) + '%"></div></div></div>').join(''); }
+    if (G.Input.settings.fps && G.Render.fps) $('fps').textContent = G.Render.fps + ' fps · ' + G.Render.W + '×' + G.Render.H;
+    $('coins').textContent = '⬤ ' + me.coins + ' coins';
+    $('dodges').textContent = 'Dodge ' + '◆'.repeat(me.dodgeCh) + '◇'.repeat(Math.max(0, (1 + (me.pw.feather || 0)) - me.dodgeCh)) + (me.charge > 0 ? ' · HEAVY ' + Math.round(me.charge * 100) + '%' : '');
+    const xpNext = me.xpNext || G.XP_FOR(me.lvl || 1); set('xpbar', me.xp, xpNext, 'Lv ' + me.lvl + ' · ' + Math.round(me.xp) + '/' + xpNext + ' xp');
+    UI.boon(me);
+    const pwKey = JSON.stringify(me.pw);
+    if (pwKey !== UI.lastPw) { UI.lastPw = pwKey; const w = $('pws'); w.innerHTML = ''; for (const k in me.pw) { const d = document.createElement('div'); d.className = 'pwicon'; d.title = G.PW[k].name + ': ' + G.PW[k].desc; const c = document.createElement('canvas'); c.width = 16; c.height = 16; c.getContext('2d').drawImage(G.Sprites.powerup(k), 0, 0); d.appendChild(c); const s = document.createElement('span'); s.textContent = me.pw[k] > 1 ? me.pw[k] : ''; d.appendChild(s); w.appendChild(d); } }
+    $('buffs').textContent = me.buffs.map(b => (I[b.id] ? I[b.id].name : b.id === 'hex' ? 'HEXED −15% dmg' : b.id) + ' ' + G.fmtTime(b.t)).join(' · ');
+    if (UI.casOpen && UI.casAt && G.dist(me.x, me.y, UI.casAt.x, UI.casAt.y) > 4) UI.casino(false);
+    if (UI.chest !== null) { if (UI.chestAt && G.dist(me.x, me.y, UI.chestAt.x, UI.chestAt.y) > 4.5) UI.closeChest(); else UI.refreshChest(); }
+    // clock
+    const t = V.time; const phase = t < G.DUSK_AT ? 'Day' : t < G.NIGHT_AT ? 'Dusk' : 'Night';
+    $('clock').querySelector('.day').textContent = 'Day ' + V.day + ' — ' + phase;
+    const rem = t < G.DUSK_AT ? G.DUSK_AT - t : t < G.NIGHT_AT ? G.NIGHT_AT - t : G.DAY_LEN - t;
+    let ct = (phase === 'Night' ? 'dawn in ' : phase === 'Dusk' ? 'night in ' : 'dusk in ') + G.fmtTime(rem) + ' · difficulty ' + V.diff.toFixed(1) + 'x';
+    if (V.phase === 'siege') ct = '<span class="siege">HOLD THE DOCK — ' + V.siegeT + 's</span>'; if (V.phase === 'final') ct = '<span class="siege">KILL THE LEVIATHAN</span>';
+    $('clock').querySelector('.time').innerHTML = ct; $('objective').textContent = UI.objective(V);
+    // hotbar & inventory
+    const invKey = JSON.stringify(me.inv) + me.held + JSON.stringify(me.armor);
+    if (invKey !== UI.lastInv) {
+      UI.lastInv = invKey;
+      const hb = $('hotbar').children; for (let i = 0; i < 9; i++) { drawSlot(hb[i], me.inv[i]); hb[i].classList.toggle('sel', i === me.held); }
+      if (UI.open) { const g = $('invgrid').children; for (let i = 0; i < 27; i++) { drawSlot(g[i], me.inv[i]); g[i].classList.toggle('sel', i === me.held); } const a = $('armor').children; ['head', 'chest', 'legs', 'trinket'].forEach((s, i) => drawSlot(a[i], me.armor[s] ? { id: me.armor[s], n: 1 } : null)); UI.refreshCraft(); const st = G.Sim.stats(me); $('invstats').textContent = 'Defense ' + st.def + ' · Attack x' + st.atk.toFixed(2) + ' · Speed x' + (st.speed / 4.4).toFixed(2) + ' · Crit ' + Math.round(st.crit * 100) + '%'; }
+    } else if (UI.open) { UI.craftT = (UI.craftT || 0) + 1; if (UI.craftT % 30 === 0) UI.refreshCraft(); }
+    $('hint').textContent = hint || ''; $('hint').style.display = hint ? '' : 'none';
+    $('netlbl').textContent = V.netlbl || '';
+  };
+  UI.refreshCraft = function (rebuild) {
+    const V = G.Main.view(); const me = V && V.players[V.me]; if (!me) return;
+    const list = $('craftlist'); const hl = (G.TUTORIAL[UI.tutStep] && !UI.tutHidden && G.TUTORIAL[UI.tutStep].hl) || [];
+    const S = G.Main.simForUI();
+    if (rebuild || !list.children.length) {
+      list.innerHTML = '';
+      G.RECIPES.forEach((r, ri) => {
+        const d = document.createElement('div'); d.className = 'recipe'; d.dataset.r = ri;
+        const c = document.createElement('canvas'); c.width = 32; c.height = 32; c.getContext('2d').drawImage(G.Sprites.item(r.out), 0, 0); d.appendChild(c);
+        const nm = document.createElement('span'); nm.textContent = I[r.out].name + (r.n > 1 ? ' ×' + r.n : ''); d.appendChild(nm);
+        const nd = document.createElement('span'); nd.className = 'needs'; nd.innerHTML = Object.keys(r.needs).map(k => '<span data-k="' + k + '">' + r.needs[k] + ' ' + I[k].name + '</span>').join(', ') + (r.station ? '<div class="st">@ ' + G.OBJS[r.station].name + '</div>' : ''); d.appendChild(nd);
+        d.onclick = (e) => { if (d.classList.contains('no')) { const V = G.Main.view(); const me = V && V.players[V.me]; const miss = me ? Object.keys(r.needs).filter(k => G.Sim.count(me, k) < r.needs[k]).map(k => (r.needs[k] - G.Sim.count(me, k)) + ' more ' + I[k].name) : []; UI.toast(miss.length ? 'Missing: ' + miss.join(', ') : 'Needs a ' + (I[r.station] ? I[r.station].name : r.station) + ' nearby', '', '#ff9090'); G.Audio.play('no'); return; } const n = e.shiftKey ? 5 : 1; for (let k = 0; k < n; k++) G.Main.act({ a: 'craft', r: ri }); }; d.onmouseenter = () => tip(d, r.out); d.onmouseleave = hideTip;
+        list.appendChild(d);
+      });
+    }
+    [...list.children].forEach(d => { const r = G.RECIPES[+d.dataset.r]; const ok = G.Sim.canCraft(S, me, r); d.classList.toggle('no', !ok); d.querySelectorAll('[data-k]').forEach(sp => { const k = sp.dataset.k; sp.style.color = G.Sim.count(me, k) >= r.needs[k] ? '' : '#ff8080'; }); });
+    for (const d of list.children) { const r = G.RECIPES[d.dataset.r]; d.classList.toggle('tut', !!r && hl.includes(r.out)); }
+  };
+})(window.G);
