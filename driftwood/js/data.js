@@ -344,7 +344,7 @@
   // tutorial steps: text shown to new players, key names are filled from the current binds, done() checks the client view
   G.TUTORIAL = [
     { id: 'move', txt: 'Look around with the mouse. Walk with {forward}{left}{back}{right}, sprint with {sprint}, jump with {jump}.', done: (V, me) => G.dist(me.x, me.y, V.world.spawn.x, V.world.spawn.y) > 4 },
-    { id: 'wood', txt: 'Punch a tree (LMB) until it drops wood and sticks. Walk over drops to pick them up. You need 3 wood.', done: (V, me) => me.inv.some(s => s && s.id === 'wood' && s.n >= 3) },
+    { id: 'wood', txt: 'Punch a tree (LMB) until it drops wood and sticks, then press {interact} next to the drops to pick them up. You need 3 wood.', done: (V, me) => me.inv.some(s => s && s.id === 'wood' && s.n >= 3) },
     { id: 'stone', txt: 'Punch a rock the same way for stone (2 is enough).', done: (V, me) => me.inv.some(s => s && s.id === 'stone') },
     { id: 'axe', txt: 'Open crafting with {inventory}. Bright recipes are ready to make — click the highlighted Stone Axe. Hover a recipe to see what it needs.', hl: ['axe_stone'], done: (V, me) => me.inv.some(s => s && /^axe_/.test(s.id)) },
     { id: 'pick', txt: 'Craft a Stone Pickaxe too — tools harvest much faster, and pickaxes open ore veins.', hl: ['pick_stone'], done: (V, me) => me.inv.some(s => s && /^pick_/.test(s.id)) },

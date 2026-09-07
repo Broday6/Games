@@ -4,6 +4,8 @@ directories:
   output: dist
 files:
   - main.js
+  - preload.js
+  - wsserver.js
   - game.html
   - package.json
   - icon.*

@@ -15,7 +15,11 @@
     if (G.Assets) G.Assets.load();
     In.onAction = onLocalAction; In.onLockChange = onLockChange;
     Net.onMessage = onMessage; Net.onJoin = onJoin; Net.onLeave = onLeave;
-    const p = new URLSearchParams(location.search); if (p.get('room')) { const code = p.get('room').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5); document.getElementById('tab-join').click(); document.getElementById('joincode').value = code; UI.status('Room ' + code + ' is filled in — pick a name and press Join.'); const nm = document.getElementById('name'); if (nm && !nm.value) nm.focus(); }
+    const p = new URLSearchParams(location.search);
+    // served by a Driftwood server (node server.js or the desktop app's port): offer to join it straight away
+    const srv = p.get('server') || (window.__SERVER_ADDR ? location.host : '');
+    if (srv) { document.getElementById('tab-join').click(); document.getElementById('serveraddr').value = srv; UI.status((window.__SERVER_NAME ? window.__SERVER_NAME + ' — ' : '') + 'server address filled in: pick a name and press Connect.'); const nm = document.getElementById('name'); if (nm && !nm.value) nm.focus(); }
+    else if (p.get('room')) { const code = p.get('room').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5); document.getElementById('tab-join').click(); document.getElementById('joincode').value = code; UI.status('Room ' + code + ' is filled in — pick a name and press Join.'); const nm = document.getElementById('name'); if (nm && !nm.value) nm.focus(); }
     requestAnimationFrame(loop);
   });
 
@@ -44,14 +48,23 @@
     UI.chat({ sys: true, msg: 'Before dark: craft a torch (1 stick + 1 wood) and a campfire. Total darkness hurts, and monsters never spawn near light.' });
     In.wantLock = true; In.lock();
   };
-  M.join = function (name, col, code) { M.pending = { name, col }; M.mode = 'client'; Net.join(code, (ok) => { if (!ok) document.getElementById('btn-join').disabled = false; }); };
-  M.prepareClient = function (name, col) { M.pending = { name, col }; M.mode = 'client'; };
+  M.join = function (name, col, code) { M.pending = { name, col }; M.mode = 'client'; M.lost = false; Net.join(code, (ok) => { if (!ok) document.getElementById('btn-join').disabled = false; }); };
+  M.prepareClient = function (name, col) { M.pending = { name, col }; M.mode = 'client'; M.lost = false; };
+  M.connectServer = function (name, col, addr, pass) { M.pending = { name, col, pass }; M.mode = 'client'; M.lost = false; Net.connect(addr, (ok) => { if (!ok) document.getElementById('btn-connect').disabled = false; }); };
+  // desktop app: open a port on this computer so friends connect by address (works alongside the room code)
+  M.hostDirect = async function (name, col, seed, port) {
+    if (!M.S) makeHostSim(name, col, seed);
+    const r = await Net.listen(port);
+    if (r && r.ok) { UI.showDirectInfo(r); document.getElementById('hostinfo').classList.remove('hidden'); document.getElementById('seed').value = M.S.world.seed; UI.status('Listening on port ' + r.port + ' — friends connect with your address.'); }
+    else UI.status('Could not open port ' + port + (r && r.error ? ': ' + r.error : '') + '. Try another port.');
+    return r;
+  };
   function updateLobbyPlayers() { if (M.S) UI.setLobbyPlayers(Object.values(M.S.players).map(p => ({ name: p.name, col: p.col }))); }
   function onLockChange(locked) { if (!document.getElementById('settings').classList.contains('hidden')) return; UI.setResume(!locked && M.started && !UI.open && !UI.chatOpen); }
 
   // ---------- networking ----------
   function onJoin(id) {
-    if (M.mode === 'client') { Net.send('host', { t: 'hello', name: M.pending ? M.pending.name : 'Castaway', col: M.pending ? M.pending.col : '#fff', cls: UI.cls, meta: UI.loadMeta().up, hat: UI.hat, skin: UI.skin }); UI.status('Connected — waiting for host…'); }
+    if (M.mode === 'client') { Net.send('host', { t: 'hello', name: M.pending ? M.pending.name : 'Castaway', col: M.pending ? M.pending.col : '#fff', cls: UI.cls, meta: UI.loadMeta().up, hat: UI.hat, skin: UI.skin, pass: M.pending && M.pending.pass || undefined }); UI.status('Connected — waiting for host…'); }
   }
   function onLeave(id) {
     if (M.mode === 'host' && M.S) { Sim.removePlayer(M.S, id); updateLobbyPlayers(); }
@@ -77,6 +90,7 @@
       else if (msg.t === 'ev') handleEvents(msg.list);
       else if (msg.t === 'start') { if (!M.started) { M.started = true; A.init(); A.resume(); UI.enterGame(M.world.seed); In.wantLock = true; UI.setResume(true); } }
       else if (msg.t === 'pong') M.pingMs = Math.round((performance.now() - msg.k));
+      else if (msg.t === 'kick') { M.lost = true; Net.kickReason = String(msg.reason || 'The server turned you away.'); UI.status(Net.kickReason); document.getElementById('btn-connect').disabled = false; document.getElementById('btn-join').disabled = false; if (M.started) UI.hostLost(Net.room, String(msg.reason || '')); }
     }
   }
   function applySnapshot(snap) {
@@ -136,6 +150,7 @@
     if (a.a === 'click') { const it = me.inv[me.held]; if (it && G.ITEMS[it.id].type === 'place') { const t = targetTile(); if (t) M.act({ a: 'build', item: it.id, tx: t.tx, ty: t.ty }); } return; }
     if (a.a === 'wheel') { M.act({ a: 'held', slot: (me.held + a.d + 9) % 9 }); return; }
     if (a.a === 'ping') { const hit = R.rayGround(V.world, 40); const f = In.forward(); M.act({ a: 'ping', x: hit ? hit.x : me.x + f.x * 8, y: hit ? hit.y : me.y + f.y * 8 }); return; }
+    if (a.a === 'quickeat' && nearDrop(V, me)) { M.act({ a: 'pickup' }); return; } // the eat key doubles as pick-up when something lies at your feet
     if (a.a === 'quickeat') { let best = -1, bv = -1; me.inv.forEach((s, i) => { if (s && G.ITEMS[s.id].type === 'food' && s.id !== 'raw_meat') { const v = G.ITEMS[s.id].hunger; if (v > bv && me.hunger < 100 - v * 0.5) { bv = v; best = i; } } }); if (best >= 0) M.act({ a: 'eat', slot: best }); return; }
     M.act(a);
   }
@@ -182,10 +197,14 @@
   }
 
   // ---------- hints ----------
+  function nearDrop(V, me) { const reach = (me.pickup || 1.7) + 0.6; let best = null, bd = reach; for (const d of V.drops) { if (d.item === 'coin') continue; const dd = G.dist(d.x, d.y, me.x, me.y); if (dd < bd) { bd = dd; best = d; } } return best; }
+  M.hintFor = (V) => hintFor(V);
   function hintFor(V) {
     const me = V.players[V.me]; if (!me || me.dead) return me && me.dead ? 'You are dead. You will wash ashore again at dawn.' : '';
     if (me.downed) return '';
     const w = V.world; let best = null, bd = 2.2;
+    const drop = nearDrop(V, me);
+    if (drop) { const dd = G.dist(drop.x, drop.y, me.x, me.y); const n = V.drops.filter(d => d.item !== 'coin' && G.dist(d.x, d.y, drop.x, drop.y) <= 1.1).length; if (dd < 1.6 || n > 0) { const more = n > 1 ? ' and ' + (n - 1) + ' more' : ''; return G.keyOf('interact') + ' / ' + G.keyOf('eat') + ': pick up ' + G.itemName({ id: drop.item, aff: drop.aff }) + (drop.n > 1 ? ' ×' + drop.n : '') + more; } }
     for (let y = Math.floor(me.y - 2); y <= me.y + 2; y++) for (let x = Math.floor(me.x - 2); x <= me.x + 2; x++) { const o = w.objs.get(G.idx(x, y)); if (!o) continue; const d = G.OBJS[o.t]; if (!(d.isChest || d.altar || d.boat || d.door || d.casino || d.storage)) continue; const dd = G.dist(me.x, me.y, x + .5, y + .5); if (dd < bd) { bd = dd; best = { o, d }; } }
     for (const id in V.players) { const q = V.players[id]; if (q !== me && q.downed && G.dist(q.x, q.y, me.x, me.y) < 1.6) return 'Hold ' + G.keyOf('interact') + ' to revive ' + q.name; }
     if (best) {

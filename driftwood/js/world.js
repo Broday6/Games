@@ -212,6 +212,17 @@
   };
 
   // apply object change on the world and record it for network delta
+  // Storage chests placed within two tiles of each other form one linked store: stowing routes an item to whichever chest already
+  // holds that kind, and the sort action groups everything across the whole network. Returns the indices, the requested one first.
+  G.chestNetwork = function (w, i) {
+    const W = G.WORLD, out = [i], seen = new Set([i]); const isChest = (j) => { const o = w.objs.get(j); return !!(o && G.OBJS[o.t] && G.OBJS[o.t].storage && o.inv); };
+    if (!isChest(i)) return out;
+    for (let k = 0; k < out.length && out.length < 12; k++) {
+      const cx = out[k] % W, cy = Math.floor(out[k] / W);
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { if (!dx && !dy) continue; const x = cx + dx, y = cy + dy; if (x < 0 || y < 0 || x >= W || y >= W) continue; const j = y * W + x; if (!seen.has(j) && isChest(j)) { seen.add(j); out.push(j); } }
+    }
+    return out;
+  };
   G.setObj = function (w, i, o) {
     if (o) w.objs.set(i, o); else w.objs.delete(i); w.objVer = (w.objVer || 0) + 1;
     w.changes.set(i, o ? G.clone(o) : null);

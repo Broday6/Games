@@ -8,7 +8,7 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "prepare-game": "node ../driftwood/build.js && node -e \"require('fs').copyFileSync('../driftwood/dist/driftwood.html','game.html')\"",
+    "prepare-game": "node ../driftwood/build.js && node -e \"require('fs').copyFileSync('../driftwood/dist/driftwood.html','game.html');require('fs').copyFileSync('../driftwood/wsserver.js','wsserver.js')\"",
     "start": "npm run prepare-game && electron .",
     "pack": "npm run prepare-game && node pack.js",
     "dist": "npm run prepare-game && electron-builder"

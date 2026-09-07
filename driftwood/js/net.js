@@ -131,5 +131,41 @@
     const ans = await pc.createAnswer(); await pc.setLocalDescription(ans); await waitIce(pc);
     return enc({ t: 'a', sdp: pc.localDescription });
   };
-  Net.leave = function () { for (const id in Net.conns) { try { Net.conns[id].close(); } catch (e) { } } Net.conns = {}; if (Net.peer) { try { Net.peer.destroy(); } catch (e) { } } Net.peer = null; Net.mode = null; };
+  // ---- direct connection to a Driftwood server (dedicated `node server.js`, or the desktop app hosting on a port) ----
+  // Messages are whole JSON strings over one WebSocket; no chunking needed.
+  Net.normalizeAddr = function (addr) {
+    addr = String(addr || '').trim(); if (!addr) return '';
+    if (/^https?:\/\//i.test(addr)) addr = addr.replace(/^http/i, 'ws');
+    if (!/^wss?:\/\//i.test(addr)) addr = 'ws://' + addr;
+    try { const u = new URL(addr); if (!u.port && u.protocol === 'ws:') u.port = '7777'; if (u.pathname === '/' || u.pathname === '') u.pathname = '/ws'; u.search = ''; u.hash = ''; return u.toString(); } catch (e) { return ''; }
+  };
+  Net.connect = function (addr, cb) {
+    const url = Net.normalizeAddr(addr); if (!url) { status('Enter a server address like 203.0.113.5:7777'); cb && cb(false, 'addr'); return; }
+    if (location.protocol === 'https:' && url.startsWith('ws://')) { status('This page is https, so the browser refuses plain ws:// servers. Open the server\'s own page (http://ADDRESS/) or use the downloaded game / desktop app.'); cb && cb(false, 'mixed'); return; }
+    Net.mode = 'client'; Net.room = null; Net.server = url; Net.kickReason = null; status('Connecting to ' + url.replace(/^ws(s?):\/\//, '').replace(/\/ws$/, '') + '…');
+    let ws; try { ws = new WebSocket(url); } catch (e) { status('Bad server address.'); cb && cb(false, 'addr'); return; }
+    let done = false; Net.ws = ws;
+    const c = { id: 'host', open: true, send: (msg) => { if (ws.readyState === 1) { try { ws.send(JSON.stringify(msg)); } catch (e) { } } }, close: () => { try { ws.close(); } catch (e) { } } };
+    ws.onopen = () => { done = true; Net.id = 'me'; addConn(c); status('Connected!'); cb && cb(true); };
+    ws.onmessage = (e) => { let msg; try { msg = JSON.parse(e.data); } catch (err) { return; } if (Net.onMessage) Net.onMessage('host', msg); };
+    ws.onerror = () => { if (!done) { status('Could not reach that server. Is it running, and is the port open?'); cb && cb(false, 'conn'); } };
+    ws.onclose = () => { if (done) { dropConn('host'); if (Net.mode === 'client') status(Net.kickReason ? Net.kickReason : 'Disconnected from server.'); } else { status('Could not reach that server. Is it running, and is the port open?'); cb && cb(false, 'conn'); } };
+    setTimeout(() => { if (!done) { try { ws.close(); } catch (e) { } } }, 8000);
+  };
+  // ---- hosting on a port from the desktop app: the Electron main process owns the listening socket and relays through the preload bridge ----
+  Net.canListen = () => !!(window.driftwoodNative && window.driftwoodNative.listen);
+  Net.listen = async function (port) {
+    if (!Net.canListen()) return { ok: false, error: 'Hosting on a port needs the desktop app.' };
+    Net.mode = Net.mode || 'host'; Net.id = Net.id || 'host';
+    if (!Net.nativeBound) {
+      Net.nativeBound = true;
+      window.driftwoodNative.on((ev) => {
+        if (ev.type === 'open') { const id = ev.id; const c = { id, open: true, send: (msg) => window.driftwoodNative.send(id, JSON.stringify(msg)), close: () => window.driftwoodNative.kick(id) }; addConn(c); }
+        else if (ev.type === 'message') { let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; } if (Net.onMessage) Net.onMessage(ev.id, msg); }
+        else if (ev.type === 'close') dropConn(ev.id);
+      });
+    }
+    const r = await window.driftwoodNative.listen(port | 0 || 7777); Net.listening = r && r.ok ? r : null; return r;
+  };
+  Net.leave = function () { for (const id in Net.conns) { try { Net.conns[id].close(); } catch (e) { } } Net.conns = {}; if (Net.peer) { try { Net.peer.destroy(); } catch (e) { } } Net.peer = null; if (Net.ws) { try { Net.ws.close(); } catch (e) { } Net.ws = null; } if (Net.listening && window.driftwoodNative) { try { window.driftwoodNative.stop(); } catch (e) { } Net.listening = null; } Net.mode = null; };
 })(window.G);

@@ -42,6 +42,10 @@
     const name = () => { const n = $('name').value.trim() || 'Castaway'; try { localStorage.setItem('driftwood', JSON.stringify({ name: n, color: UI.color, cls: UI.cls })); } catch (e) { } return n; };
     $('btn-host').onclick = () => { $('btn-host').disabled = true; G.Main.host(name(), UI.color, $('seed').value.trim()); };
     $('btn-start').onclick = () => G.Main.startHostGame();
+    $('btn-connect').onclick = () => { const addr = $('serveraddr').value.trim(); if (!addr) return UI.status('Enter the server address (host:port).'); $('btn-connect').disabled = true; G.Main.connectServer(name(), UI.color, addr, $('serverpass').value); };
+    $('serveraddr').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-connect').click(); });
+    if (G.Net.canListen()) { $('direct').classList.remove('hidden'); $('btn-direct').onclick = async () => { $('btn-direct').disabled = true; const r = await G.Main.hostDirect(name(), UI.color, $('seed').value.trim(), +$('directport').value || 7777); if (!(r && r.ok)) $('btn-direct').disabled = false; }; }
+    if (location.protocol === 'https:') $('serverhelp').innerHTML += ' <span style="color:#ffb0b0">From this https page the browser only allows wss:// servers — for a plain ip:port address use the downloaded game or the desktop app, or open the server\'s own page.</span>';
     $('btn-join').onclick = () => { const code = $('joincode').value.trim().toUpperCase(); if (code.length < 5) return UI.status('Enter the 5-letter room code.'); $('btn-join').disabled = true; G.Main.join(name(), UI.color, code); };
     $('btn-solo').onclick = () => G.Main.solo(name(), UI.color, $('seed2').value.trim());
     $('btn-tut').onclick = () => G.Main.tutorialRun(name(), UI.color);
@@ -58,8 +62,9 @@
     const hb = $('hotbar'); for (let i = 0; i < 9; i++) hb.appendChild(mkSlot(i, true));
     const grid = $('invgrid'); for (let i = 0; i < 27; i++) grid.appendChild(mkSlot(i, false));
     const cg = $('chestgrid'); for (let i = 0; i < 18; i++) cg.appendChild(mkChestSlot(i));
-    $('chest-takeall').onclick = () => { if (UI.chest !== null) G.Main.act({ a: 'takeall', i: UI.chest }); };
+    $('chest-takeall').onclick = () => { if (UI.chest !== null) G.Main.act({ a: 'takeall', i: UI.chestView }); };
     $('chest-stowall').onclick = () => { if (UI.chest !== null) G.Main.act({ a: 'stowall', i: UI.chest }); };
+    $('chest-sort').onclick = () => { if (UI.chest !== null) G.Main.act({ a: 'sortchests', i: UI.chest }); };
     $('dropzone').onclick = () => { if (UI.drag !== null) { G.Main.act({ a: 'drop', slot: UI.drag, n: 0 }); clearDrag(); } };
     $('inv').addEventListener('mouseleave', () => { UI.hoverSlot = null; });
     const arm = $('armor'); ['head', 'chest', 'legs', 'trinket'].forEach(s => { const d = document.createElement('div'); d.className = 'slot'; d.dataset.l = s; d.dataset.armor = s; const c = document.createElement('canvas'); c.width = 32; c.height = 32; d.appendChild(c); d.oncontextmenu = (e) => { e.preventDefault(); G.Main.act({ a: 'unequip', slot: s }); }; d.onclick = () => G.Main.act({ a: 'unequip', slot: s }); d.onmouseenter = () => { const V = G.Main.view(); const me = V && V.players[V.me]; if (me && me.armor[s]) tip(d, me.armor[s]); }; d.onmouseleave = hideTip; arm.appendChild(d); });
@@ -86,7 +91,7 @@
   UI.applyMotion = function () { document.body.classList.toggle('rm', !!G.Input.settings.reduceMotion); };
   UI.credits = function () { const b = $('credits-body'); const show = (t) => { b.textContent = t; $('credits').classList.remove('hidden'); }; if (window.__LICENSES) show(window.__LICENSES); else fetch('assets/LICENSES.md').then(r => r.text()).then(show).catch(() => show('See assets/LICENSES.md in the repository.')); if (G.Main.started) G.Input.unlock(); };
   UI.fatal = function (title, msg, detail) { $('fatal-title').textContent = title || 'Something broke'; $('fatal-msg').textContent = msg || ''; $('fatal-detail').textContent = detail || ''; $('fatal').classList.remove('hidden'); try { G.Input.unlock(); } catch (e) { } };
-  UI.hostLost = function (room) { const c = $('confirm'); c.innerHTML = '<p><b style="color:#ff6060">Connection to the host was lost.</b><br>The host left or the network dropped. This run is over for you.</p><div class="row" style="justify-content:center"><button id="cy" class="primary">Back to the lobby</button>' + (room ? '<button id="cn">Try rejoining ' + esc(room) + '</button>' : '') + '</div>'; c.classList.remove('hidden'); $('cy').onclick = () => location.reload(); if (room) $('cn').onclick = () => { location.search = '?room=' + encodeURIComponent(room); }; G.Input.unlock(); };
+  UI.hostLost = function (room, why) { const c = $('confirm'); c.innerHTML = '<p><b style="color:#ff6060">Connection to the host was lost.</b><br>The host left or the network dropped. This run is over for you.</p><div class="row" style="justify-content:center"><button id="cy" class="primary">Back to the lobby</button>' + (room ? '<button id="cn">Try rejoining ' + esc(room) + '</button>' : '') + '</div>'; c.classList.remove('hidden'); $('cy').onclick = () => location.reload(); if (room) $('cn').onclick = () => { location.search = '?room=' + encodeURIComponent(room); }; G.Input.unlock(); };
   // ---- hats (cosmetics): free ones, ones won at the Dealer's Table, ones bought with shards ----
   UI.hat = 'none';
   UI.ownedHats = (meta) => { const m = meta || UI.loadMeta(); const owned = new Set(['none', 'cap', 'beanie']); (m.hats || []).forEach(h => owned.add(h)); return owned; };
@@ -240,8 +245,9 @@
   UI.renderHowto = function () { const b = G.Input.binds || {}; $('howto-body').innerHTML = '<ol>' + G.TUTORIAL.map(t => '<li>' + fillKeys(t.txt) + '</li>').join('') + '</ol>' +
     '<h3>Controls</h3><div class="small">Look: mouse · Move: <b>' + [b.forward, b.left, b.back, b.right].map(keyName).join('') + '</b> · Sprint: <b>' + keyName(b.sprint) + '</b> · Jump: <b>' + keyName(b.jump) + '</b> · Dodge: <b>' + keyName(b.dodge) + '</b> · Attack: <b>LMB</b> (3-hit combos) · Heavy / draw bow / cast / block: <b>hold RMB</b> · Interact / revive: <b>' + keyName(b.interact) + '</b> · Eat: <b>' + keyName(b.eat) + '</b> · Drop one / Shift: stack: <b>' + keyName(b.drop) + '</b> · Inventory & crafting: <b>' + keyName(b.inventory) + '</b> · Hotbar: <b>1–9</b> · Chat: <b>Enter</b> · Ping: <b>' + keyName(b.ping) + '</b> · Emote: <b>' + keyName(b.emote) + '</b>. Rebind everything under Controls & settings.</div>' +
     '<h3>The loop</h3><div class="small">Days are for gathering and crafting, nights bring waves and — from night 2 — a night boss. Every level and chest offers a pick-of-3 <b>boon</b>. Three altar guardians drop the gems that repair the ship; sailing summons the Leviathan. Lose or win, you earn <b>Shards</b> for permanent Camp upgrades and hats.</div>' +
-    '<h3>Multiplayer</h3><div class="small">One player hosts and shares the 5-letter room code; friends join from the lobby. Everything is shared: the island, the fire, the loot. Downed friends can be revived by holding <b>' + keyName(b.interact) + '</b> next to them. Craft a <b>Storage Chest</b> (8 wood, 2 sticks) and place it at camp: everyone can stow and take from it.</div>' +
+    '<h3>Multiplayer</h3><div class="small">One player hosts and shares the 5-letter room code; friends join from the lobby. Everything is shared: the island, the fire, the loot. Downed friends can be revived by holding <b>' + keyName(b.interact) + '</b> next to them. Craft a <b>Storage Chest</b> (8 wood, 2 sticks) and place it at camp: everyone can stow and take from it. Chests placed within two tiles of each other link into one store that sorts itself by item. Drops stay on the ground until someone presses <b>' + keyName(b.interact) + '</b> (or <b>' + keyName(b.eat) + '</b>) next to them; only coins are collected automatically.</div>' +
     '<h3>The Dealer\'s Table</h3><div class="small">Bet coins on slots, a dice duel, the Wheel of Fates or blackjack. Wins pay coins and <b>boons</b> (the same skills as chests), jackpots unlock <b>hats</b>, busts <b>hex</b> you. Sketchy items rig the next game in your favour.</div>'; };
+  UI.showDirectInfo = (r) => { $('directstate').textContent = 'listening'; $('directstate').style.color = '#80ffb0'; const addrs = (r.addrs || []).map(a => a + ':' + r.port); $('directinfo').innerHTML = (addrs.length ? 'Your addresses: ' + addrs.map(a => '<b>' + a + '</b>').join(' · ') : 'Listening on port <b>' + r.port + '</b>') + (r.publicHint ? '<br>' + r.publicHint : ''); };
   UI.showHostInfo = (code) => { $('hostinfo').classList.remove('hidden'); $('roomcode').textContent = code; const link = code && code !== '—' ? G.Net.inviteLink(code) : ''; $('invitelink').textContent = link ? 'Invite link: ' + link : ''; $('copylink').style.display = link ? '' : 'none'; };
   UI.setLobbyPlayers = (names) => { $('players').innerHTML = 'Players: ' + names.map(n => '<b style="color:' + n.col + '">' + esc(n.name) + '</b>').join(', '); };
   UI.enterGame = (seed) => { $('lobby').classList.add('hidden'); $('hud').classList.remove('hidden'); $('seedlbl').textContent = 'seed ' + seed + ' · v' + (window.__VERSION || 'dev'); };
@@ -290,34 +296,40 @@
   }
   function clearDrag() { UI.drag = null; document.querySelectorAll('.slot.drag').forEach(x => x.classList.remove('drag')); $('dropzone').classList.remove('armed'); }
   // ---- storage chest panel ----
-  UI.chest = null; UI.chestAt = null; UI.hoverSlot = null; UI.lastChest = '';
-  function chestObj() { const w = G.Main.world; const o = UI.chest !== null && w ? w.objs.get(UI.chest) : null; return o && o.inv ? o : null; }
+  UI.chest = null; UI.chestView = null; UI.chestAt = null; UI.hoverSlot = null; UI.lastChest = '';
+  function chestObj() { const w = G.Main.world; const j = UI.chestView !== null ? UI.chestView : UI.chest; const o = j !== null && w ? w.objs.get(j) : null; return o && o.inv ? o : null; }
   function mkChestSlot(j) {
     const d = document.createElement('div'); d.className = 'slot'; d.dataset.c = j;
     const c = document.createElement('canvas'); c.width = 32; c.height = 32; d.appendChild(c);
     const n = document.createElement('span'); n.className = 'n'; d.appendChild(n);
-    d.onclick = (e) => { const o = chestObj(); if (!o || !o.inv[j]) return; clearDrag(); G.Main.act({ a: 'take', i: UI.chest, slot: j, n: (e.ctrlKey || e.metaKey) ? 1 : 0 }); };
-    d.oncontextmenu = (e) => { e.preventDefault(); const o = chestObj(); if (!o || !o.inv[j]) return; G.Main.act({ a: 'take', i: UI.chest, slot: j, n: 1 }); };
+    d.onclick = (e) => { const o = chestObj(); if (!o || !o.inv[j]) return; clearDrag(); G.Main.act({ a: 'take', i: UI.chestView, slot: j, n: (e.ctrlKey || e.metaKey) ? 1 : 0 }); };
+    d.oncontextmenu = (e) => { e.preventDefault(); const o = chestObj(); if (!o || !o.inv[j]) return; G.Main.act({ a: 'take', i: UI.chestView, slot: j, n: 1 }); };
     d.onmouseenter = () => { const o = chestObj(); if (o && o.inv[j]) tip(d, o.inv[j].id, o.inv[j]); };
     d.onmouseleave = hideTip;
     return d;
   }
   UI.openChest = function (i, ev) {
-    UI.chest = i; UI.chestAt = ev && ev.x !== undefined ? { x: ev.x, y: ev.y } : { x: (i % G.WORLD) + .5, y: Math.floor(i / G.WORLD) + .5 }; UI.lastChest = '';
+    UI.chest = i; UI.chestView = i; UI.chestAt = ev && ev.x !== undefined ? { x: ev.x, y: ev.y } : { x: (i % G.WORLD) + .5, y: Math.floor(i / G.WORLD) + .5 }; UI.lastChest = '';
     $('chestcol').classList.remove('hidden'); $('inv-hint').textContent = '(click a bag slot to stow it · Shift-click stows the stack · right-click to use/equip · Tab to close)';
     if (!UI.open) UI.toggleInv(true); else UI.refreshChest();
     UI.fitInv();
   };
   // the bag + chest + crafting columns can be wider than a small window: scale the panel down to fit instead of letting the columns overlap
-  UI.fitInv = function () { const el = $('inv'); if (!UI.open) return; el.style.transform = 'translate(-50%, -50%)'; const w = el.offsetWidth || 1, h = el.offsetHeight || 1; const s = Math.min(1, (innerWidth - 16) / w, (innerHeight - 16) / h); el.style.transform = 'translate(-50%, -50%)' + (s < 1 ? ' scale(' + s.toFixed(3) + ')' : ''); };
+  UI.fitInv = function () { const el = $('inv'); if (!UI.open) return; el.style.transform = 'translate(-50%, -50%)'; const w = Math.max(el.offsetWidth, el.scrollWidth) || 1, h = Math.max(el.offsetHeight, el.scrollHeight) || 1; const s = Math.min(1, (innerWidth - 16) / w, (innerHeight - 16) / h); el.style.transform = 'translate(-50%, -50%)' + (s < 1 ? ' scale(' + s.toFixed(3) + ')' : ''); };
   window.addEventListener('resize', () => UI.fitInv());
-  UI.closeChest = function () { if (UI.chest === null) return; UI.chest = null; UI.chestAt = null; $('chestcol').classList.add('hidden'); UI.fitInv(); $('inv-hint').textContent = '(click to move · right-click to use/equip · Shift-click drops the stack · Ctrl-click drops one · Tab to close)'; };
+  UI.closeChest = function () { if (UI.chest === null) return; UI.chest = null; UI.chestView = null; UI.chestAt = null; $('chestcol').classList.add('hidden'); UI.fitInv(); $('inv-hint').textContent = '(click to move · right-click to use/equip · Shift-click drops the stack · Ctrl-click drops one · Tab to close)'; };
   UI.refreshChest = function () {
-    if (UI.chest === null) return; const o = chestObj();
-    if (!o) { UI.closeChest(); return; }
-    const key = JSON.stringify(o.inv); if (key === UI.lastChest) return; UI.lastChest = key;
+    if (UI.chest === null) return; const w = G.Main.world; if (!w || !w.objs.get(UI.chest) || !w.objs.get(UI.chest).inv) { UI.closeChest(); return; }
+    const net = G.chestNetwork(w, UI.chest); if (!net.includes(UI.chestView)) UI.chestView = UI.chest;
+    const o = chestObj(); if (!o) { UI.closeChest(); return; }
+    const key = net.map(j => JSON.stringify(w.objs.get(j).inv)).join('|') + '#' + UI.chestView; if (key === UI.lastChest) return; UI.lastChest = key;
     const g = $('chestgrid').children; for (let j = 0; j < g.length; j++) drawSlot(g[j], o.inv[j] || null);
-    $('chest-used').textContent = '(' + o.inv.filter(Boolean).length + '/' + o.inv.length + ' slots)';
+    let used = 0, cap = 0; for (const j of net) { const inv = w.objs.get(j).inv; used += inv.filter(Boolean).length; cap += inv.length; }
+    $('chest-title').textContent = net.length > 1 ? 'Linked Chests ×' + net.length : 'Storage Chest';
+    $('chest-used').textContent = net.length > 1 ? '(' + o.inv.filter(Boolean).length + '/' + o.inv.length + ' here · ' + used + '/' + cap + ' in all)' : '(' + used + '/' + cap + ' slots)';
+    $('chest-help').textContent = net.length > 1 ? 'chests within two tiles share one store: stowing tops up the chest that already holds that item · Sort groups everything by kind' : 'click a chest slot to take it · right-click takes one · click a bag slot to stow it · Shift-click stows the stack';
+    const tabs = $('chest-tabs'); tabs.classList.toggle('hidden', net.length < 2); tabs.innerHTML = '';
+    if (net.length > 1) net.forEach((j, k) => { const b = document.createElement('button'); b.textContent = 'Chest ' + (k + 1) + ' · ' + w.objs.get(j).inv.filter(Boolean).length; b.style.cssText = 'padding:3px 8px;font-size:11px'; if (j === UI.chestView) b.classList.add('sel'); b.onclick = () => { UI.chestView = j; UI.lastChest = ''; UI.refreshChest(); }; tabs.appendChild(b); });
   };
   function tip(el, id, inst) {
     const d = I[id]; if (!d) return; const t = $('tip'); let s = '<b style="color:' + (inst && (inst.aff || inst.q >= 3) ? G.RARITY_COL[inst.q || 0] : (d.unique ? G.RARITY_COL[3] : 'var(--acc)')) + '">' + (inst ? G.itemName(inst) : d.name) + '</b>';

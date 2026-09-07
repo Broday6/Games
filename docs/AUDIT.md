@@ -80,3 +80,22 @@ blue instead of damage-red; tutorial casino step works for joined clients (`gamb
   official Pages actions and falls back to publishing a `gh-pages` branch. The lobby gained **Copy invite link**
   (`…/driftwood/?room=CODE`, which pre-fills the Join tab), the bundle bakes the public URL in for links from `file://` and the preview,
   and Google STUN is joined by the free Open Relay TURN servers so strict-NAT players connect through a relay.
+
+## Round 5 (manual pickup, linked chests, servers)
+
+- **Pickup is deliberate now.** Items stay where they fall; the interact key (or the eat key, when a drop is at your feet) picks
+  up the nearest drop and anything piled within a tile of it, with the hint naming what you would grab. Coins keep the magnet.
+  The owner rule from round 4 became unnecessary and was removed from the pickup loop.
+- **Linked chests.** Storage chests within two tiles of each other form one store (`G.chestNetwork`, shared by sim and UI).
+  Stowing tops up an existing stack anywhere in the network before using a free slot, so chests standing together sort
+  themselves by item; *Stow matching* considers the whole network; *Sort* merges partial stacks and lays everything out grouped
+  by type, tier and name across the chests in order. The panel shows a tab per linked chest.
+- **Servers.** `wsserver.js` is a dependency-free WebSocket server (RFC 6455 framing, ping/pong, fragmentation, static files
+  with an HTML injection hook). `server.js` loads util/data/world/sim/enemies into Node with `vm.runInThisContext` (the game
+  rules never touch the DOM), runs the island headless, speaks the same `hello / welcome / start / in / act / snap / ev`
+  protocol as a browser host, adds `kick` for password/full-server refusals, and serves the game page with the address
+  pre-filled. The desktop app runs the same module in its main process behind a preload bridge (`window.driftwoodNative`), so
+  "Host on this computer" opens a port next to the room code. The client got `Net.connect(addr)` (whole JSON messages, no
+  chunking) and a *Server address* field; `?server=host:port` and the injected `__SERVER_ADDR` flag pre-fill it.
+- **Limits stated in the lobby and README.** Plain `ws://` cannot be reached from the https-hosted page (mixed content), and
+  internet play through a port still needs port forwarding or a tunnel — the room code remains the no-configuration path.

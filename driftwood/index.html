@@ -63,9 +63,16 @@
           <div id="players"></div>
           <div class="row"><button id="btn-start" class="primary">Start game</button><span class="small">Friends can also join after you start.</span></div>
         </div>
+        <div id="direct" class="small hidden" style="margin-top:8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px">
+          <div class="row" style="margin:0"><b style="color:var(--acc)">Host on this computer</b><span>port</span><input id="directport" value="7777" style="width:70px"><button id="btn-direct" style="padding:4px 10px;font-size:12px">Open port</button><span id="directstate"></span></div>
+          <div id="directinfo" style="margin-top:4px"></div>
+          <div style="margin-top:4px">Friends on your network connect to the address above. For friends elsewhere, forward the port on your router (or run a tunnel) and share your public address. Works with or without a room code.</div>
+        </div>
       </div>
       <div id="pane-join" class="hidden">
         <div class="row"><label>Room code</label><input id="joincode" maxlength="5" placeholder="ABCDE" style="width:120px;text-transform:uppercase;letter-spacing:4px"><button id="btn-join" class="primary">Join</button></div>
+        <div class="row"><label>Server address</label><input id="serveraddr" placeholder="192.168.1.20:7777 or play.example.com" style="flex:1;min-width:180px"><input id="serverpass" type="password" placeholder="password (if any)" style="width:130px"><button id="btn-connect" class="primary">Connect</button></div>
+        <div class="small" id="serverhelp">Room codes go through the free room server. A <b>server address</b> connects straight to a friend's computer running the desktop app with a port open, or to a dedicated <code>node server.js</code> island that runs all day.</div>
       </div>
       <div id="pane-solo" class="hidden">
         <div class="row"><label>Seed</label><input id="seed2" placeholder="random" style="flex:1"></div>
@@ -73,7 +80,7 @@
       </div>
       <div id="status"></div>
       <details id="manual" style="margin-top:10px">
-        <summary class="small">Manual invite (if room codes don't work — swap codes over Discord)</summary>
+        <summary class="small">Manual invite (if room codes don't work — swap codes over Discord) · <span id="serverhint">or run your own server: <code>node server.js</code></span></summary>
         <div id="manual-host">
           <div class="small">Host: 1) click <b>Make invite</b>, send the text to your friend. 2) Paste their reply and click <b>Accept reply</b>. Repeat for each friend.</div>
           <div class="row"><button id="mk-invite">Make invite</button><textarea id="invite-out" readonly placeholder="invite code appears here"></textarea></div>
@@ -126,10 +133,11 @@
 
 <div id="inv" class="panel hidden">
   <div id="chestcol" class="hidden">
-    <h3>Storage Chest <span class="small" id="chest-used"></span></h3>
+    <h3><span id="chest-title">Storage Chest</span> <span class="small" id="chest-used"></span></h3>
+    <div id="chest-tabs" class="tabs hidden" style="margin:0 0 6px"></div>
     <div class="grid" id="chestgrid"></div>
-    <div class="small" style="margin-top:6px">click a chest slot to take it · right-click takes one · click a bag slot to stow it · Shift-click stows the stack</div>
-    <div class="row" style="margin-top:6px"><button id="chest-takeall" style="padding:3px 10px;font-size:12px">Take all</button><button id="chest-stowall" style="padding:3px 10px;font-size:12px">Stow matching</button></div>
+    <div class="small" style="margin-top:6px" id="chest-help">click a chest slot to take it · right-click takes one · click a bag slot to stow it · Shift-click stows the stack</div>
+    <div class="row" style="margin-top:6px"><button id="chest-takeall" style="padding:3px 10px;font-size:12px">Take all</button><button id="chest-stowall" style="padding:3px 10px;font-size:12px">Stow matching</button><button id="chest-sort" style="padding:3px 10px;font-size:12px">Sort</button></div>
   </div>
   <div>
     <h3>Inventory <span class="small" id="inv-hint">(click to move · right-click to use/equip · Shift-click drops the stack · Ctrl-click drops one · Tab to close)</span> <button id="inv-sort" style="padding:2px 8px;font-size:11px;float:right">Sort bag</button></h3>

@@ -153,21 +153,55 @@
     s.n -= take; if (s.n <= 0) p.inv[slot | 0] = null;
     Sim.ev(S, { t: 'sfx', n: 'swing', x: p.x, y: p.y, to: p.id });
   };
+  // Manual pickup: the interact (or eat) key grabs the nearest drop in reach plus everything piled within a tile of it.
+  Sim.nearestDrop = function (S, p, reach) { let best = null, bd = reach; for (const dr of S.drops) { if (dr.item === 'coin' || dr.t < 0.15) continue; const dd = G.dist(dr.x, dr.y, p.x, p.y); const ahead = Math.cos(G.angDiff(p.face, G.angleTo(p.x, p.y, dr.x, dr.y))); const score = dd - Math.max(0, ahead) * 0.4; if (dd < reach && score < bd) { bd = score; best = dr; } } return best; };
+  Sim.pickup = function (S, p) {
+    const st = Sim.stats(p); const first = Sim.nearestDrop(S, p, st.pickup + 0.6); if (!first) return false;
+    let got = 0, full = false; const taken = [];
+    for (let i = S.drops.length - 1; i >= 0; i--) {
+      const dr = S.drops[i]; if (dr.item === 'coin' || (dr !== first && G.dist(dr.x, dr.y, first.x, first.y) > 1.1)) continue;
+      const left = Sim.give(p, dr.item, dr.n, dr.aff, dr.q);
+      if (left < dr.n) { got++; taken.push({ n: dr.n - left, id: dr.item, aff: dr.aff, q: dr.q }); }
+      if (left === 0) S.drops.splice(i, 1); else { dr.n = left; full = true; }
+    }
+    if (!got) { Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: 'bag is full', c: '#ff8080', to: p.id }); return true; }
+    const rare = taken.find(t => t.aff);
+    Sim.ev(S, { t: 'sfx', n: rare ? 'pw' : 'pickup', x: p.x, y: p.y, to: p.id });
+    for (let k = 0; k < Math.min(taken.length, 3); k++) { const t = taken[k]; Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.9 - k * 0.25, s: '+' + t.n + ' ' + G.itemName({ id: t.id, aff: t.aff }), c: t.aff ? G.RARITY_COL[t.q || 0] : '#e0e0e0', to: p.id, small: !t.aff }); }
+    if (full) Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.6, s: 'bag is full', c: '#ff8080', to: p.id });
+    return true;
+  };
   Sim.spillStorage = function (S, o, x, y) { if (o && o.inv) for (const s of o.inv) if (s) Sim.spawnDrop(S, s.id, s.n, x, y, { aff: s.aff, q: s.q }); };
   // ---- storage chests ----
-  Sim.storageAt = function (S, p, i) { const o = S.world.objs.get(i | 0); if (!o || !O[o.t].storage || !o.inv) return null; if (G.dist(p.x, p.y, (i % G.WORLD) + .5, Math.floor(i / G.WORLD) + .5) > 4) return null; return o; };
+  Sim.storageAt = function (S, p, i) { const o = S.world.objs.get(i | 0); if (!o || !O[o.t].storage || !o.inv) return null; if (G.dist(p.x, p.y, (i % G.WORLD) + .5, Math.floor(i / G.WORLD) + .5) > 7) return null; return o; };
+  // Stow into a linked chest network: first top up a stack of the same item wherever it already lives, then a free slot in the chest
+  // that was opened, then a free slot anywhere in the network. Chests standing together therefore sort themselves by item.
   Sim.stow = function (S, p, i, slot, n) {
     const o = Sim.storageAt(S, p, i); const s = p.inv[slot | 0]; if (!o || !s) return;
+    const w = S.world; const net = G.chestNetwork(w, i | 0).map(j => ({ j, o: w.objs.get(j) })); const touched = new Set();
     let left = n > 0 ? Math.min(n, s.n) : s.n; const want = left;
-    if (s.aff && s.aff.length) { const k = o.inv.indexOf(null); if (k < 0) return Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: 'chest is full', c: '#ff8080', to: p.id }); o.inv[k] = { id: s.id, n: 1, aff: s.aff, q: s.q || 0 }; left = 0; }
+    const freeSlot = () => { for (const c of net) { const k = c.o.inv.indexOf(null); if (k >= 0) return { c, k }; } return null; };
+    if (s.aff && s.aff.length) { const f = freeSlot(); if (!f) return Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: 'chests are full', c: '#ff8080', to: p.id }); f.c.o.inv[f.k] = { id: s.id, n: 1, aff: s.aff, q: s.q || 0 }; touched.add(f.c.j); left = 0; }
     else {
       const max = G.STACK(s.id);
-      for (let k = 0; k < o.inv.length && left > 0; k++) { const c = o.inv[k]; if (c && c.id === s.id && !c.aff && c.n < max) { const a = Math.min(max - c.n, left); c.n += a; left -= a; } }
-      for (let k = 0; k < o.inv.length && left > 0; k++) if (!o.inv[k]) { const a = Math.min(max, left); o.inv[k] = { id: s.id, n: a }; left -= a; }
-      if (left === want) return Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: 'chest is full', c: '#ff8080', to: p.id });
+      for (const c of net) for (let k = 0; k < c.o.inv.length && left > 0; k++) { const st = c.o.inv[k]; if (st && st.id === s.id && !st.aff && st.n < max) { const a = Math.min(max - st.n, left); st.n += a; left -= a; touched.add(c.j); } }
+      while (left > 0) { const f = freeSlot(); if (!f) break; const a = Math.min(max, left); f.c.o.inv[f.k] = { id: s.id, n: a }; left -= a; touched.add(f.c.j); }
+      if (left === want) return Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: net.length > 1 ? 'chests are full' : 'chest is full', c: '#ff8080', to: p.id });
     }
     const moved = want - left; s.n -= moved; if (s.n <= 0) p.inv[slot | 0] = null;
-    G.setObj(S.world, i | 0, o); Sim.ev(S, { t: 'sfx', n: 'equip', x: p.x, y: p.y, to: p.id });
+    for (const j of touched) G.setObj(w, j, w.objs.get(j)); Sim.ev(S, { t: 'sfx', n: 'equip', x: p.x, y: p.y, to: p.id });
+  };
+  // Gather every stack in the network, merge partial stacks and lay them back out grouped by kind, filling chests in order
+  Sim.sortNetwork = function (S, p, i) {
+    const o = Sim.storageAt(S, p, i); if (!o) return; const w = S.world; const net = G.chestNetwork(w, i | 0);
+    const all = []; for (const j of net) for (const s of w.objs.get(j).inv) if (s) all.push(s);
+    const merged = [];
+    for (const s of all) { if (s.aff) { merged.push(s); continue; } const m = merged.find(x => x.id === s.id && !x.aff && x.n < G.STACK(s.id)); if (m) { const take = Math.min(G.STACK(s.id) - m.n, s.n); m.n += take; s.n -= take; if (s.n > 0) merged.push(s); } else merged.push(s); }
+    const TYPE_ORDER = ['material', 'food', 'arrow', 'place', 'tool', 'weapon', 'bow', 'staff', 'shield', 'armor', 'key', 'gem'];
+    const rank = (s) => { const d = I[s.id] || {}; const t = TYPE_ORDER.indexOf(d.type); return (t < 0 ? 99 : t) * 1000 + (d.tier || 0) * 10 + (s.aff ? 5 - (s.q || 0) : 0); };
+    merged.sort((a, b) => rank(a) - rank(b) || (I[a.id].name < I[b.id].name ? -1 : I[a.id].name > I[b.id].name ? 1 : 0) || b.n - a.n);
+    let k = 0; for (const j of net) { const c = w.objs.get(j); for (let q = 0; q < c.inv.length; q++) c.inv[q] = merged[k++] || null; G.setObj(w, j, c); }
+    Sim.ev(S, { t: 'sfx', n: 'equip', x: p.x, y: p.y, to: p.id }); Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: net.length > 1 ? net.length + ' chests sorted' : 'sorted', c: '#c0ffc0', to: p.id });
   };
   Sim.takeOut = function (S, p, i, slot, n) {
     const o = Sim.storageAt(S, p, i); if (!o) return; const c = o.inv[slot | 0]; if (!c) return;
@@ -179,7 +213,7 @@
   };
   Sim.takeAll = function (S, p, i) { const o = Sim.storageAt(S, p, i); if (!o) return; let any = false; for (let k = 0; k < o.inv.length; k++) { const c = o.inv[k]; if (!c) continue; const left = Sim.give(p, c.id, c.n, c.aff, c.q); if (left < c.n) any = true; if (left <= 0) o.inv[k] = null; else c.n = left; } if (!any) return Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: 'bag is full', c: '#ff8080', to: p.id }); G.setObj(S.world, i | 0, o); Sim.ev(S, { t: 'sfx', n: 'pickup', x: p.x, y: p.y, to: p.id }); };
   // Quick stack: every bag stack (not the hotbar) whose item is already in the chest goes in
-  Sim.stowMatching = function (S, p, i) { const o = Sim.storageAt(S, p, i); if (!o) return; const have = new Set(o.inv.filter(Boolean).map(c => c.id)); for (let k = HOTBAR; k < INV; k++) { const s = p.inv[k]; if (s && !s.aff && have.has(s.id)) Sim.stow(S, p, i, k, 0); } };
+  Sim.stowMatching = function (S, p, i) { const o = Sim.storageAt(S, p, i); if (!o) return; const w = S.world; const have = new Set(); for (const j of G.chestNetwork(w, i | 0)) for (const c of w.objs.get(j).inv) if (c) have.add(c.id); for (let k = HOTBAR; k < INV; k++) { const s = p.inv[k]; if (s && !s.aff && have.has(s.id)) Sim.stow(S, p, i, k, 0); } };
   Sim.dropWeapon = function (S, roll, x, y) { const a = Math.random() * Math.PI * 2; S.drops.push({ id: G.uid(), item: roll.id, n: 1, aff: roll.aff && roll.aff.length ? roll.aff : null, q: roll.q, x, y, vx: Math.cos(a), vy: Math.sin(a), t: 0 }); Sim.ev(S, { t: 'boom', x, y, r: 0.6, c: G.RARITY_COL[roll.q] }); };
   // ---- XP, levels, boon offers (Hades-style pick of 3) ----
   Sim.giveXp = function (S, p, n) {
@@ -366,6 +400,8 @@
       case 'take': Sim.takeOut(S, p, a.i | 0, a.slot | 0, a.n | 0); break;
       case 'takeall': Sim.takeAll(S, p, a.i | 0); break;
       case 'stowall': Sim.stowMatching(S, p, a.i | 0); break;
+      case 'pickup': Sim.pickup(S, p); break;
+      case 'sortchests': Sim.sortNetwork(S, p, a.i | 0); break;
       case 'eat': Sim.eat(S, p, a.slot | 0); break;
       case 'equip': Sim.equip(S, p, a.slot | 0); break;
       case 'unequip': { const it = p.armor[a.slot]; if (it && Sim.give(p, it, 1) === 0) p.armor[a.slot] = null; break; }
@@ -517,6 +553,8 @@
       if (!(d.isChest || d.altar || d.boat || d.door || d.casino || d.storage)) continue;
       const dd = G.dist(p.x, p.y, x + .5, y + .5); if (dd < bd) { bd = dd; best = { o, d, x, y, i: G.idx(x, y) }; }
     }
+    const drop = Sim.nearestDrop(S, p, Sim.stats(p).pickup + 0.6);
+    if (drop && (!best || G.dist(drop.x, drop.y, p.x, p.y) < bd)) { Sim.pickup(S, p); return; }
     if (!best) return;
     const { o, d, x, y, i } = best;
     if (d.casino) { Sim.ev(S, { t: 'casino', to: p.id, x: x + .5, y: y + .5 }); Sim.ev(S, { t: 'sfx', n: 'chest', x: x + .5, y: y + .5 }); return; }
@@ -652,11 +690,10 @@
     // pickup
     for (let i = S.drops.length - 1; i >= 0; i--) {
       const dr = S.drops[i]; const dd = G.dist(dr.x, dr.y, p.x, p.y);
-      if (dr.owner === p.id && !dr.away) { if (dd > st.pickup + 2 || dr.t > 20) dr.away = true; continue; } // your own drop waits until you have walked away once
-      if (dd < st.pickup + 1.5 && dr.t > 0.3) { // drops are pulled in from a little further than the pickup radius so you never have to double back for a stick
+      if (dr.item !== 'coin') continue; // items stay on the ground until someone picks them up with the interact key (Sim.pickup)
+      if (dd < st.pickup + 1.5 && dr.t > 0.3) { // coins are still pulled in automatically
         if (dd > 0.5) { const a = G.angleTo(dr.x, dr.y, p.x, p.y); dr.x += Math.cos(a) * dt * 9; dr.y += Math.sin(a) * dt * 9; continue; }
-        if (dr.item === 'coin') { p.coins += dr.n; S.drops.splice(i, 1); Sim.ev(S, { t: 'sfx', n: 'coin', x: p.x, y: p.y, to: p.id }); }
-        else { const left = Sim.give(p, dr.item, dr.n, dr.aff, dr.q); if (left < dr.n) { Sim.ev(S, { t: 'sfx', n: dr.aff ? 'pw' : 'pickup', x: p.x, y: p.y, to: p.id }); Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.9, s: '+' + (dr.n - left) + ' ' + G.itemName({ id: dr.item, aff: dr.aff }), c: dr.aff ? G.RARITY_COL[dr.q || 0] : '#e0e0e0', to: p.id, small: !dr.aff }); } if (left === 0) S.drops.splice(i, 1); else dr.n = left; }
+        p.coins += dr.n; S.drops.splice(i, 1); Sim.ev(S, { t: 'sfx', n: 'coin', x: p.x, y: p.y, to: p.id });
       }
     }
     // pet

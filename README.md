@@ -29,8 +29,9 @@ Or open `driftwood/index.html` from any static host (see *Hosting* below). No in
 | **RMB** | draw bow (hold, release to fire) · raise shield (block; block in the first instant to parry) |
 | **E** | interact: open chest, use altar, deposit at the ship, open/close door · **hold E** near a downed friend to revive |
 | **F** | quick-eat the best food you carry |
-| **X** | drop one of the held item (**Shift+X** the whole stack; in the bag, **Ctrl-click** drops one, **Shift-click** the stack, or drag a stack onto the drop bar). Your own drops wait on the ground until you walk away once, so they don't snap straight back into your bag |
-| **E** at a Storage Chest | open it — click bag slots to stow, chest slots to take, **Take all** / **Stow matching** buttons. Craft one from 8 wood + 2 sticks; the whole party shares it and it spills its contents when broken |
+| **X** | drop one of the held item (**Shift+X** the whole stack; in the bag, **Ctrl-click** drops one, **Shift-click** the stack, or drag a stack onto the drop bar) |
+| **E** or **F** near a drop | pick it up (plus anything piled within a tile). Items stay on the ground until someone picks them up; only coins are collected automatically |
+| **E** at a Storage Chest | open it — click bag slots to stow, chest slots to take, **Take all** / **Stow matching** / **Sort** buttons. Craft one from 8 wood + 2 sticks; the whole party shares it and it spills its contents when broken. Chests placed within two tiles of each other **link into one store**: stowing tops up whichever chest already holds that item, tabs switch between them, and Sort groups everything by kind |
 | **1–9** / wheel | hotbar · **Tab** or **I** inventory + crafting (**Shift-click** a recipe crafts 5, **Sort bag** merges and orders your stacks) · **Enter** chat · **T** ping · **M** mute |
 
 **The loop:** gather → craft a workbench → tools → furnace (iron bars) → anvil (iron/gold/obsidian gear). Gathering is quick: a tree or rock takes about 5 hits with the matching tier-1 tool (10 with fists), higher tiers fewer; ore veins need a pickaxe of their tier.
@@ -51,7 +52,15 @@ lobby to replay an island.
 
 ### Multiplayer
 
-Host-authoritative peer-to-peer over WebRTC — **no game server**.
+Three ways to play together, all host-authoritative (one machine runs the island, everyone else sends inputs):
+
+| | How friends connect | Works from | Best for |
+|---|---|---|---|
+| **Room code** | 5-letter code or invite link | hosted web page, downloaded HTML, desktop app | quick games; peer-to-peer over WebRTC, no port forwarding |
+| **Host on this computer** (desktop app) | your address `ip:7777` | desktop app hosts; anyone connects from the app, the downloaded HTML, or by opening `http://ip:7777/` in a browser | LAN parties, or internet play once the port is forwarded |
+| **Dedicated server** (`node server.js`) | the server's address | any copy of the game, or the page the server serves itself | a persistent island friends drop into any time |
+
+**Room codes.**
 
 1. Host clicks **Create room**, then **Copy invite link** (or shares the 5-letter code). The link is
    `https://broday6.github.io/Games/driftwood/?room=CODE`; opening it lands a friend in the Join tab with the code filled in.
@@ -64,6 +73,27 @@ Host-authoritative peer-to-peer over WebRTC — **no game server**.
 Room codes use the free public [PeerJS](https://peerjs.com) signalling server only for the handshake; all
 game traffic is direct between browsers. Google STUN plus the free Open Relay TURN servers are configured, so players
 behind strict NATs (phone hotspots, campus networks) still connect — through the relay if a direct path cannot be found.
+
+**Host on this computer (desktop app).** In the Host tab, *Host on this computer → Open port*. The app lists your
+addresses (for example `192.168.1.20:7777`). Friends type that under *Join a friend → Server address*, or just open
+`http://192.168.1.20:7777/` in any browser — the app serves the game page with the address filled in. Works together with a
+room code, so the same lobby can take both kinds of guests. For friends outside your network, forward TCP port 7777 on your
+router to your computer and share your public IP (or run a tunnel such as `cloudflared tunnel --url http://localhost:7777`
+and share its URL).
+
+**Dedicated server.** Anyone with Node 18+ can run an island that keeps going without a host player:
+
+```
+cd driftwood
+node server.js --port 7777 --seed REEF --name "Brody's island" --password secret --max 8
+```
+
+It serves the game at `http://<ip>:7777/` (address pre-filled), runs the simulation headless at 30 Hz, pauses while nobody
+is on, and starts a fresh island 20 seconds after a run ends. `/health` returns JSON (players, day, seed) for status pages.
+It needs no dependencies — copy the `driftwood/` folder (or just `server.js`, `wsserver.js` and `dist/driftwood.html`) to a
+VPS, a Raspberry Pi or a spare laptop, forward the port, and share the address. Direct connections are plain `ws://`, so the
+https-hosted page cannot use them (the browser blocks mixed content); use the server's own page, the downloaded HTML, or the
+desktop app for those.
 
 ### Download (desktop game)
 
