@@ -1,0 +1,615 @@
+{
+ "goblin": {
+  "file": "kk_rogue_hooded.glb",
+  "height": 0.9,
+  "yaw": 1.5708,
+  "hand": "handslot.r",
+  "handRot": [
+   0,
+   0,
+   1.5708
+  ],
+  "handOffset": [
+   0,
+   0,
+   0
+  ],
+  "itemScale": 0.8,
+  "head": "head",
+  "headTop": 1.07,
+  "headR": 0.56,
+  "clips": {
+   "idle": "Idle",
+   "walk": "Walking_A",
+   "run": "Running_A",
+   "attack": "1H_Melee_Attack_Slice_Diagonal",
+   "attackAlt": "1H_Melee_Attack_Slice_Horizontal",
+   "chop": "1H_Melee_Attack_Chop",
+   "stab": "1H_Melee_Attack_Stab",
+   "death": "Death_A",
+   "block": "Blocking",
+   "dodge": "Dodge_Forward",
+   "hit": "Hit_A",
+   "sit": "Sit_Floor_Idle",
+   "cheer": "Cheer"
+  },
+  "sets": {
+   "unarmed": {
+    "idle": "Unarmed_Idle",
+    "attack": "Unarmed_Melee_Attack_Punch_A",
+    "attackAlt": "Unarmed_Melee_Attack_Punch_B"
+   },
+   "2h": {
+    "idle": "2H_Melee_Idle",
+    "attack": "2H_Melee_Attack_Slice",
+    "chop": "2H_Melee_Attack_Chop",
+    "slam": "2H_Melee_Attack_Chop"
+   },
+   "bow": {
+    "idle": "2H_Ranged_Aiming",
+    "attack": "2H_Ranged_Shoot"
+   },
+   "staff": {
+    "idle": "Spellcasting",
+    "attack": "Spellcast_Shoot"
+   },
+   "shield": {
+    "idle": "Blocking",
+    "attack": "1H_Melee_Attack_Slice_Diagonal"
+   }
+  },
+  "tint": "*",
+  "tintMode": "mul",
+  "held": "sword_wood",
+  "kind": "1h"
+ },
+ "goblin_archer": {
+  "file": "kk_rogue.glb",
+  "height": 0.9,
+  "yaw": 1.5708,
+  "hand": "handslot.r",
+  "handRot": [
+   0,
+   0,
+   1.5708
+  ],
+  "handOffset": [
+   0,
+   0,
+   0
+  ],
+  "itemScale": 0.8,
+  "head": "head",
+  "headTop": 1.07,
+  "headR": 0.56,
+  "clips": {
+   "idle": "Idle",
+   "walk": "Walking_A",
+   "run": "Running_A",
+   "attack": "1H_Melee_Attack_Slice_Diagonal",
+   "attackAlt": "1H_Melee_Attack_Slice_Horizontal",
+   "chop": "1H_Melee_Attack_Chop",
+   "stab": "1H_Melee_Attack_Stab",
+   "death": "Death_A",
+   "block": "Blocking",
+   "dodge": "Dodge_Forward",
+   "hit": "Hit_A",
+   "sit": "Sit_Floor_Idle",
+   "cheer": "Cheer"
+  },
+  "sets": {
+   "unarmed": {
+    "idle": "Unarmed_Idle",
+    "attack": "Unarmed_Melee_Attack_Punch_A",
+    "attackAlt": "Unarmed_Melee_Attack_Punch_B"
+   },
+   "2h": {
+    "idle": "2H_Melee_Idle",
+    "attack": "2H_Melee_Attack_Slice",
+    "chop": "2H_Melee_Attack_Chop",
+    "slam": "2H_Melee_Attack_Chop"
+   },
+   "bow": {
+    "idle": "2H_Ranged_Aiming",
+    "attack": "2H_Ranged_Shoot"
+   },
+   "staff": {
+    "idle": "Spellcasting",
+    "attack": "Spellcast_Shoot"
+   },
+   "shield": {
+    "idle": "Blocking",
+    "attack": "1H_Melee_Attack_Slice_Diagonal"
+   }
+  },
+  "tint": "*",
+  "tintMode": "mul",
+  "held": "bow_wood",
+  "kind": "bow"
+ },
+ "skeleton": {
+  "file": "kk_skeleton_minion.glb",
+  "height": 1.1,
+  "yaw": 1.5708,
+  "hand": "handslot.r",
+  "handRot": [
+   0,
+   0,
+   1.5708
+  ],
+  "handOffset": [
+   0,
+   0,
+   0
+  ],
+  "itemScale": 0.75,
+  "head": "head",
+  "headTop": 1.07,
+  "headR": 0.56,
+  "clips": {
+   "idle": "Idle",
+   "walk": "Walking_A",
+   "run": "Running_A",
+   "attack": "1H_Melee_Attack_Slice_Diagonal",
+   "attackAlt": "1H_Melee_Attack_Slice_Horizontal",
+   "chop": "1H_Melee_Attack_Chop",
+   "stab": "1H_Melee_Attack_Stab",
+   "death": "Death_A",
+   "block": "Blocking",
+   "dodge": "Dodge_Forward",
+   "hit": "Hit_A",
+   "sit": "Sit_Floor_Idle",
+   "cheer": "Cheer"
+  },
+  "sets": {
+   "unarmed": {
+    "idle": "Unarmed_Idle",
+    "attack": "Unarmed_Melee_Attack_Punch_A",
+    "attackAlt": "Unarmed_Melee_Attack_Punch_B"
+   },
+   "2h": {
+    "idle": "2H_Melee_Idle",
+    "attack": "2H_Melee_Attack_Slice",
+    "chop": "2H_Melee_Attack_Chop",
+    "slam": "2H_Melee_Attack_Chop"
+   },
+   "bow": {
+    "idle": "2H_Ranged_Aiming",
+    "attack": "2H_Ranged_Shoot"
+   },
+   "staff": {
+    "idle": "Spellcasting",
+    "attack": "Spellcast_Shoot"
+   },
+   "shield": {
+    "idle": "Blocking",
+    "attack": "1H_Melee_Attack_Slice_Diagonal"
+   }
+  },
+  "held": "sword_stone",
+  "kind": "1h"
+ },
+ "bonecrusher": {
+  "file": "kk_skeleton_warrior.glb",
+  "height": 2.1,
+  "yaw": 1.5708,
+  "hand": "handslot.r",
+  "handRot": [
+   0,
+   0,
+   1.5708
+  ],
+  "handOffset": [
+   0,
+   0,
+   0
+  ],
+  "itemScale": 1.44,
+  "head": "head",
+  "headTop": 1.07,
+  "headR": 0.56,
+  "clips": {
+   "idle": "Idle",
+   "walk": "Walking_A",
+   "run": "Running_A",
+   "attack": "1H_Melee_Attack_Slice_Diagonal",
+   "attackAlt": "1H_Melee_Attack_Slice_Horizontal",
+   "chop": "1H_Melee_Attack_Chop",
+   "stab": "1H_Melee_Attack_Stab",
+   "death": "Death_A",
+   "block": "Blocking",
+   "dodge": "Dodge_Forward",
+   "hit": "Hit_A",
+   "sit": "Sit_Floor_Idle",
+   "cheer": "Cheer"
+  },
+  "sets": {
+   "unarmed": {
+    "idle": "Unarmed_Idle",
+    "attack": "Unarmed_Melee_Attack_Punch_A",
+    "attackAlt": "Unarmed_Melee_Attack_Punch_B"
+   },
+   "2h": {
+    "idle": "2H_Melee_Idle",
+    "attack": "2H_Melee_Attack_Slice",
+    "chop": "2H_Melee_Attack_Chop",
+    "slam": "2H_Melee_Attack_Chop"
+   },
+   "bow": {
+    "idle": "2H_Ranged_Aiming",
+    "attack": "2H_Ranged_Shoot"
+   },
+   "staff": {
+    "idle": "Spellcasting",
+    "attack": "Spellcast_Shoot"
+   },
+   "shield": {
+    "idle": "Blocking",
+    "attack": "1H_Melee_Attack_Slice_Diagonal"
+   }
+  },
+  "held": "bonecleaver",
+  "kind": "2h"
+ },
+ "lich": {
+  "file": "kk_skeleton_mage.glb",
+  "height": 1.8,
+  "yaw": 1.5708,
+  "hand": "handslot.r",
+  "handRot": [
+   0,
+   0,
+   1.5708
+  ],
+  "handOffset": [
+   0,
+   0,
+   0
+  ],
+  "itemScale": 1.27,
+  "head": "head",
+  "headTop": 1.07,
+  "headR": 0.56,
+  "clips": {
+   "idle": "Idle",
+   "walk": "Walking_A",
+   "run": "Running_A",
+   "attack": "1H_Melee_Attack_Slice_Diagonal",
+   "attackAlt": "1H_Melee_Attack_Slice_Horizontal",
+   "chop": "1H_Melee_Attack_Chop",
+   "stab": "1H_Melee_Attack_Stab",
+   "death": "Death_A",
+   "block": "Blocking",
+   "dodge": "Dodge_Forward",
+   "hit": "Hit_A",
+   "sit": "Sit_Floor_Idle",
+   "cheer": "Cheer"
+  },
+  "sets": {
+   "unarmed": {
+    "idle": "Unarmed_Idle",
+    "attack": "Unarmed_Melee_Attack_Punch_A",
+    "attackAlt": "Unarmed_Melee_Attack_Punch_B"
+   },
+   "2h": {
+    "idle": "2H_Melee_Idle",
+    "attack": "2H_Melee_Attack_Slice",
+    "chop": "2H_Melee_Attack_Chop",
+    "slam": "2H_Melee_Attack_Chop"
+   },
+   "bow": {
+    "idle": "2H_Ranged_Aiming",
+    "attack": "2H_Ranged_Shoot"
+   },
+   "staff": {
+    "idle": "Spellcasting",
+    "attack": "Spellcast_Shoot"
+   },
+   "shield": {
+    "idle": "Blocking",
+    "attack": "1H_Melee_Attack_Slice_Diagonal"
+   }
+  },
+  "held": "lich_staff",
+  "kind": "staff"
+ },
+ "hollow": {
+  "file": "kk_skeleton_rogue.glb",
+  "height": 1.9,
+  "yaw": 1.5708,
+  "hand": "handslot.r",
+  "handRot": [
+   0,
+   0,
+   1.5708
+  ],
+  "handOffset": [
+   0,
+   0,
+   0
+  ],
+  "itemScale": 1.27,
+  "head": "head",
+  "headTop": 1.07,
+  "headR": 0.56,
+  "clips": {
+   "idle": "Idle",
+   "walk": "Walking_A",
+   "run": "Running_A",
+   "attack": "1H_Melee_Attack_Slice_Diagonal",
+   "attackAlt": "1H_Melee_Attack_Slice_Horizontal",
+   "chop": "1H_Melee_Attack_Chop",
+   "stab": "1H_Melee_Attack_Stab",
+   "death": "Death_A",
+   "block": "Blocking",
+   "dodge": "Dodge_Forward",
+   "hit": "Hit_A",
+   "sit": "Sit_Floor_Idle",
+   "cheer": "Cheer"
+  },
+  "sets": {
+   "unarmed": {
+    "idle": "Unarmed_Idle",
+    "attack": "Unarmed_Melee_Attack_Punch_A",
+    "attackAlt": "Unarmed_Melee_Attack_Punch_B"
+   },
+   "2h": {
+    "idle": "2H_Melee_Idle",
+    "attack": "2H_Melee_Attack_Slice",
+    "chop": "2H_Melee_Attack_Chop",
+    "slam": "2H_Melee_Attack_Chop"
+   },
+   "bow": {
+    "idle": "2H_Ranged_Aiming",
+    "attack": "2H_Ranged_Shoot"
+   },
+   "staff": {
+    "idle": "Spellcasting",
+    "attack": "Spellcast_Shoot"
+   },
+   "shield": {
+    "idle": "Blocking",
+    "attack": "1H_Melee_Attack_Slice_Diagonal"
+   }
+  },
+  "tint": "*",
+  "tintMode": "mul",
+  "held": "hollow_blade",
+  "kind": "1h"
+ },
+ "warden": {
+  "file": "kk_knight.glb",
+  "height": 1.85,
+  "yaw": 1.5708,
+  "hand": "handslot.r",
+  "handRot": [
+   0,
+   0,
+   1.5708
+  ],
+  "handOffset": [
+   0,
+   0,
+   0
+  ],
+  "itemScale": 1.27,
+  "head": "head",
+  "headTop": 1.07,
+  "headR": 0.56,
+  "clips": {
+   "idle": "Idle",
+   "walk": "Walking_A",
+   "run": "Running_A",
+   "attack": "1H_Melee_Attack_Slice_Diagonal",
+   "attackAlt": "1H_Melee_Attack_Slice_Horizontal",
+   "chop": "1H_Melee_Attack_Chop",
+   "stab": "1H_Melee_Attack_Stab",
+   "death": "Death_A",
+   "block": "Blocking",
+   "dodge": "Dodge_Forward",
+   "hit": "Hit_A",
+   "sit": "Sit_Floor_Idle",
+   "cheer": "Cheer"
+  },
+  "sets": {
+   "unarmed": {
+    "idle": "Unarmed_Idle",
+    "attack": "Unarmed_Melee_Attack_Punch_A",
+    "attackAlt": "Unarmed_Melee_Attack_Punch_B"
+   },
+   "2h": {
+    "idle": "2H_Melee_Idle",
+    "attack": "2H_Melee_Attack_Slice",
+    "chop": "2H_Melee_Attack_Chop",
+    "slam": "2H_Melee_Attack_Chop"
+   },
+   "bow": {
+    "idle": "2H_Ranged_Aiming",
+    "attack": "2H_Ranged_Shoot"
+   },
+   "staff": {
+    "idle": "Spellcasting",
+    "attack": "Spellcast_Shoot"
+   },
+   "shield": {
+    "idle": "Blocking",
+    "attack": "1H_Melee_Attack_Slice_Diagonal"
+   }
+  },
+  "tint": "*",
+  "tintMode": "mul",
+  "held": "greatsword_iron",
+  "kind": "2h"
+ },
+ "gronk": {
+  "file": "kk_barbarian.glb",
+  "height": 2.2,
+  "yaw": 1.5708,
+  "hand": "handslot.r",
+  "handRot": [
+   0,
+   0,
+   1.5708
+  ],
+  "handOffset": [
+   0,
+   0,
+   0
+  ],
+  "itemScale": 1.61,
+  "head": "head",
+  "headTop": 1.07,
+  "headR": 0.56,
+  "clips": {
+   "idle": "Idle",
+   "walk": "Walking_A",
+   "run": "Running_A",
+   "attack": "1H_Melee_Attack_Slice_Diagonal",
+   "attackAlt": "1H_Melee_Attack_Slice_Horizontal",
+   "chop": "1H_Melee_Attack_Chop",
+   "stab": "1H_Melee_Attack_Stab",
+   "death": "Death_A",
+   "block": "Blocking",
+   "dodge": "Dodge_Forward",
+   "hit": "Hit_A",
+   "sit": "Sit_Floor_Idle",
+   "cheer": "Cheer"
+  },
+  "sets": {
+   "unarmed": {
+    "idle": "Unarmed_Idle",
+    "attack": "Unarmed_Melee_Attack_Punch_A",
+    "attackAlt": "Unarmed_Melee_Attack_Punch_B"
+   },
+   "2h": {
+    "idle": "2H_Melee_Idle",
+    "attack": "2H_Melee_Attack_Slice",
+    "chop": "2H_Melee_Attack_Chop",
+    "slam": "2H_Melee_Attack_Chop"
+   },
+   "bow": {
+    "idle": "2H_Ranged_Aiming",
+    "attack": "2H_Ranged_Shoot"
+   },
+   "staff": {
+    "idle": "Spellcasting",
+    "attack": "Spellcast_Shoot"
+   },
+   "shield": {
+    "idle": "Blocking",
+    "attack": "1H_Melee_Attack_Slice_Diagonal"
+   }
+  },
+  "tint": "*",
+  "tintMode": "mul",
+  "held": "gronk_hammer",
+  "kind": "2h"
+ },
+ "titan": {
+  "file": "kk_barbarian.glb",
+  "height": 2.9,
+  "yaw": 1.5708,
+  "hand": "handslot.r",
+  "handRot": [
+   0,
+   0,
+   1.5708
+  ],
+  "handOffset": [
+   0,
+   0,
+   0
+  ],
+  "itemScale": 1.87,
+  "head": "head",
+  "headTop": 1.07,
+  "headR": 0.56,
+  "clips": {
+   "idle": "Idle",
+   "walk": "Walking_A",
+   "run": "Running_A",
+   "attack": "1H_Melee_Attack_Slice_Diagonal",
+   "attackAlt": "1H_Melee_Attack_Slice_Horizontal",
+   "chop": "1H_Melee_Attack_Chop",
+   "stab": "1H_Melee_Attack_Stab",
+   "death": "Death_A",
+   "block": "Blocking",
+   "dodge": "Dodge_Forward",
+   "hit": "Hit_A",
+   "sit": "Sit_Floor_Idle",
+   "cheer": "Cheer"
+  },
+  "sets": {
+   "unarmed": {
+    "idle": "Unarmed_Idle",
+    "attack": "Unarmed_Melee_Attack_Punch_A",
+    "attackAlt": "Unarmed_Melee_Attack_Punch_B"
+   },
+   "2h": {
+    "idle": "2H_Melee_Idle",
+    "attack": "2H_Melee_Attack_Slice",
+    "chop": "2H_Melee_Attack_Chop",
+    "slam": "2H_Melee_Attack_Chop"
+   },
+   "bow": {
+    "idle": "2H_Ranged_Aiming",
+    "attack": "2H_Ranged_Shoot"
+   },
+   "staff": {
+    "idle": "Spellcasting",
+    "attack": "Spellcast_Shoot"
+   },
+   "shield": {
+    "idle": "Blocking",
+    "attack": "1H_Melee_Attack_Slice_Diagonal"
+   }
+  },
+  "tint": "*",
+  "tintMode": "mul",
+  "kind": "unarmed"
+ },
+ "wolf": {
+  "file": "fox.glb",
+  "height": 0.75,
+  "yaw": 1.5708,
+  "tint": "fox_material",
+  "flat": true,
+  "clips": {
+   "idle": "Survey",
+   "walk": "Walk",
+   "run": "Run"
+  }
+ },
+ "wolf_pet": {
+  "file": "fox.glb",
+  "height": 0.75,
+  "yaw": 1.5708,
+  "tint": "fox_material",
+  "flat": true,
+  "clips": {
+   "idle": "Survey",
+   "walk": "Walk",
+   "run": "Run"
+  }
+ },
+ "frostmaw": {
+  "file": "fox.glb",
+  "height": 1.7,
+  "yaw": 1.5708,
+  "tint": "fox_material",
+  "flat": true,
+  "clips": {
+   "idle": "Survey",
+   "walk": "Walk",
+   "run": "Run"
+  }
+ },
+ "bat": {
+  "file": "kenney_drone.glb",
+  "height": 0.45,
+  "yaw": 1.5708,
+  "tint": "colormap",
+  "hover": 0.85,
+  "clips": {}
+ }
+}
