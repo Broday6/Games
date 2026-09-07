@@ -40,14 +40,16 @@
     $('manual-client').classList.add('hidden');
     $('randseed').onclick = () => $('seed').value = Math.random().toString(36).slice(2, 8).toUpperCase();
     const name = () => { const n = $('name').value.trim() || 'Castaway'; try { localStorage.setItem('driftwood', JSON.stringify({ name: n, color: UI.color, cls: UI.cls })); } catch (e) { } return n; };
-    $('btn-host').onclick = () => { $('btn-host').disabled = true; G.Main.host(name(), UI.color, $('seed').value.trim()); };
+    for (const kind of ['host', 'solo']) { const sel = $('mode-' + kind); sel.innerHTML = ''; for (const k in G.MODES) { const o = document.createElement('option'); o.value = k; o.textContent = G.MODES[k].name; sel.appendChild(o); } const desc = () => { $('mode-desc-' + kind).textContent = G.MODES[sel.value].desc; }; sel.onchange = () => { desc(); const other = $('mode-' + (kind === 'host' ? 'solo' : 'host')); if (other.value !== sel.value) { other.value = sel.value; $('mode-desc-' + (kind === 'host' ? 'solo' : 'host')).textContent = G.MODES[sel.value].desc; } }; desc(); }
+    $('btn-host').onclick = () => { $('btn-host').disabled = true; G.Main.host(name(), UI.color, $('seed').value.trim(), $('mode-host').value); };
     $('btn-start').onclick = () => G.Main.startHostGame();
     $('btn-connect').onclick = () => { const addr = $('serveraddr').value.trim(); if (!addr) return UI.status('Enter the server address (host:port).'); $('btn-connect').disabled = true; G.Main.connectServer(name(), UI.color, addr, $('serverpass').value); };
     $('serveraddr').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-connect').click(); });
     if (G.Net.canListen()) { $('direct').classList.remove('hidden'); $('btn-direct').onclick = async () => { $('btn-direct').disabled = true; const r = await G.Main.hostDirect(name(), UI.color, $('seed').value.trim(), +$('directport').value || 7777); if (!(r && r.ok)) $('btn-direct').disabled = false; }; }
     if (location.protocol === 'https:') $('serverhelp').innerHTML += ' <span style="color:#ffb0b0">From this https page the browser only allows wss:// servers — for a plain ip:port address use the downloaded game or the desktop app, or open the server\'s own page.</span>';
     $('btn-join').onclick = () => { const code = $('joincode').value.trim().toUpperCase(); if (code.length < 5) return UI.status('Enter the 5-letter room code.'); $('btn-join').disabled = true; G.Main.join(name(), UI.color, code); };
-    $('btn-solo').onclick = () => G.Main.solo(name(), UI.color, $('seed2').value.trim());
+    $('btn-solo').onclick = () => G.Main.solo(name(), UI.color, $('seed2').value.trim(), $('mode-solo').value);
+    $('shop-close').onclick = () => UI.shop(false); $('shop-sell').onclick = () => G.Main.act({ a: 'sell' });
     $('btn-tut').onclick = () => G.Main.tutorialRun(name(), UI.color);
     $('copylink').onclick = () => { const link = G.Net.inviteLink($('roomcode').textContent); if (!link) return UI.status('No public link for this copy of the game — share the code instead.'); const fail = () => UI.status('Copy failed — the link is ' + link); try { navigator.clipboard.writeText(link).then(() => UI.status('Invite link copied! Friends who open it land straight in your room.')).catch(fail); } catch (e) { fail(); } };
     if (G.Net.blockedHere()) { const u = G.Net.hostedUrl(); const n = $('hostednote'); n.classList.remove('hidden'); n.innerHTML = '<b style="color:var(--acc)">Playing with friends?</b> This preview runs inside claude.ai, whose sandbox blocks the room server, so room codes cannot connect from here. ' + (u ? 'Open <a href="' + u + '" target="_blank" rel="noopener" style="color:var(--acc)">the web version</a> (same game, opens in a new tab) to host or join online' : 'Download the desktop app or the browser file from the Releases page to host or join online') + ' — or play solo right here.'; }
@@ -76,7 +78,7 @@
       const B = G.Input.binds;
       if (k === B.chat && G.Main.started) { openChat(); return true; }
       if (k === B.inventory && G.Main.started) { UI.toggleInv(); return true; }
-      if (k === 'Escape' || k === B.menu) { if (UI.casOpen) { UI.casino(false); return true; } if (UI.open) { UI.toggleInv(false); return true; } if (!$('confirm').classList.contains('hidden')) { $('confirm').classList.add('hidden'); return true; } if (G.Main.started && !$('resume').classList.contains('hidden') && !UI.open) { UI.setResume(false); UI.paused = false; G.Input.lock(); return true; } if (G.Main.started && k !== 'Escape') { G.Input.unlock(); UI.setResume(true); return true; } }
+      if (k === 'Escape' || k === B.menu) { if (UI.shopOpen) { UI.shop(false); return true; } if (UI.casOpen) { UI.casino(false); return true; } if (UI.open) { UI.toggleInv(false); return true; } if (!$('confirm').classList.contains('hidden')) { $('confirm').classList.add('hidden'); return true; } if (G.Main.started && !$('resume').classList.contains('hidden') && !UI.open) { UI.setResume(false); UI.paused = false; G.Input.lock(); return true; } if (G.Main.started && k !== 'Escape') { G.Input.unlock(); UI.setResume(true); return true; } }
       if (k === B.mute) { const m = G.Audio.toggleMute(); UI.toast(m ? 'Muted' : 'Sound on', ''); return true; }
       if (k === B.emote && G.Main.started) { G.Main.act({ a: 'emote' }); return true; }
       if (k === B.drop && G.Main.started && !UI.casOpen) { const V = G.Main.view(); const me = V && V.players[V.me]; if (!me) return true; const slot = UI.open ? (UI.drag !== null ? UI.drag : UI.hoverSlot) : me.held; if (slot !== null && slot !== undefined && me.inv[slot]) { G.Main.act({ a: 'drop', slot, n: e.shiftKey ? 0 : 1 }); if (UI.drag === slot) clearDrag(); } return true; }
@@ -177,11 +179,38 @@
   const sym = (id) => (G.SLOT_SYMBOLS.find(s => s.id === id) || { ch: '?' }).ch;
   const DIE = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
   const WHEEL_COL = ['#c0c0c0', '#5aa0ff', '#d05aff', '#ffd24a', '#5aff8a', '#ff4060'];
+  // ---- the fishmonger's stall ----
+  UI.shopOpen = false; UI.shopAt = null;
+  UI.shop = function (open, ev) {
+    UI.shopOpen = !!open; $('shop').classList.toggle('hidden', !open);
+    if (open) { UI.shopAt = ev && ev.x !== undefined ? { x: ev.x, y: ev.y } : null; G.Input.unlock(); UI.setResume(false); UI.shopRender(); }
+    else if (G.Main.started && !UI.open && !UI.casOpen) G.Input.lock();
+  };
+  UI.shopRender = function () {
+    const V = G.Main.view(); const me = V && V.players[V.me]; if (!me) return; $('shop-coins').textContent = '⬤ ' + me.coins;
+    const body = $('shop-body'); body.innerHTML = '';
+    let fishN = 0, fishV = 0; for (const s of me.inv) if (s && I[s.id].fish) { fishN += s.n; fishV += I[s.id].sell * s.n; }
+    const head = document.createElement('div'); head.className = 'small'; head.style.margin = '6px 0'; head.textContent = fishN ? 'You carry ' + fishN + ' fish worth ' + fishV + ' coins.' : 'No fish in the bag. Hold a rod, face the water and click to cast.'; body.appendChild(head);
+    $('shop-sell').textContent = fishN ? 'Sell all fish (+' + fishV + ' ⬤)' : 'Sell all fish'; $('shop-sell').disabled = !fishN;
+    for (const it of G.SHOP) { const d = I[it.id]; const row = document.createElement('div'); row.className = 'shoprow'; const c = document.createElement('canvas'); c.width = 32; c.height = 32; c.getContext('2d').drawImage(G.Sprites.item(it.id), 0, 0); row.appendChild(c); const nm = document.createElement('div'); nm.className = 'nm'; nm.innerHTML = esc(d.name) + (it.n > 1 ? ' ×' + it.n : '') + '<span>' + esc(d.desc || (d.type === 'place' ? 'placeable' : d.type)) + '</span>'; row.appendChild(nm); const b = document.createElement('button'); b.textContent = it.cost + ' ⬤'; b.disabled = me.coins < it.cost; b.onclick = () => G.Main.act({ a: 'buy', id: it.id }); row.appendChild(b); body.appendChild(row); }
+  };
+  // ---- player-versus-player dice ----
+  UI.duelRequest = function (ev) {
+    UI.confirm('<b style="color:#ffd24a">' + esc(ev.from) + ' challenges you to a dice duel for ' + ev.bet + ' coins.</b><p>Both roll two dice; the higher total takes the pot, ties push. You have 25 seconds.</p>', () => G.Main.act({ a: 'duelans', ok: true }), 'Roll!', 'Decline');
+    const cn = $('cn'); if (cn) { const old = cn.onclick; cn.onclick = () => { G.Main.act({ a: 'duelans', ok: false }); if (old) old(); }; }
+    G.Input.unlock();
+  };
   UI.casRender = function () {
     const me = G.Main.V && G.Main.V.players[G.Main.V.me]; const coins = me ? me.coins : 0; $('cas-coins').textContent = '⬤ ' + coins;
     const body = $('cas-body'); body.innerHTML = ''; const g = UI.casGame; const C = G.CASINO;
     const rigRow = document.createElement('div'); rigRow.className = 'bets rigs'; const rl = document.createElement('span'); rl.className = 'small'; rl.textContent = 'Sketchy items:'; rigRow.appendChild(rl);
     C.rigs.forEach(r => { const b = document.createElement('button'); const have = me && me.rig && me.rig[r.id]; b.className = have ? 'sel' : ''; b.textContent = r.name + (have ? ' ✓' : ' · ' + r.cost + ' ⬤'); b.title = r.desc; b.disabled = !!have; b.onclick = () => casAct({ a: 'gamble', g: 'buy', item: r.id }); rigRow.appendChild(b); });
+    if (g === 'duel') {
+      const V = G.Main.V; const others = V ? Object.values(V.players).filter(q => q.id !== V.me && !q.dead) : [];
+      const h = document.createElement('div'); h.className = 'small'; h.style.margin = '6px 0'; h.textContent = others.length ? 'Challenge a friend: both roll two dice, the higher total wins the bet, ties push. They get 25 seconds to accept.' : 'Nobody else is on the island to duel — the tables are always open, though.'; body.appendChild(h);
+      for (const q of others) { const row = document.createElement('div'); row.className = 'bets'; const nm = document.createElement('b'); nm.style.color = q.col; nm.style.minWidth = '110px'; nm.textContent = q.name + ' · ' + q.coins + ' ⬤'; row.appendChild(nm); for (const bet of [10, 25, 50, 100, 250]) { const b = document.createElement('button'); b.textContent = bet; b.disabled = coins < bet || q.coins < bet; b.onclick = () => { casAct({ a: 'duel', to: q.id, bet }); $('cas-log').textContent = 'Challenge sent to ' + q.name + ' for ' + bet + ' coins…'; }; row.appendChild(b); } body.appendChild(row); }
+      body.appendChild(rigRow); return;
+    }
     if (g === 'slots') {
       const reels = document.createElement('div'); reels.className = 'reels'; reels.id = 'reels'; for (let i = 0; i < 3; i++) { const r = document.createElement('canvas'); r.className = 'reel'; r.width = 156; r.height = 156; const id = UI.casLast && UI.casLast.reels ? UI.casLast.reels[i] : ['cherry', 'bell', 'seven'][i]; UI.reelDraw(r, SYM_ORDER.indexOf(id), SYM_ORDER); reels.appendChild(r); } body.appendChild(reels);
       const tot = G.SLOT_SYMBOLS.reduce((a, s) => a + s.w, 0); const sy = (id) => G.SLOT_SYMBOLS.find(s => s.id === id); const p3 = (id) => Math.pow(sy(id).w / tot, 3), p2 = (id) => 3 * Math.pow(sy(id).w / tot, 2) * (1 - sy(id).w / tot);
@@ -235,6 +264,7 @@
   const fillKeys = (txt) => txt.replace(/\{(\w+)\}/g, (m, k) => '<b>' + keyName((G.Input.binds || {})[k] || k) + '</b>');
   UI.tutStep = 0; UI.tutLast = '';
   UI.tutorial = function (V) {
+    if (V && V.mode === 'casino') { $('tutorial').classList.add('hidden'); return; } // the plaza has no gathering to teach
     const box = $('tutorial'); const me = V && V.players[V.me]; const meta = UI.tutMeta || (UI.tutMeta = UI.loadMeta());
     UI.tutHidden = !me || meta.tutorialOff || meta.tutorialDone; if (UI.tutHidden) { box.classList.add('hidden'); return; }
     const T = G.TUTORIAL; while (UI.tutStep < T.length && T[UI.tutStep].done(V, me)) { UI.tutStep++; UI.tutLast = ''; if (UI.tutStep < T.length) UI.toast('Tutorial', 'Step done! Next: ' + T[UI.tutStep].txt.replace(/\{(\w+)\}/g, (m, k) => keyName((G.Input.binds || {})[k] || k)).slice(0, 90), '#80ffd0'); }
@@ -266,7 +296,7 @@
   UI.confirm = function (html, onYes, yes, no) { const c = $('confirm'); c.innerHTML = html + '<div class="row" style="justify-content:center"><button id="cy" class="primary">' + esc(yes || 'Set sail') + '</button><button id="cn">' + esc(no || 'Not yet') + '</button></div>'; c.classList.remove('hidden'); $('cy').onclick = () => { c.classList.add('hidden'); onYes(); }; $('cn').onclick = () => c.classList.add('hidden'); };
   UI.end = function (win, V, shards) {
     const run = UI.recordRun(V, win, shards || 0); UI.lastRun = run;
-    const e = $('end'); e.classList.remove('hidden'); e.querySelector('h1').textContent = win ? 'YOU ESCAPED THE ISLAND' : 'THE ISLAND KEEPS YOU';
+    const e = $('end'); e.classList.remove('hidden'); e.querySelector('h1').textContent = V.mode === 'casino' ? (V.winner ? V.winner.toUpperCase() + ' TAKES THE TABLE' : 'THE HOUSE CLOSES') : win ? 'YOU ESCAPED THE ISLAND' : 'THE ISLAND KEEPS YOU';
     e.querySelector('h1').style.color = win ? '#ffd24a' : '#e03030';
     const me = V.players[V.me];
     e.querySelector('.stats').innerHTML = `<div>Days survived: <b>${V.day}</b></div><div>Time: <b>${G.fmtTime(V.elapsed || 0)}</b></div><div>Party kills: <b>${V.stats.kills}</b> · Chests opened: <b>${V.stats.chests}</b> · Deaths: <b>${V.stats.deaths}</b></div><div>Your kills: <b>${me ? me.kills : 0}</b> · Powerups: <b>${me ? Object.values(me.pw).reduce((a, b) => a + b, 0) : 0}</b></div><div>Seed: <b>${esc(V.world.seed)}</b> — type it in the lobby to replay this island.</div>`;
@@ -372,6 +402,7 @@
     for (const a in G.Input.DEFAULT_BINDS) { const d = document.createElement('div'); d.className = 'bind'; const lbl = document.createElement('span'); lbl.textContent = G.Input.BIND_NAMES[a]; d.appendChild(lbl); const b = document.createElement('button'); b.textContent = G.Input.keyName(G.Input.binds[a]); b.onclick = () => { document.querySelectorAll('.bind button').forEach(x => x.classList.remove('listening')); b.classList.add('listening'); b.textContent = 'press a key…'; G.Input.capture = a; G.Input.onCaptured = () => UI.renderBinds(); }; d.appendChild(b); list.appendChild(d); }
   };
   UI.objective = function (V) {
+    if (V.mode === 'casino') { const ps = Object.values(V.players).sort((a, b) => b.coins - a.coins).slice(0, 4); return 'First to ' + V.goal + ' coins · ' + ps.map((p, i) => (i === 0 ? '👑 ' : '') + p.name + ' ' + p.coins).join(' · '); }
     const gems = ['emerald', 'sapphire', 'ruby'].filter(g => V.boat[g] >= 1).length; const dead = Object.keys(V.bosses).filter(k => V.bosses[k] === 'dead').length;
     let txt;
     if (V.phase === 'siege') txt = 'Hold the dock!'; else if (V.phase === 'final') txt = 'Slay the Leviathan';
@@ -406,11 +437,12 @@
     const t = V.time; const phase = t < G.DUSK_AT ? 'Day' : t < G.NIGHT_AT ? 'Dusk' : 'Night';
     $('clock').querySelector('.day').textContent = 'Day ' + V.day + ' — ' + phase;
     const rem = t < G.DUSK_AT ? G.DUSK_AT - t : t < G.NIGHT_AT ? G.NIGHT_AT - t : G.DAY_LEN - t;
-    let ct = (phase === 'Night' ? 'dawn in ' : phase === 'Dusk' ? 'night in ' : 'dusk in ') + G.fmtTime(rem) + ' · difficulty ' + V.diff.toFixed(1) + 'x';
+    let ct = V.mode === 'casino' ? 'neon night · ' + G.MODES.casino.name : (phase === 'Night' ? 'dawn in ' : phase === 'Dusk' ? 'night in ' : 'dusk in ') + G.fmtTime(rem) + ' · difficulty ' + V.diff.toFixed(1) + 'x' + (V.weather && V.weather !== 'clear' ? ' · ' + G.WEATHER[V.weather].name.toLowerCase() : '');
     if (V.phase === 'siege') ct = '<span class="siege">HOLD THE DOCK — ' + V.siegeT + 's</span>'; if (V.phase === 'final') ct = '<span class="siege">KILL THE LEVIATHAN</span>';
     $('clock').querySelector('.time').innerHTML = ct; $('objective').textContent = UI.objective(V);
     // hotbar & inventory
     const invKey = JSON.stringify(me.inv) + me.held + JSON.stringify(me.armor);
+    if (UI.shopOpen) { if (UI.shopAt && G.dist(me.x, me.y, UI.shopAt.x, UI.shopAt.y) > 5) UI.shop(false); else if (invKey + me.coins !== UI.lastShopKey) { UI.lastShopKey = invKey + me.coins; UI.shopRender(); } }
     if (invKey !== UI.lastInv) {
       UI.lastInv = invKey;
       const hb = $('hotbar').children; for (let i = 0; i < 9; i++) { drawSlot(hb[i], me.inv[i]); hb[i].classList.toggle('sel', i === me.held); }

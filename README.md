@@ -31,6 +31,7 @@ Or open `driftwood/index.html` from any static host (see *Hosting* below). No in
 | **F** | quick-eat the best food you carry |
 | **X** | drop one of the held item (**Shift+X** the whole stack; in the bag, **Ctrl-click** drops one, **Shift-click** the stack, or drag a stack onto the drop bar) |
 | **E** or **F** near a drop | pick it up (plus anything piled within a tile). Items stay on the ground until someone picks them up; only coins are collected automatically |
+| **LMB** with a rod | cast at the water you face; click again when the bobber dips (`REEL!`). Bait in the bag: faster bites, rarer fish |
 | **E** at a Storage Chest | open it — click bag slots to stow, chest slots to take, **Take all** / **Stow matching** / **Sort** buttons. Craft one from 8 wood + 2 sticks; the whole party shares it and it spills its contents when broken. Chests placed within two tiles of each other **link into one store**: stowing tops up whichever chest already holds that item, tabs switch between them, and Sort groups everything by kind |
 | **1–9** / wheel | hotbar · **Tab** or **I** inventory + crafting (**Shift-click** a recipe crafts 5, **Sort bag** merges and orders your stacks) · **Enter** chat · **T** ping · **M** mute |
 
@@ -49,6 +50,27 @@ the dock 90 seconds → kill the Leviathan → victory screen with your day coun
 Downed players bleed out for 30 s and can be revived; if everyone is down the run ends. Dead players
 wash back ashore at dawn (empty inventory, powerups kept). The seed is always shown — type it in the
 lobby to replay an island.
+
+### Modes
+
+Pick a mode in the lobby (host or solo); dedicated servers take `--mode`.
+
+- **Survival** — the classic run. Every seed now draws one of five island shapes (round, crescent bay, twin lobes with a
+  sandbar, caldera lake, archipelago with islets), carves one to three rivers with gravel banks down to the sea, and caps the
+  highest ground with snow. Ore comes in **big, rare clusters**: every pick strike knocks a chunk loose, the break pays the rest,
+  and the deposit grows back from rubble. **Weather** rolls at dawn and dusk (rain speeds regrowth, sea fog closes the view,
+  storms flash with lightning) and the tide leaves **driftwood and crates** on nearby beaches every morning. A fishmonger stands
+  by the wreck.
+- **Gamble With Friends** — a neon plaza with six Dealer's Tables and no monsters, no hunger, permanent neon night. Everyone
+  starts with 300 coins, the house pays 25 a minute, and the first to 2500 takes the table. The **Duel a friend** tab challenges
+  another player to two-dice-versus-two-dice for 10 to 250 coins (they get 25 seconds to accept). The HUD objective is the
+  leaderboard.
+- **Bastion Fishing** — you land inside a stone bastion with two doors, a campfire, workbench, furnace, anvil, storage chest and a
+  fishmonger, with a dock running out over the water, holding a rod and bait. Hold the rod, face the water and click to cast;
+  click again when the bobber dips. Shallow water gives perch and bass, deep water tuna and swordfish, nights bring eels and the
+  rare moonfish, volcano waters emberfish. Sell the catch to the fishmonger for coins and buy rods, bait, arrows, bandages, torches
+  and stone for wall repairs. Nights still bring the waves, so keep the doors shut. Fishing works in every mode: craft a rod from
+  3 sticks and 2 fibre, bait from wheat or mushrooms.
 
 ### Multiplayer
 

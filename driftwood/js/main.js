@@ -31,21 +31,23 @@
     Sim.addPlayer(M.S, 'host', name, col, UI.cls, UI.loadMeta().up, UI.hat, UI.skin);
     updateLobbyPlayers();
   }
-  M.host = function (name, col, seed) {
-    makeHostSim(name, col, seed);
+  M.host = function (name, col, seed, mode) {
+    makeHostSim(name, col, seed, { mode });
     const code = Net.makeCode();
     Net.host(code, (ok) => { if (!ok) { UI.showHostInfo('—'); document.getElementById('btn-host').disabled = false; document.getElementById('manual').open = true; UI.status(Net.blockedHere() ? 'Room codes cannot connect from inside this preview — open the web version (link above) to host online, or play solo here.' : 'The room server could not be reached — use the manual invite below, or try again.'); } });
     UI.showHostInfo(code); document.getElementById('seed').value = M.S.world.seed;
   };
   M.ensureHostForManual = function (name, col, seed) { makeHostSim(name, col, seed); Net.mode = 'host'; Net.id = 'host'; document.getElementById('hostinfo').classList.remove('hidden'); document.getElementById('seed').value = M.S.world.seed; };
-  M.solo = function (name, col, seed) { makeHostSim(name, col, seed); M.startHostGame(); };
+  M.solo = function (name, col, seed, mode) { makeHostSim(name, col, seed, { mode }); M.startHostGame(); };
   // tutorial run: a guaranteed clearing with a tree, rock and bush by the beach, the clock frozen until the first campfire, no spawns meanwhile
   M.tutorialRun = function (name, col) { makeHostSim(name, col, 'LESSON', { tutorial: true }); M.startHostGame(); const m = UI.loadMeta(); m.tutorialOff = false; m.tutorialDone = false; UI.saveMeta(m); UI.tutMeta = null; UI.tutStep = 0; UI.tutLast = ''; UI.toast('Tutorial', 'Time stands still until you light a campfire. Follow the checklist under the minimap.', '#80ffd0'); };
   M.startHostGame = function () {
     if (!M.S || M.started) return; M.started = true; A.init(); A.resume();
     UI.enterGame(M.S.world.seed); Net.broadcast({ t: 'start' });
-    UI.chat({ sys: true, msg: 'Punch a tree for wood (LMB). Craft an axe and a workbench (Tab).' });
-    UI.chat({ sys: true, msg: 'Before dark: craft a torch (1 stick + 1 wood) and a campfire. Total darkness hurts, and monsters never spawn near light.' });
+    if (M.S.mode === 'casino') { UI.chat({ sys: true, msg: 'Gamble With Friends: everyone starts with ' + G.MODES.casino.start + ' coins, the house hands out ' + G.MODES.casino.allowance + ' a minute, first to ' + G.MODES.casino.goal + ' wins.' }); UI.chat({ sys: true, msg: 'Sit at any table (' + G.keyOf('interact') + ') for slots, dice, the wheel and blackjack — or open the Duel tab to challenge a friend at dice.' }); }
+    else if (M.S.mode === 'bastion') { UI.chat({ sys: true, msg: 'Bastion Fishing: hold a rod, face the water and click to cast. Click again when the bobber dips.' }); UI.chat({ sys: true, msg: 'The fishmonger inside the walls buys every fish and sells rods, bait, arrows and stone for repairs. Keep the doors shut at night.' }); }
+    else { UI.chat({ sys: true, msg: 'Punch a tree for wood (LMB). Craft an axe and a workbench (Tab).' });
+    UI.chat({ sys: true, msg: 'Before dark: craft a torch (1 stick + 1 wood) and a campfire. Total darkness hurts, and monsters never spawn near light.' }); }
     In.wantLock = true; In.lock();
   };
   M.join = function (name, col, code) { M.pending = { name, col }; M.mode = 'client'; M.lost = false; Net.join(code, (ok) => { if (!ok) document.getElementById('btn-join').disabled = false; }); };
@@ -102,7 +104,7 @@
     const projs = snap.projs.map(a => ({ id: a[0], type: a[1], x: a[2], y: a[3], a: a[4] }));
     const drops = snap.drops.map(a => ({ id: a[0], item: a[1] < 0 ? 'coin' : G.ITEM_LIST[a[1]], x: a[2], y: a[3], n: a[4], aff: a[5] || null, q: a[6] || 0 }));
     const puddles = snap.puddles.map(a => ({ x: a[0], y: a[1], r: a[2], t: a[3] }));
-    M.snapPrev = M.snapCur; M.snapCur = { time: snap.time, day: snap.day, phase: snap.phase, nev: snap.nev, siegeT: snap.siegeT, boat: snap.boat, bosses: snap.bosses, players: snap.players, enemies, projs, drops, puddles, stats: snap.stats, diff: snap.diff, at: performance.now() / 1000 };
+    M.snapPrev = M.snapCur; M.snapCur = { time: snap.time, day: snap.day, phase: snap.phase, nev: snap.nev, siegeT: snap.siegeT, boat: snap.boat, bosses: snap.bosses, players: snap.players, enemies, projs, drops, puddles, stats: snap.stats, diff: snap.diff, mode: snap.mode, weather: snap.weather, goal: snap.goal, at: performance.now() / 1000 };
     M.snapT = M.snapCur.at;
     const me = snap.players[M.me];
     if (me) {
@@ -129,6 +131,10 @@
         case 'tile': if (M.world) { M.world.tiles[ev.i] = ev.v; R.dirtyTerrain(ev.i); } break;
         case 'casino': UI.casino(true, ev); break;
         case 'storage': UI.openChest(ev.i, ev); break;
+        case 'shop': UI.shop(true, ev); break;
+        case 'weather': { const wd = G.WEATHER[ev.id]; if (wd) UI.toast(wd.name, ev.id === 'clear' ? 'the sky opens up' : ev.id === 'rain' ? 'plants grow faster in the rain' : ev.id === 'fog' ? 'visibility drops — stay near the fire' : 'lightning on the hills'); break; }
+        case 'duelreq': if (ev.to === M.me) { A.play('chest'); UI.duelRequest(ev); } break;
+        case 'duelres': if (ev.to === M.me) UI.toast(ev.winner ? (ev.won ? 'You won the duel! +' + ev.bet : 'Lost the duel −' + ev.bet) : 'Duel pushed', ev.qa + ' ' + ev.a.join('+') + ' vs ' + ev.qb + ' ' + ev.b.join('+'), ev.winner ? (ev.won ? '#ffd24a' : '#ff9090') : '#c0c0c0'); break;
         case 'gres': UI.gres(ev); break;
         case 'hat': UI.unlockHat(ev.id); break;
       }
@@ -163,7 +169,7 @@
     const S = M.S; const a = Math.min(1, M.acc / STEP);
     const players = {}; for (const id in S.players) { const p = S.players[id]; const q = prevPos.p[id]; players[id] = q && !p.dodgeT ? Object.assign({}, p, { x: G.lerp(q.x, p.x, a), y: G.lerp(q.y, p.y, a) }) : p; }
     const enemies = S.enemies.map(e => { const q = prevPos.e[e.id]; return q ? Object.assign({}, e, { x: G.lerp(q.x, e.x, a), y: G.lerp(q.y, e.y, a) }) : e; });
-    const V = { world: S.world, time: S.time, day: S.day, phase: S.phase, nev: S.nev, siegeT: Math.ceil(S.siegeT), boat: S.boat, bosses: S.bosses, players, enemies, projs: S.projs, drops: S.drops, puddles: S.puddles, stats: S.stats, diff: Sim.difficulty(S), me: 'host', now: performance.now() / 1000, elapsed: S.elapsed };
+    const V = { world: S.world, time: S.time, day: S.day, phase: S.phase, nev: S.nev, siegeT: Math.ceil(S.siegeT), boat: S.boat, bosses: S.bosses, players, enemies, projs: S.projs, drops: S.drops, puddles: S.puddles, stats: S.stats, diff: Sim.difficulty(S), me: 'host', now: performance.now() / 1000, elapsed: S.elapsed, mode: S.mode, weather: S.weather.id, goal: S.mode === 'casino' ? G.MODES.casino.goal : 0, winner: S.winner };
     const me = S.players.host; V.chestDisc = me ? Sim.stats(me).chestDisc : 1;
     V.netlbl = Net.count() ? 'hosting · ' + (Net.count() + 1) + ' players' : (M.mode === 'host' && Net.room ? 'room ' + Net.room + ' · waiting for friends' : 'solo');
     return V;
@@ -182,7 +188,7 @@
     const prevE = {}; if (p) for (const e of p.enemies) prevE[e.id] = e;
     const enemies = c.enemies.map(e => { const pe = prevE[e.id]; if (!pe) return e; return Object.assign({}, e, { x: G.lerp(pe.x, e.x, Math.min(1, alpha)), y: G.lerp(pe.y, e.y, Math.min(1, alpha)) }); });
     const me = c.players[M.me];
-    return { world: M.world, time: c.time + (now - c.at), day: c.day, phase: c.phase, nev: c.nev, siegeT: c.siegeT, boat: c.boat, bosses: c.bosses, players, enemies, projs: c.projs, drops: c.drops, puddles: c.puddles, stats: c.stats, diff: c.diff, me: M.me, now, elapsed: 0, chestDisc: me ? Sim.stats(me).chestDisc : 1, netlbl: 'connected · ' + M.pingMs + 'ms' };
+    return { world: M.world, time: c.time + (now - c.at), day: c.day, phase: c.phase, nev: c.nev, siegeT: c.siegeT, boat: c.boat, bosses: c.bosses, players, enemies, projs: c.projs, drops: c.drops, puddles: c.puddles, stats: c.stats, diff: c.diff, mode: c.mode, weather: c.weather, goal: c.goal, me: M.me, now, elapsed: 0, chestDisc: me ? Sim.stats(me).chestDisc : 1, netlbl: 'connected · ' + M.pingMs + 'ms' };
   }
   M.view = () => M.V;
   M.simForUI = () => M.mode === 'host' ? M.S : { world: M.world };
@@ -214,9 +220,11 @@
       if (d.boat) return V.boat.done ? G.keyOf('interact') + ': SET SAIL' : G.keyOf('interact') + ': deposit repairs — ' + Object.keys(G.BOAT_NEED).map(k => G.ITEMS[k].name + ' ' + V.boat[k] + '/' + G.BOAT_NEED[k]).join(', ');
       if (d.door) return G.keyOf('interact') + ': ' + (o.closed ? 'open' : 'close') + ' door';
       if (d.storage) { const used = o.inv ? o.inv.filter(Boolean).length : 0; return G.keyOf('interact') + ': open Storage Chest (' + used + '/' + d.storage + ' slots used)'; }
+      if (d.shop) return G.keyOf('interact') + ": Fishmonger's Stall — sells rods, bait, arrows and stone · buys every fish";
       if (d.casino) return G.keyOf('interact') + ": sit at the Dealer's Table — slots · dice · Wheel of Fates · blackjack (bet coins, win boons)";
     }
     const it = me.inv[me.held]; if (it && G.ITEMS[it.id].type === 'place') return 'LMB: place ' + G.ITEMS[it.id].name + ' where you look';
+    if (it && G.ITEMS[it.id].type === 'rod') { const f = me.fish; if (!f) return 'LMB: cast into the water' + (me.inv.some(s => s && s.id === 'bait') ? ' (bait in the bag: faster bites, rarer fish)' : ''); const bite = Array.isArray(f) ? f[2] : (f.state === 'bite' ? 1 : 0); return bite ? 'CLICK — reel it in!' : 'waiting for a bite… stand still (LMB reels the line back in)'; }
     if (it && G.ITEMS[it.id].type === 'bow') return 'Hold RMB to draw, release to shoot';
     if (me.hunger < 25) return 'You are starving — eat something (' + G.keyOf('eat') + ')';
     return '';

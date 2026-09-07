@@ -2,7 +2,7 @@
 // DRIFTWOOD dedicated server — runs the island simulation headless and serves the game itself.
 //
 //   node server.js                       # island on port 7777, random seed
-//   node server.js --port 8080 --seed REEF --name "Brody's island" --password secret --max 6
+//   node server.js --port 8080 --seed REEF --name "Brody's island" --password secret --max 6 --mode bastion
 //
 // Players connect by address (Join a friend → Server address), or simply open http://<your-ip>:7777/ in a browser:
 // the page served here has the address filled in already. For friends outside your network, forward the port on your
@@ -15,6 +15,7 @@ const { createServer, lanAddresses } = require('./wsserver.js');
 const args = {}; for (let i = 2; i < process.argv.length; i++) { const a = process.argv[i]; if (a.startsWith('--')) { const k = a.slice(2); const v = process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[++i] : 'true'; args[k] = v; } }
 if (args.help || args.h) { console.log(fs.readFileSync(__filename, 'utf8').split('\n').slice(1, 10).map(l => l.replace(/^\/\/ ?/, '')).join('\n')); process.exit(0); }
 const PORT = +(args.port || process.env.PORT || 7777), MAX = +(args.max || 8), PASSWORD = args.password || '', NAME = args.name || 'Driftwood server';
+const MODE = ['survival', 'casino', 'bastion'].includes(args.mode) ? args.mode : 'survival'; // --mode casino | bastion | survival
 let seed = args.seed || '';
 
 // ---- load the game rules into this process (they are browser scripts attached to window.G) ----
@@ -30,8 +31,8 @@ let S = null, acc = 0, lastB = 0, endedAt = 0;
 const clients = {}; let nextId = 1;
 const randomSeed = () => { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 6; i++) s += A[Math.floor(Math.random() * A.length)]; return s; };
 function newIsland(why) {
-  S = Sim.create(seed || randomSeed()); acc = 0; endedAt = 0;
-  log(why + ' — island ' + S.world.seed);
+  S = Sim.create(seed || randomSeed(), { mode: MODE }); acc = 0; endedAt = 0;
+  log(why + ' — island ' + S.world.seed + ' (' + G.MODES[MODE].name + ', ' + S.world.arch + ')');
   for (const id in clients) { const c = clients[id]; if (c.hello) { addPlayer(id, c.hello); c.send({ t: 'welcome', id, seed: S.world.seed, snap: Sim.snapshot(S, true) }); c.send({ t: 'start' }); } }
   seed = ''; // the seed argument applies to the first island only; later islands are random
 }

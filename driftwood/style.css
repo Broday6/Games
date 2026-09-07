@@ -211,6 +211,17 @@ input:focus, textarea:focus { outline: none; border-color: var(--acc); }
 .rigs { border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 10px; }
 .rigs button { font-size: 11px; }
 
+/* the fishmonger's stall */
+#shop { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 24; pointer-events: none; }
+#shop .panel { pointer-events: auto; width: 520px; max-width: 94vw; border-color: #4a8ab0; box-shadow: 0 0 24px rgba(74, 138, 176, 0.35), 0 8px 30px rgba(0,0,0,0.7); }
+#shop h3 { margin: 0; color: #7fc4ff; font-size: 15px; }
+.shoprow { display: flex; align-items: center; gap: 8px; padding: 5px 4px; border-bottom: 1px solid rgba(58,53,80,0.5); font-size: 13px; }
+.shoprow canvas { width: 28px; height: 28px; }
+.shoprow .nm { flex: 1; } .shoprow .nm span { display: block; color: var(--dim); font-size: 11px; }
+.shoprow button { padding: 3px 10px; font-size: 12px; }
+.modesel { font-family: inherit; background: #1a1828; color: var(--txt); border: 2px solid var(--line); padding: 5px 8px; font-size: 13px; border-radius: 3px; }
+.lb { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.lb b { color: #fff; }
 /* tutorial checklist */
 #tutorial { position: absolute; right: 12px; top: 188px; width: 250px; background: rgba(12, 10, 24, 0.82); border: 2px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.35; pointer-events: auto; }
 #tutorial .th { display: flex; justify-content: space-between; align-items: center; color: var(--acc); font-weight: bold; margin-bottom: 4px; }

@@ -9,7 +9,7 @@
   G.NIGHT_AT = 180;
 
   // ---- tiles ----
-  G.T = { DEEP: 0, WATER: 1, SAND: 2, GRASS: 3, DARKGRASS: 4, DIRT: 5, STONE: 6, OBSIDIAN: 7, LAVA: 8, ASH: 9 };
+  G.T = { DEEP: 0, WATER: 1, SAND: 2, GRASS: 3, DARKGRASS: 4, DIRT: 5, STONE: 6, OBSIDIAN: 7, LAVA: 8, ASH: 9, GRAVEL: 10, SNOW: 11 };
   G.TILE_INFO = [
     { name: 'deep water', col: '#1b3a6b', walk: false },
     { name: 'water', col: '#2e6fb5', walk: true, slow: 0.55 },
@@ -21,7 +21,16 @@
     { name: 'obsidian', col: '#3b3340', walk: true },
     { name: 'lava', col: '#ff6a1a', walk: true, dmg: 12, light: 2.5 },
     { name: 'ash', col: '#5a4f4c', walk: true },
+    { name: 'gravel', col: '#9a948a', walk: true },
+    { name: 'snow', col: '#e6eaf0', walk: true, slow: 0.85 },
   ];
+  // game modes (picked in the lobby; the server takes --mode)
+  G.MODES = {
+    survival: { name: 'Survival', desc: 'The classic run: gather, craft, survive the nights, slay the guardians, repair the ship.' },
+    casino: { name: 'Gamble With Friends', desc: 'A neon plaza, no monsters, no hunger. Everyone starts with coins; first to the goal wins. Duel friends at dice.', goal: 2500, start: 300, allowance: 25 },
+    bastion: { name: 'Bastion Fishing', desc: 'Start inside a walled bastion with a dock and a fishmonger. Fish by day, sell the catch, hold the walls by night.' },
+  };
+  G.WEATHER = { clear: { name: 'Clear' }, rain: { name: 'Rain', regrow: 2 }, fog: { name: 'Sea fog' }, storm: { name: 'Storm', regrow: 2 } };
   G.BIOME = { MEADOW: 0, FOREST: 1, VOLCANO: 2 };
 
   // ---- items ----
@@ -35,10 +44,20 @@
   mat('obsidian', 'Obsidian', '#5a4a70'); mat('coal', 'Coal', '#2a2a2e');
   mat('wolf_pelt', 'Wolf Pelt', '#8d7a68'); mat('bone', 'Bone', '#eae6d6'); mat('slime_gel', 'Slime Gel', '#7ce07c');
   mat('ember', 'Ember Core', '#ff8a3a');
+  mat('bait', 'Bait', '#c9a878', { desc: 'a fishing rod with bait in the bag bites faster and hooks rarer fish' });
+  // fishing: rods are held like tools; fish are food that the fishmonger also buys
+  I.rod_wood = { id: 'rod_wood', name: 'Fishing Rod', type: 'rod', tier: 1, col: '#a0702e', desc: 'aim at water and click to cast · click again when the bobber dips' };
+  I.rod_iron = { id: 'rod_iron', name: 'Iron-tipped Rod', type: 'rod', tier: 2, col: '#c8c8d0', desc: 'hooks rare fish twice as often · aim at water and click to cast' };
+  const fish = (id, name, col, hunger, hp, sell, where) => I[id] = { id, name, type: 'food', fish: true, col, hunger, hp, sell, where, desc: 'sells for ' + sell + ' coins · ' + where };
+  fish('perch', 'Perch', '#7fa86a', 8, 2, 6, 'shallow water'); fish('bass', 'Bass', '#5a7a5a', 10, 3, 10, 'shallow water');
+  fish('eel', 'Eel', '#4a4a6a', 8, 4, 16, 'any water at night'); fish('tuna', 'Tuna', '#4a6a9a', 14, 5, 26, 'deep water');
+  fish('swordfish', 'Swordfish', '#6a8ab0', 16, 6, 45, 'deep water, rare'); fish('moonfish', 'Moonfish', '#c0d8ff', 12, 10, 70, 'deep water at night, very rare');
+  fish('emberfish', 'Emberfish', '#ff8a3a', 12, 6, 40, 'volcano waters');
   const food = (id, name, col, hunger, hp, buff) => I[id] = { id, name, type: 'food', col, hunger, hp, buff };
   food('berry', 'Berries', '#c03060', 8, 2); food('mushroom', 'Mushroom', '#c99a7a', 6, 4);
   food('cactus_fruit', 'Cactus Fruit', '#e05a9a', 10, 3); food('raw_meat', 'Raw Meat', '#c04a4a', 5, 0);
   food('cooked_meat', 'Cooked Meat', '#8a4a2a', 25, 12, { hp: 20, dur: 180 });
+  food('cooked_fish', 'Grilled Fish', '#e0b070', 22, 10, { hp: 10, dur: 120 });
   food('bread', 'Bread', '#d9a862', 22, 8, { stam: 25, dur: 180 });
   food('stew', 'Hearty Stew', '#a05a3a', 40, 20, { hp: 40, stam: 20, dur: 300 });
   food('wheat', 'Wheat', '#d8c25a', 3, 0);
@@ -198,6 +217,10 @@
   rec('helm_obsidian', 1, { obsidian: 6, iron_bar: 2 }, 'anvil'); rec('chest_obsidian', 1, { obsidian: 10, iron_bar: 2 }, 'anvil');
   rec('legs_obsidian', 1, { obsidian: 8, iron_bar: 2 }, 'anvil');
   rec('cooked_meat', 1, { raw_meat: 1 }, 'campfire'); rec('bread', 2, { wheat: 3 }, 'campfire');
+  rec('cooked_fish', 1, { perch: 1 }, 'campfire'); rec('cooked_fish', 1, { bass: 1 }, 'campfire'); rec('cooked_fish', 2, { tuna: 1 }, 'campfire');
+  rec('rod_wood', 1, { stick: 3, fiber: 2 }); rec('bait', 3, { wheat: 1 }); rec('bait', 3, { mushroom: 1 }); rec('rod_iron', 1, { iron_bar: 2, stick: 2, rope: 1 }, 'anvil');
+  // the fishmonger's stall buys every fish at its sell price and sells this
+  G.SHOP = [{ id: 'rod_iron', n: 1, cost: 60 }, { id: 'bait', n: 5, cost: 12 }, { id: 'arrow', n: 10, cost: 15 }, { id: 'bandage', n: 2, cost: 10 }, { id: 'torch_hand', n: 3, cost: 8 }, { id: 'wall_stone', n: 4, cost: 30 }, { id: 'door_wood', n: 1, cost: 15 }];
   rec('stew', 1, { cooked_meat: 1, mushroom: 2, berry: 2 }, 'cauldron');
   rec('totem_meadow', 1, { wood: 15, stone: 15, slime_gel: 5 }, 'workbench');
   rec('totem_forest', 1, { iron_bar: 5, wolf_pelt: 3, bone: 5 }, 'anvil');
@@ -212,10 +235,14 @@
   obj('birch', { name: 'Birch', hp: 16, tool: 'axe', tier: 1, drops: [['wood', 5, 8], ['stick', 1, 2]], tall: true, colR: 0.28 });
   obj('deadtree', { name: 'Dead Tree', hp: 10, tool: 'axe', tier: 1, drops: [['wood', 2, 3], ['coal', 1, 3]], tall: true, colR: 0.28 });
   obj('rock', { name: 'Rock', hp: 10, tool: 'pick', tier: 1, drops: [['stone', 3, 5]], colR: 0.5 });
-  obj('coal_rock', { name: 'Coal Deposit', hp: 12, tool: 'pick', tier: 1, drops: [['coal', 2, 4], ['stone', 1, 2]], colR: 0.5 });
-  obj('iron_vein', { name: 'Iron Vein', hp: 18, tool: 'pick', tier: 2, drops: [['iron_ore', 2, 4], ['stone', 1, 2]], colR: 0.5 });
-  obj('gold_vein', { name: 'Gold Vein', hp: 26, tool: 'pick', tier: 3, drops: [['gold_ore', 2, 3]], colR: 0.5 });
-  obj('obsidian_vein', { name: 'Obsidian Vein', hp: 38, tool: 'pick', tier: 4, drops: [['obsidian', 2, 4]], colR: 0.5 });
+  // ore deposits are big and rare: every pick strike knocks a chunk loose (ore field), the break pays the rest, and the vein regrows from rubble
+  obj('coal_rock', { name: 'Coal Deposit', hp: 24, tool: 'pick', tier: 1, drops: [['coal', 3, 5], ['stone', 1, 2]], colR: 0.6, ore: 'coal', regrow: 700 });
+  obj('iron_vein', { name: 'Iron Vein', hp: 36, tool: 'pick', tier: 2, drops: [['iron_ore', 3, 5], ['stone', 1, 2]], colR: 0.6, ore: 'iron_ore', regrow: 900 });
+  obj('gold_vein', { name: 'Gold Vein', hp: 50, tool: 'pick', tier: 3, drops: [['gold_ore', 3, 4]], colR: 0.6, ore: 'gold_ore', regrow: 1100 });
+  obj('driftwood', { name: 'Driftwood', hp: 6, tool: null, tier: 0, drops: [['wood', 3, 5], ['stick', 1, 2]], colR: 0.4, flotsam: true });
+  obj('crate', { name: 'Washed-up Crate', hp: 8, tool: null, tier: 0, drops: [['coin', 8, 20], ['rope', 1, 2], ['berry', 2, 4], ['bandage', 0, 1]], colR: 0.4, flotsam: true });
+  obj('fishmonger', { name: "Fishmonger's Stall", hp: 9999, tool: 'none', tier: 99, shop: true, light: 2 });
+  obj('obsidian_vein', { name: 'Obsidian Vein', hp: 60, tool: 'pick', tier: 4, drops: [['obsidian', 3, 4]], colR: 0.6, ore: 'obsidian', regrow: 1300 });
   obj('berry_bush', { name: 'Berry Bush', hp: 3, tool: null, tier: 0, drops: [['berry', 2, 4], ['fiber', 1, 2]], solid: false, regrow: 90 });
   obj('mushroom', { name: 'Mushroom', hp: 2, tool: null, tier: 0, drops: [['mushroom', 1, 3]], solid: false, regrow: 120 });
   obj('wheat', { name: 'Wild Wheat', hp: 2, tool: null, tier: 0, drops: [['wheat', 1, 3], ['fiber', 1, 2]], solid: false, regrow: 100 });

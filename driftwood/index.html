@@ -55,6 +55,7 @@
     <div class="tabbody">
       <div id="hostednote" class="hidden small" style="margin:0 0 10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:rgba(255,210,74,0.06)"></div>
       <div id="pane-host">
+        <div class="row"><label>Mode</label><select id="mode-host" class="modesel"></select><span class="small" id="mode-desc-host" style="flex:1;min-width:200px"></span></div>
         <div class="row"><label>Seed</label><input id="seed" placeholder="random" style="flex:1"><button id="randseed">🎲</button></div>
         <div class="row"><button id="btn-host" class="primary">Create room</button><span class="small">You'll get a 5-letter room code to share.</span></div>
         <div id="hostinfo" class="hidden">
@@ -75,6 +76,7 @@
         <div class="small" id="serverhelp">Room codes go through the free room server. A <b>server address</b> connects straight to a friend's computer running the desktop app with a port open, or to a dedicated <code>node server.js</code> island that runs all day.</div>
       </div>
       <div id="pane-solo" class="hidden">
+        <div class="row"><label>Mode</label><select id="mode-solo" class="modesel"></select><span class="small" id="mode-desc-solo" style="flex:1;min-width:200px"></span></div>
         <div class="row"><label>Seed</label><input id="seed2" placeholder="random" style="flex:1"></div>
         <div class="row"><button id="btn-solo" class="primary">Start solo run</button><button id="btn-tut">Start tutorial run</button><span class="small">Learn to gather, craft tools, build a workbench and light a fire — the clock waits for you.</span></div>
       </div>
@@ -164,10 +166,15 @@
 </div></div>
 <div id="casino" class="hidden"><div class="panel">
   <div class="row" style="justify-content:space-between"><h3>Dealer's Table <span class="small">— bet coins, win coins, boons and hats · Esc to leave</span></h3><span class="chips" id="cas-coins">⬤ 0</span></div>
-  <div class="tabs" id="cas-tabs"><button data-g="slots" class="sel">Slots</button><button data-g="dice">Dice Duel</button><button data-g="wheel">Wheel of Fates</button><button data-g="bj">Blackjack</button></div>
+  <div class="tabs" id="cas-tabs"><button data-g="slots" class="sel">Slots</button><button data-g="dice">Dice Duel</button><button data-g="wheel">Wheel of Fates</button><button data-g="bj">Blackjack</button><button data-g="duel">Duel a friend</button></div>
   <div id="cas-body"></div>
   <div id="cas-log" class="small"></div>
   <div class="row" style="justify-content:flex-end"><button id="cas-leave">Leave the table</button></div>
+</div></div>
+<div id="shop" class="hidden"><div class="panel">
+  <div class="row" style="justify-content:space-between"><h3>Fishmonger's Stall <span class="small">— buys every fish · sells gear · Esc to leave</span></h3><span class="chips" id="shop-coins">⬤ 0</span></div>
+  <div id="shop-body"></div>
+  <div class="row" style="justify-content:space-between;margin-top:8px"><button id="shop-sell" class="primary">Sell all fish</button><button id="shop-close">Leave the stall</button></div>
 </div></div>
 <div id="confirm" class="panel hidden"></div>
 <div id="end" class="hidden"><div class="panel"><h1></h1><div class="stats"></div><button id="btn-again" class="primary">Continue to the Camp</button></div></div>

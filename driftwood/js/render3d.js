@@ -334,6 +334,10 @@
       pf('obsidian_vein', (t, m) => { propMesh(t, M(m, mS(3.0, 3.8, 3.0)), 'rock_c', [0.45, 0.4, 0.6]); ore(t, m, hex('#b080ff'), 0.95, 5, 2.0); });
     }
     const chest = (name, col) => pf(name, (t, m) => { const c = hex(col); box(t, M(m, mT(0, 0, 0)), 0.8, 0.45, 0.55, c, 0.05); box(t, M(m, mT(0, 0.45, 0)), 0.84, 0.2, 0.6, sh(c, 1.25), 0.05); box(t, M(m, mT(0, 0.32, 0.29)), 0.12, 0.16, 0.06, hex('#ffd24a'), 0.4); for (const x of [-0.3, 0.3]) box(t, M(m, mT(x, 0.3, 0)), 0.06, 0.66, 0.6, hex('#3a3030')); });
+    pf('driftwood', (t, m) => { const c = hex('#b39a72'); const g = M(m, mT(0, 0.13, 0), mRY(0.4), mRZ(1.57)); cyl(t, M(g, mT(0, -0.55, 0)), 0.11, 0.13, 1.1, 6, c); cyl(t, M(g, mT(0.05, 0.2, 0.05), mRX(0.6)), 0.05, 0.02, 0.3, 4, sh(c, 0.85)); sph(t, M(m, mT(0.3, 0.2, 0.05)), 0.06, 5, 3, sh(c, 0.6)); });
+    pf('crate', (t, m) => { const c = hex('#a67c4a'), dk = hex('#5a4020'); box(t, M(m, mRY(0.3)), 0.62, 0.55, 0.62, c, 0.03); for (const y of [0.08, 0.47]) box(t, M(m, mRY(0.3), mT(0, y, 0)), 0.66, 0.06, 0.66, dk); box(t, M(m, mRY(0.3), mT(0, 0.2, 0.32)), 0.3, 0.16, 0.03, sh(c, 1.25)); });
+    pf('rubble', (t, m) => { const c = hex('#6a6c70'); for (let k = 0; k < 5; k++) box(t, M(m, mT(Math.cos(k * 1.3) * 0.28, 0, Math.sin(k * 1.3) * 0.28), mRY(k)), 0.18 + (k % 2) * 0.08, 0.12 + (k % 3) * 0.05, 0.16, sh(c, 0.85 + (k % 3) * 0.1)); });
+    pf('fishmonger', (t, m) => { const wood = hex('#8a6030'), top = hex('#b08040'), red = hex('#c03030'), cream = hex('#e8dcc0'); box(t, M(m, mT(0, 0.55, 0)), 1.2, 0.1, 0.7, top); for (const [x, z] of [[-0.5, -0.25], [0.5, -0.25], [-0.5, 0.25], [0.5, 0.25]]) box(t, M(m, mT(x, 0, z)), 0.08, 0.55, 0.08, wood); for (const x of [-0.55, 0.55]) box(t, M(m, mT(x, 0.6, -0.3)), 0.06, 1.3, 0.06, wood); for (let k = 0; k < 6; k++) box(t, M(m, mT(-0.5 + k * 0.2, 1.88, 0)), 0.2, 0.05, 1.0, k % 2 ? red : cream, 0.02); box(t, M(m, mT(0, 1.6, 0.42), mRX(0.15)), 0.9, 0.3, 0.03, hex('#2a4a7a'), 0.1); for (let k = 0; k < 3; k++) { const f = M(m, mT(-0.3 + k * 0.3, 0.62, 0.1), mRY(0.3 * k)); sph(t, f, 0.11, 6, 3, hex(['#7fa86a', '#4a6a9a', '#c0d8ff'][k]), 0.05, 0.5); cyl(t, M(f, mT(0.12, 0, 0), mRZ(1.57)), 0.06, 0, 0.12, 3, hex('#5a7a5a')); } cyl(t, M(m, mT(0.75, 0, 0.1)), 0.22, 0.2, 0.5, 8, hex('#6a4a2a')); });
     chest('chest_c', '#8a6a3f'); chest('chest_u', '#3a9a4a');
     pf('storage', (t, m) => { const c = hex('#a67c3a'), dk = hex('#4a3420'); box(t, m, 0.86, 0.5, 0.6, c, 0.05); box(t, M(m, mT(0, 0.5, 0)), 0.9, 0.18, 0.64, sh(c, 1.2), 0.05); for (const x of [-0.34, 0.34]) box(t, M(m, mT(x, 0, 0)), 0.08, 0.7, 0.66, dk); for (const z of [-0.32, 0.32]) box(t, M(m, mT(0, 0.2, z)), 0.9, 0.06, 0.04, dk); box(t, M(m, mT(0, 0.36, 0.31)), 0.14, 0.14, 0.05, hex('#c8c8d0'), 0.5); });
     const altar = (name, col) => pf(name, (t, m) => { box(t, m, 1.5, 0.25, 1.5, hex('#5a5a60')); box(t, M(m, mT(0, 0.25, 0)), 1.0, 0.25, 1.0, hex('#6a6a70')); cyl(t, M(m, mT(0, 0.5, 0)), 0.22, 0.18, 1.1, 6, hex('#7a7a80')); for (let i = 0; i < 4; i++) cyl(t, M(m, mT(Math.cos(i * 1.57) * 0.6, 0.5, Math.sin(i * 1.57) * 0.6)), 0.08, 0.06, 0.5, 4, hex('#6a6a70')); const g = M(m, mT(0, 2.0, 0), mRY(0.7)); cyl(t, g, 0.28, 0, 0.4, 4, hex(col), 0.9); cyl(t, M(g, mRX(Math.PI), mT(0, 0, 0)), 0.28, 0, 0.4, 4, hex(col), 0.9); });
@@ -408,7 +412,8 @@
     else if (d.type === 'staff') { box(t, ms, 0.06, 1.3, 0.06, hex('#5a3a20'), 0, 0.65); for (let k = 0; k < 3; k++) box(t, M(ms, mT(0, 1.3, 0), mRY(k * 2.09), mT(0.08, 0, 0), mRZ(-0.5)), 0.04, 0.25, 0.04, hex('#5a3a20')); sph(t, M(ms, mT(0, 1.45, 0)), 0.13, 6, 4, c, 1.0); if (glow) box(t, M(ms, mT(0, 0.5, 0)), 0.08, 0.3, 0.08, glow, 0.9, 0); }
     else if (d.type === 'shield') { const big = id === 'warden_shield'; box(t, ms, big ? 0.8 : 0.65, big ? 1.1 : 0.85, 0.07, c, 0, 0); box(t, M(ms, mT(0, 0, 0.05)), 0.1, big ? 0.9 : 0.6, 0.04, steel, big ? 0.4 : 0); box(t, M(ms, mT(0, 0, 0.05)), big ? 0.6 : 0.45, 0.08, 0.04, steel, 0); for (const [x, y] of [[-0.25, 0.3], [0.25, 0.3], [-0.25, -0.3], [0.25, -0.3]]) sph(t, M(ms, mT(x, y, 0.05)), 0.03, 4, 2, hex('#3a3030')); }
     else if (d.type === 'armor') { if (d.slot === 'head') { sph(t, M(ms, mT(0, 0.2, 0)), 0.24, 7, 4, c, d.unique ? 0.3 : 0, 0.8); box(t, M(ms, mT(0.16, 0.12, 0)), 0.14, 0.08, 0.3, hex('#14121a'), 0, 0); } else if (d.slot === 'chest') { box(t, ms, 0.5, 0.55, 0.32, c, d.unique ? 0.3 : 0, 0.27); box(t, M(ms, mT(0, 0.42, 0)), 0.62, 0.12, 0.36, sh(c, 0.85), 0, 0); } else if (d.slot === 'legs') { box(t, M(ms, mT(0, 0, -0.1)), 0.18, 0.5, 0.16, c, d.unique ? 0.3 : 0, 0.25); box(t, M(ms, mT(0, 0, 0.1)), 0.18, 0.5, 0.16, c, d.unique ? 0.3 : 0, 0.25); box(t, M(ms, mT(0, 0.5, 0)), 0.42, 0.14, 0.4, sh(c, 0.85), 0, 0); } else { cyl(t, M(ms, mT(0, 0.25, 0)), 0.22, 0.22, 0.03, 10, hex('#8a7a50')); sph(t, M(ms, mT(0, 0.1, 0)), 0.1, 6, 4, c, 0.8); } }
-    else if (d.type === 'food') { sph(t, ms, 0.18, 6, 4, c); }
+    else if (d.type === 'rod') { cyl(t, ms, 0.032, 0.014, 1.5, 5, hex('#a0702e')); cyl(t, M(ms, mT(0, 0.02, 0)), 0.05, 0.05, 0.3, 6, grip); box(t, M(ms, mT(0, 1.5, 0.03)), 0.02, 0.05, 0.02, steel, 0.1, 0); box(t, M(ms, mT(0.06, 0.35, 0)), 0.09, 0.09, 0.03, steel, 0.1, 0); }
+    else if (d.type === 'food') { if (d.fish) { sph(t, M(ms, mRZ(1.57)), 0.14, 6, 4, c, 0, 0.55); cyl(t, M(ms, mT(0.2, 0, 0), mRZ(-1.57)), 0.09, 0, 0.14, 3, sh(c, 0.8)); } else sph(t, ms, 0.18, 6, 4, c); }
     else if (d.type === 'gem') { cyl(t, ms, 0.2, 0, 0.3, 4, c, 0.9); cyl(t, M(ms, mRX(Math.PI)), 0.2, 0, 0.3, 4, c, 0.9); }
     else if (d.type === 'key') { box(t, ms, 0.08, 0.9, 0.08, hex('#6a4a30'), 0, 0.45); box(t, M(ms, mT(0, 0.7, 0)), 0.3, 0.2, 0.2, c, 0.3, 0); box(t, M(ms, mT(0, 0.35, 0)), 0.25, 0.15, 0.15, c, 0.3, 0); }
     else if (d.type === 'arrow') { box(t, ms, 0.03, 0.8, 0.03, hex('#d8c8a8'), 0, 0.4); cyl(t, M(ms, mT(0, 0.8, 0)), 0.05, 0, 0.12, 4, hex('#9a9ca1')); box(t, M(ms, mT(0, 0.05, 0)), 0.02, 0.12, 0.1, hex('#e05050'), 0, 0); }
@@ -560,9 +565,9 @@
   }
   function staticObject(t, world, o, X, Y) {
     const d = O[o.t]; const gz = R.groundZ(world, X + .5, Y + .5); const rot = h2(X + 3, Y + 7) * 6.283;
-    let name = o.t; if (o.stub) name = 'stub'; else if (d.door && !o.closed) name = 'door_open'; else if (name === 'tree' && PF.tree2 && h2(X + 5, Y + 1) > 0.5) name = 'tree2';
+    let name = o.t; if (o.stub) name = d.ore ? 'rubble' : 'stub'; else if (d.door && !o.closed) name = 'door_open'; else if (name === 'tree' && PF.tree2 && h2(X + 5, Y + 1) > 0.5) name = 'tree2';
     const p = PF[name]; if (!p) return;
-    const scale = d.tall ? 0.9 + h2(X, Y + 9) * 0.35 : 1;
+    const scale = d.tall ? 0.9 + h2(X, Y + 9) * 0.35 : (o.big && !o.stub ? 1.4 : (d.ore && !o.stub ? 1.12 : 1)); // the seed rock of an ore cluster is the big one
     const m = M(mT(X + .5, gz - 0.02, Y + .5), mRY((d.built || d.altar || d.boat || d.isChest) ? 0 : rot), mS(scale));
     const n0 = t.n; inst(t, p, m);
     if (d.tall || name === 'berry_bush') { // no two trees the same green: tint the foliage per instance, leave the trunk alone
@@ -646,6 +651,7 @@
       case 'hitstop': if (ev.to === me) { R.hitstop = 0.06; R.dip = 0.012; R.hitMark = 0.16; } break;
       case 'wobble': F.wobble[ev.i] = 0.25; break;
       case 'tell': R.tellFlash[ev.id] = 0.3; break;
+      case 'lightning': R.flashWhite = Math.max(R.flashWhite || 0, 0.2); R.shake = Math.max(R.shake, 1.5); F.booms.push({ x: ev.x, y: ev.y, r: 2.2, t: 0, c: '#dfe6ff' }); for (let i = 0; i < 10; i++) F.parts.push({ x: ev.x, y: ev.y, z: 0.2 + i * 0.9, vx: (Math.random() - .5) * 2, vy: (Math.random() - .5) * 2, vz: 0, c: [0.9, 0.95, 1], t: 0, life: 0.25, g: 0, e: 1, sz: 0.12 }); break;
       case 'bossin': R.banner = { txt: G.ENEMIES[ev.k].name, sub: 'NIGHT BOSS', t: 0 }; break;
       case 'nev': { const e = G.NIGHT_EVENTS.find(x => x.id === ev.id); if (e && ev.id !== 'clear') R.banner = { txt: e.name, sub: e.desc, t: 0, col: '#ffd24a' }; break; }
     }
@@ -685,6 +691,10 @@
     const dayFog = [0.74, 0.83, 0.93], duskFog = [0.9, 0.6, 0.45], nightFog = V.nev === 'fog' ? [0.12, 0.13, 0.17] : (V.nev === 'bloodmoon' ? [0.12, 0.04, 0.06] : [0.05, 0.06, 0.13]);
     fog = dayFog.map((c, i) => G.lerp(G.lerp(c, duskFog[i], dusk), nightFog[i], night));
     R.fogNear = V.nev === 'fog' && night > 0.5 ? 6 : 26;
+    { const wx = V.weather || 'clear'; // weather: rain and storms grey the sky and dim the sun, sea fog closes the view, storms flash
+      if (wx === 'rain' || wx === 'storm') { const g = wx === 'storm' ? [0.32, 0.34, 0.4] : [0.55, 0.6, 0.68]; const k = wx === 'storm' ? 0.8 : 0.6; fog = fog.map((c, i) => G.lerp(c, g[i] * (1 - night * 0.8), k)); sunCol = sunCol.map(c => c * (wx === 'storm' ? 0.45 : 0.65)); ambient = ambient.map(c => c * 0.88); R.fogNear = Math.min(R.fogNear, wx === 'storm' ? 14 : 20);
+        const F = R.fx; if (!(G.Input && G.Input.settings && G.Input.settings.reduceMotion)) for (let k2 = 0, n = wx === 'storm' ? 12 : 7; k2 < n; k2++) F.parts.push({ x: R.cam.x + (Math.random() - .5) * 18, y: R.cam.y + (Math.random() - .5) * 18, z: R.cam.z + 3 + Math.random() * 3, vx: 0.6, vy: 0.4, vz: -14, c: [0.72, 0.8, 0.95], t: 0, life: 0.5, g: 0, sz: 0.035 }); }
+      else if (wx === 'fog') { const g = [0.78, 0.8, 0.84]; fog = fog.map((c, i) => G.lerp(c, g[i] * (1 - night * 0.85), 0.7)); sunCol = sunCol.map(c => c * 0.7); R.fogNear = Math.min(R.fogNear, night > 0.5 ? 5 : 9); } }
     // lights
     lights = [];
     const cx0 = Math.floor(R.cam.x), cy0 = Math.floor(R.cam.y);
@@ -770,6 +780,15 @@
     const a0 = sw.ang - sw.arc / 2, a1 = a0 + sw.arc * Math.min(1, (prog - 0.2) / 0.5); const steps = 8; const rIn = 0.5, rOut = sw.reach + 0.2, z = gz + (sw.anim === 'slam' ? 1.2 : sw.anim === 'chop' ? 1.0 : 0.95);
     for (let i = 0; i < steps; i++) { const t0 = a0 + (a1 - a0) * i / steps, t1 = a0 + (a1 - a0) * (i + 1) / steps; const dz = sw.anim === 'slam' ? -0.6 * (i / steps) : sw.anim === 'chop' ? -0.5 * (i / steps) : 0; const I = m4(); quad(trail, I, [px + Math.cos(t0) * rIn, z + dz, py + Math.sin(t0) * rIn], [px + Math.cos(t0) * rOut, z + dz, py + Math.sin(t0) * rOut], [px + Math.cos(t1) * rOut, z + dz, py + Math.sin(t1) * rOut], [px + Math.cos(t1) * rIn, z + dz, py + Math.sin(t1) * rIn], col, 1.0); }
   }
+  // a fishing line from the rod tip to a bobber on the water; the bobber dips while a fish is on
+  function fishLine(t, world, p, gz) {
+    const f = p.fish; const fx = Array.isArray(f) ? f[0] : f.x, fy = Array.isArray(f) ? f[1] : f.y, bite = Array.isArray(f) ? f[2] : (f.state === 'bite' ? 1 : 0);
+    const x0 = p.x + Math.cos(p.face) * 0.5 + Math.cos(p.face + 1.57) * 0.25, y0 = p.y + Math.sin(p.face) * 0.5 + Math.sin(p.face + 1.57) * 0.25, z0 = gz + 1.35;
+    const bz = WATER_Y + 0.07 - (bite ? 0.16 + Math.sin(nowT * 25) * 0.04 : Math.sin(nowT * 2.5 + fx) * 0.02);
+    const N = 9, line = [0.92, 0.92, 0.9]; for (let k = 0; k < N; k++) { const u = k / (N - 1), v = (k + 1) / (N - 1); const sag = (uu) => -Math.sin(uu * Math.PI) * 0.35; const ax = x0 + (fx - x0) * u, ay = y0 + (fy - y0) * u, az = z0 + (bz - z0) * u + sag(u); const bx = x0 + (fx - x0) * v, by = y0 + (fy - y0) * v, bz2 = z0 + (bz - z0) * v + sag(v); box(t, M(mT((ax + bx) / 2, (az + bz2) / 2, (ay + by) / 2)), 0.012, Math.hypot(bx - ax, by - ay, bz2 - az) * 0.55, 0.012, line, 0.2, 0); }
+    sph(t, M(mT(fx, bz + 0.05, fy)), 0.07, 6, 3, hex('#e03030'), 0.15); sph(t, M(mT(fx, bz - 0.03, fy)), 0.065, 6, 3, hex('#f0f0f0'), 0.15);
+    if (bite) for (let k = 0; k < 3; k++) box(t, M(mT(fx + Math.cos(nowT * 9 + k * 2.1) * 0.25, WATER_Y + 0.03, fy + Math.sin(nowT * 9 + k * 2.1) * 0.25)), 0.06, 0.02, 0.06, [0.85, 0.92, 1], 0.4, 0);
+  }
   function buildDynamic(V, me, L) {
     const t = dyn, world = V.world, F = R.fx; trail.n = 0; shad.n = 0; glow.n = 0;
     // glows for the lights we gathered (night only so the day stays clean)
@@ -790,6 +809,7 @@
     // corpses (death tumble)
     for (let i = F.corpses.length - 1; i >= 0; i--) { const c = F.corpses[i]; c.age += L.dt; const hold = G.ENEMIES[c.k] && G.ENEMIES[c.k].boss ? 5 : 2.6; if (c.age > hold) { F.corpses.splice(i, 1); continue; } const gz = R.groundZ(world, c.x, c.y); const k = Math.min(1, c.age * 2.2); const sink = c.age > hold - 0.8 ? (c.age - (hold - 0.8)) * 1.6 : 0; creature(t, M(mT(c.x, gz - sink, c.y), mRY(c.face), mRX(k * 1.5), mS(1, 1 - k * 0.15, 1)), { t: c.k, id: c.id, x: c.x, y: c.y, st: 'idle', face: c.face, flash: c.age < 0.1, r: c.r, elite: c.el, tm: 0 }, V, { gz, sink, k }); }
     // other players
+    for (const id in V.players) { const p = V.players[id]; if (!p.dead && p.fish) fishLine(t, world, p, R.groundZ(world, p.x, p.y)); }
     for (const id in V.players) {
       const p = V.players[id]; if (p.dead || p === me) continue; const gz = R.groundZ(world, p.x, p.y);
       const it = p.inv[p.held]; const col = hex(p.col); const d = it ? G.ITEMS[it.id] : null;

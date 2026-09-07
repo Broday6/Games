@@ -11,12 +11,14 @@
 
   Sim.create = function (seedStr, opts) {
     const world = G.generateWorld(seedStr, opts);
-    return {
+    const S = {
       world, time: 30, day: 1, elapsed: 0, phase: 'run', players: {}, tutorial: !!(opts && opts.tutorial), tutHold: !!(opts && opts.tutorial), enemies: [], projs: [], drops: [], puddles: [],
       events: [], boat: { wood: 0, iron_bar: 0, rope: 0, emerald: 0, sapphire: 0, ruby: 0, done: false },
       siegeT: 0, bosses: {}, kills: 0, spawnT: 4, waves: {}, lights: [], lightT: 0, order: 0, stats: { kills: 0, chests: 0, deaths: 0, bosses: 0 }, nev: 'clear', nevDay: 0,
-      msg: [],
+      msg: [], mode: (opts && opts.mode) || 'survival', weather: { id: 'clear', t: 0 }, duels: {}, allowT: 60, flashT: 8, lastDay: 1, duskDay: 0,
     };
+    if (S.mode === 'casino') { S.time = G.NIGHT_AT + 30; S.nevDay = 1; } // the plaza lives in permanent neon night, no night events
+    return S;
   };
 
   Sim.ev = (S, e) => S.events.push(e);
@@ -39,6 +41,9 @@
     const m = (k) => Math.max(0, Math.min(9, (p.meta && p.meta[k]) | 0));
     if (m('sharp')) { Sim.give(p, 'axe_stone', 1); Sim.give(p, 'pick_stone', 1); }
     if (m('chance')) p.pw.secondwind = (p.pw.secondwind || 0) + 1;
+    if (S.mode === 'casino') { p.coins = G.MODES.casino.start; }
+    if (S.mode === 'bastion') { Sim.give(p, 'rod_wood', 1); Sim.give(p, 'bait', 6); Sim.give(p, 'torch_hand', 2); }
+    if (Object.keys(S.players).length === 1 && S.mode !== 'casino') Sim.spawnFlotsam(S, 3);
     Sim.ev(S, { t: 'chat', sys: true, msg: p.name + ' washed ashore.' });
     return p;
   };
@@ -402,6 +407,10 @@
       case 'stowall': Sim.stowMatching(S, p, a.i | 0); break;
       case 'pickup': Sim.pickup(S, p); break;
       case 'sortchests': Sim.sortNetwork(S, p, a.i | 0); break;
+      case 'sell': Sim.sell(S, p); break;
+      case 'buy': Sim.buy(S, p, String(a.id || '')); break;
+      case 'duel': Sim.duel(S, p, a); break;
+      case 'duelans': Sim.duelAnswer(S, p, !!a.ok); break;
       case 'eat': Sim.eat(S, p, a.slot | 0); break;
       case 'equip': Sim.equip(S, p, a.slot | 0); break;
       case 'unequip': { const it = p.armor[a.slot]; if (it && Sim.give(p, it, 1) === 0) p.armor[a.slot] = null; break; }
@@ -550,7 +559,7 @@
     let best = null, bd = 2.2;
     for (let y = Math.floor(p.y - 2); y <= p.y + 2; y++) for (let x = Math.floor(p.x - 2); x <= p.x + 2; x++) {
       const o = w.objs.get(G.idx(x, y)); if (!o) continue; const d = O[o.t];
-      if (!(d.isChest || d.altar || d.boat || d.door || d.casino || d.storage)) continue;
+      if (!(d.isChest || d.altar || d.boat || d.door || d.casino || d.storage || d.shop)) continue;
       const dd = G.dist(p.x, p.y, x + .5, y + .5); if (dd < bd) { bd = dd; best = { o, d, x, y, i: G.idx(x, y) }; }
     }
     const drop = Sim.nearestDrop(S, p, Sim.stats(p).pickup + 0.6);
@@ -558,6 +567,7 @@
     if (!best) return;
     const { o, d, x, y, i } = best;
     if (d.casino) { Sim.ev(S, { t: 'casino', to: p.id, x: x + .5, y: y + .5 }); Sim.ev(S, { t: 'sfx', n: 'chest', x: x + .5, y: y + .5 }); return; }
+    if (d.shop) { Sim.ev(S, { t: 'shop', to: p.id, x: x + .5, y: y + .5 }); Sim.ev(S, { t: 'sfx', n: 'chest', x: x + .5, y: y + .5 }); return; }
     if (d.storage) { if (!o.inv) { o.inv = new Array(d.storage).fill(null); G.setObj(w, i, o); } Sim.ev(S, { t: 'storage', to: p.id, i, x: x + .5, y: y + .5 }); Sim.ev(S, { t: 'sfx', n: 'chest', x: x + .5, y: y + .5 }); return; }
     if (d.door) { o.closed = !o.closed; G.setObj(w, i, o); Sim.ev(S, { t: 'sfx', n: 'door', x: x + .5, y: y + .5 }); return; }
     if (d.isChest) {
@@ -627,7 +637,8 @@
       return;
     }
     // hunger, regen, environment
-    p.hunger = Math.max(0, p.hunger - dt * st.hungerRate);
+    if (S.mode !== 'casino') p.hunger = Math.max(0, p.hunger - dt * st.hungerRate);
+    Sim.updateFishing(S, p, dt);
     if (p.slow > 0) p.slow -= dt;
     if (p.offers.length) { p.offerT += dt; if (p.offerT > 25) Sim.pick(S, p, 0); }
     p.auraT -= dt; if (p.auraT <= 0) { p.auraT = 0.5; if (p.pw.fireaura || st.frostAura) for (const e of S.enemies) { if (e.dead || e.owner || G.dist(e.x, e.y, p.x, p.y) > 3) continue; if (p.pw.fireaura) { e.burn = Math.max(e.burn, 1); } if (st.frostAura) e.slow = Math.max(e.slow, 1); } }
@@ -638,7 +649,7 @@
     if (tile === T.LAVA && !st.fireImmune) { p.burn = 2; }
     if (st.fireImmune) p.burn = 0;
     if (p.burn > 0) { p.burn -= dt; p.hp -= dt * 8; if (Math.random() < dt * 6) Sim.ev(S, { t: 'fire', x: p.x, y: p.y }); }
-    if (!st.darkImmune && Sim.darkness(S) >= 0.85 && Sim.lightAt(S, p.x, p.y) <= 0) { p.dark += dt; if (p.dark > 4) p.hp -= dt * 1.0; } else p.dark = 0;
+    if (!st.darkImmune && S.mode !== 'casino' && Sim.darkness(S) >= 0.85 && Sim.lightAt(S, p.x, p.y) <= 0) { p.dark += dt; if (p.dark > 4) p.hp -= dt * 1.0; } else p.dark = 0;
     if (p.hp <= 0) { p.hp = 0.01; Sim.damagePlayer(S, p, 1, null, { env: true }); if (p.downed || p.dead) return; }
     // movement
     let ax = p.in.ax, ay = p.in.ay; const l = Math.hypot(ax, ay); if (l > 1) { ax /= l; ay /= l; }
@@ -685,6 +696,7 @@
     if (p.in.attack && !p.swing && p.atkCd <= 0 && !p.blocking && p.draw <= 0 && p.dodgeT <= 0 && p.charge <= 0) {
       if (d && d.type === 'place') { /* placing handled by client 'build' action */ }
       else if (d && d.type === 'bow') { /* bows attack via RMB */ }
+      else if (d && d.type === 'rod') { Sim.rodClick(S, p, d); p.atkCd = 0.35; }
       else if (p.stam >= 4) { const wp = Sim.weapon(p); p.stam -= 4; if (p.comboT > 0) p.combo = (p.combo + 1) % 3; else p.combo = 0; p.comboT = 1.2; p.swing = { t: 0, dur: 1 / wp.spd, ang: p.face, hit: false, arc: wp.arc, reach: wp.reach, combo: p.combo, anim: wp.anim || 'slash' }; p.atkCd = 1 / wp.spd + 0.05; Sim.ev(S, { t: 'sfx', n: 'swing', x: p.x, y: p.y }); }
     }
     // pickup
@@ -728,6 +740,7 @@
     for (let s = 0.4; s <= oreach; s += 0.3) {
       let x = 0, y = 0, i = 0, o = null; for (const off of [0, 0.3, -0.3]) { x = p.x + Math.cos(sw.ang) * s + lx * off; y = p.y + Math.sin(sw.ang) * s + ly * off; i = G.idx(x, y); o = w.objs.get(i); if (o) break; } if (!o) continue;
       const od = O[o.t]; if (od.isChest || od.altar || od.boat) continue;
+      if (o.stub) { Sim.ev(S, { t: 'txt', x, y: y - 0.6, s: od.ore ? 'rubble — the vein is regrowing' : 'a stump — it will grow back', c: '#c0c0c0', to: p.id, small: true }); continue; } // nothing to take from a stump or rubble
       const tool = wp.tool || 'fist'; let power = wp.power ? (wp.tool === 'fist' ? 1.0 : TOOL_POWER[wp.tier]) : 1.0;
       if (od.tool === 'pick' && tool === 'pick') power *= 1.5; else if (od.tool === 'axe' && tool === 'axe') power *= 1.4; // the right tool is quick: ~5 hits for a tree or rock at tier 1
       let can = false;
@@ -737,6 +750,7 @@
       else if (tool === 'fist' && od.tier <= 1) can = true;
       if (!can) { Sim.ev(S, { t: 'txt', x: x, y: y - 0.6, s: 'need ' + (od.tool === 'axe' ? 'axe' : 'pickaxe') + ' tier ' + od.tier, c: '#ff9090', to: p.id, small: true }); Sim.ev(S, { t: 'sfx', n: 'clank', x, y }); return; }
       o.hp -= od.built ? (od.hp / 4) : power;
+      if (od.ore && o.hp > 0) { const n = 1 + (power >= 1.4 && Math.random() < 0.35 ? 1 : 0); Sim.spawnDrop(S, od.ore, n, x + (Math.random() - .5) * 0.6, y + (Math.random() - .5) * 0.6); Sim.ev(S, { t: 'txt', x, y: y - 0.5, s: '+' + n + ' ' + I[od.ore].name, c: I[od.ore].col, to: p.id, small: true }); } // every strike on a deposit knocks a chunk loose
       Sim.ev(S, { t: 'sfx', n: od.tool === 'pick' ? 'mine' : 'chop', x, y }); Sim.ev(S, { t: 'hit', x: (i % G.WORLD) + .5, y: Math.floor(i / G.WORLD) + .5, c: od.tool === 'pick' ? '#aaa' : '#a0702e', n: 4 });
       Sim.ev(S, { t: 'wobble', i }); Sim.ev(S, { t: 'hitstop', to: p.id });
       if (o.hp <= 0) {
@@ -808,9 +822,121 @@
     S.regrowT = (S.regrowT || 0) + dt;
     if (S.regrowT > 2) {
       S.regrowT = 0;
-      for (const [i, o] of S.world.objs) if (o.stub) { o.grow -= 2; if (o.grow <= 0) { G.setObj(S.world, i, { t: o.t, hp: O[o.t].hp }); } }
+      const rg = 2 * ((G.WEATHER[S.weather.id] || {}).regrow || 1); // rain hurries regrowth along
+      for (const [i, o] of S.world.objs) if (o.stub) { o.grow -= rg; if (o.grow <= 0) { G.setObj(S.world, i, { t: o.t, hp: O[o.t].hp }); } }
     }
   }
+
+  // ---------------- modes, weather, flotsam ----------------
+  Sim.rollWeather = function (S, when) {
+    if (S.mode === 'casino') return;
+    const r = Math.random(); const id = (when === 'dawn' && S.day === 1) ? 'clear' : r < 0.55 ? 'clear' : r < 0.77 ? 'rain' : r < 0.9 ? 'fog' : 'storm';
+    if (id === S.weather.id) return;
+    S.weather = { id, t: 0 }; S.flashT = 4;
+    const msg = { clear: 'The sky clears.', rain: 'Rain rolls in over the island.', fog: 'Sea fog drifts ashore — keep to the light.', storm: 'A storm breaks. Lightning walks the hills.' }[id];
+    Sim.ev(S, { t: 'weather', id }); Sim.ev(S, { t: 'chat', sys: true, msg });
+  };
+  // driftwood and crates wash onto beaches near the players at every dawn (and when the first player lands); old flotsam drifts off again
+  Sim.spawnFlotsam = function (S, perPlayer) {
+    const w = S.world; let n = 0;
+    for (const id in S.players) {
+      const p = S.players[id]; let got = 0;
+      for (let tries = 0; tries < 80 && got < perPlayer; tries++) {
+        const a = Math.random() * Math.PI * 2, r = 6 + Math.random() * 28; const x = Math.floor(p.x + Math.cos(a) * r), y = Math.floor(p.y + Math.sin(a) * r);
+        if (x < 1 || y < 1 || x >= G.WORLD - 1 || y >= G.WORLD - 1) continue; const i = G.idx(x, y);
+        if (w.tiles[i] !== T.SAND || w.objs.has(i)) continue;
+        if (![i - 1, i + 1, i - G.WORLD, i + G.WORLD].some(j => w.tiles[j] <= T.WATER)) continue;
+        const t = Math.random() < 0.25 ? 'crate' : 'driftwood'; G.setObj(w, i, { t, hp: O[t].hp, day: S.day }); got++; n++;
+      }
+    }
+    if (n) Sim.ev(S, { t: 'chat', sys: true, msg: 'The tide left ' + (n === 1 ? 'something' : 'things') + ' on the beach.' });
+  };
+  Sim.daybreak = function (S) {
+    for (const [i, o] of S.world.objs) if (O[o.t].flotsam && (o.day || 0) < S.day - 1) G.setObj(S.world, i, null);
+    Sim.spawnFlotsam(S, 2); Sim.rollWeather(S, 'dawn');
+  };
+  Sim.updateWorldState = function (S, dt) {
+    if (S.mode === 'casino') {
+      S.time = G.NIGHT_AT + 30;
+      S.allowT -= dt; if (S.allowT <= 0) { S.allowT = 60; for (const id in S.players) { const p = S.players[id]; p.coins += G.MODES.casino.allowance; Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.9, s: '+' + G.MODES.casino.allowance + ' house allowance', c: '#ffd24a', to: p.id, small: true }); } }
+      if (S.phase === 'run') { let best = null; for (const id in S.players) { const p = S.players[id]; if (p.coins >= G.MODES.casino.goal && (!best || p.coins > best.coins)) best = p; } if (best) { S.phase = 'won'; S.winner = best.name; Sim.ev(S, { t: 'chat', sys: true, msg: best.name + ' hit ' + best.coins + ' coins and takes the table!' }); Sim.ev(S, { t: 'end', win: true, shards: Sim.shards(S, true), winner: best.name, coins: best.coins }); } }
+    }
+    for (const id in S.duels) { const d = S.duels[id]; d.t -= dt; if (d.t <= 0) { delete S.duels[id]; const q = S.players[d.from]; if (q) Sim.ev(S, { t: 'txt', x: q.x, y: q.y - 0.8, s: 'no answer to your challenge', c: '#c0c0c0', to: q.id, small: true }); } }
+    if (S.lastDay !== S.day) { S.lastDay = S.day; Sim.daybreak(S); }
+    if (S.time >= G.DUSK_AT && S.duskDay !== S.day && S.mode !== 'casino') { S.duskDay = S.day; Sim.rollWeather(S, 'dusk'); }
+    S.weather.t += dt;
+    if (S.weather.id === 'storm') { S.flashT -= dt; if (S.flashT <= 0) { S.flashT = 5 + Math.random() * 9; const ids = Object.keys(S.players); if (ids.length) { const p = S.players[ids[Math.floor(Math.random() * ids.length)]]; const x = p.x + (Math.random() - .5) * 30, y = p.y + (Math.random() - .5) * 30; Sim.ev(S, { t: 'lightning', x, y }); Sim.ev(S, { t: 'sfx', n: 'thunder', x, y }); } } }
+  };
+  // ---------------- fishing ----------------
+  Sim.rodClick = function (S, p, d) {
+    if (p.fish) { if (p.fish.state === 'bite') Sim.catchFish(S, p, d); else { p.fish = null; Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: 'line reeled in', c: '#c0c0c0', to: p.id, small: true }); } return; }
+    const w = S.world; let tx = -1, ty = -1, deep = false;
+    for (let k = 1.5; k <= 7; k += 0.5) { const x = p.x + Math.cos(p.face) * k, y = p.y + Math.sin(p.face) * k; const t = G.tileAt(w, x, y); const o = G.objAt(w, x, y); if (t <= T.WATER && !(o && O[o.t].floor)) { tx = x; ty = y; deep = t === T.DEEP; if (k >= 3.5) break; } else if (tx >= 0) break; }
+    if (tx < 0) { Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: 'face the water to cast', c: '#ff9090', to: p.id, small: true }); return; }
+    const bait = Sim.count(p, 'bait') > 0;
+    p.fish = { x: tx, y: ty, deep, t: 0, bite: (4 + Math.random() * 7) * (bait ? 0.6 : 1), state: 'wait', bait, biome: w.biome[G.idx(tx, ty)] };
+    Sim.ev(S, { t: 'sfx', n: 'splash', x: tx, y: ty });
+  };
+  Sim.updateFishing = function (S, p, dt) {
+    const f = p.fish; if (!f) return;
+    const held = p.inv[p.held]; if (p.moving || !held || I[held.id].type !== 'rod' || p.dead || p.downed) { p.fish = null; return; }
+    f.t += dt;
+    if (f.state === 'wait' && f.t >= f.bite) { f.state = 'bite'; f.t = 0; Sim.ev(S, { t: 'txt', x: f.x, y: f.y - 0.2, s: 'REEL!', c: '#ffd24a', to: p.id }); Sim.ev(S, { t: 'sfx', n: 'splash', x: f.x, y: f.y }); }
+    else if (f.state === 'bite' && f.t > 1.1) { f.state = 'wait'; f.t = 0; f.bite = (4 + Math.random() * 7) * (f.bait ? 0.6 : 1); Sim.ev(S, { t: 'txt', x: f.x, y: f.y - 0.2, s: 'it got away', c: '#c0c0c0', to: p.id, small: true }); }
+  };
+  Sim.catchFish = function (S, p, d) {
+    const f = p.fish; const night = Sim.isNight(S); const rare = (d.tier >= 2 ? 1.8 : 1) * (f.bait ? 1.6 : 1);
+    const pool = []; const add = (id, wt) => pool.push([id, wt]);
+    if (f.deep) { add('tuna', 30); add('swordfish', 6 * rare); if (night) add('moonfish', 3 * rare); add('perch', 6); } else { add('perch', 38); add('bass', 22); }
+    if (night) add('eel', 14); if (f.biome === G.BIOME.VOLCANO) add('emberfish', 16 * rare);
+    let tot = 0; for (const [, wt] of pool) tot += wt; let r = Math.random() * tot, id = pool[0][0]; for (const [k, wt] of pool) { r -= wt; if (r <= 0) { id = k; break; } }
+    if (f.bait) Sim.take(p, 'bait', 1);
+    const left = Sim.give(p, id, 1); if (left) Sim.spawnDrop(S, id, 1, p.x + Math.cos(p.face) * 0.6, p.y + Math.sin(p.face) * 0.6);
+    const big = I[id].sell >= 40;
+    Sim.ev(S, { t: 'sfx', n: big ? 'pw' : 'pickup', x: p.x, y: p.y, to: p.id }); Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.9, s: 'Caught a ' + I[id].name + '!', c: big ? '#ffd24a' : '#c0e0ff', to: p.id });
+    if (big) Sim.ev(S, { t: 'chat', sys: true, msg: p.name + ' landed a ' + I[id].name + '!' });
+    p.fishCaught = (p.fishCaught || 0) + 1; S.stats.fish = (S.stats.fish || 0) + 1; Sim.giveXp(S, p, big ? 12 : 4);
+    f.state = 'wait'; f.t = 0; f.bait = Sim.count(p, 'bait') > 0; f.bite = (4 + Math.random() * 7) * (f.bait ? 0.6 : 1);
+  };
+  // ---------------- the fishmonger's stall ----------------
+  Sim.nearFlag = function (S, p, flag, r) { for (let y = Math.floor(p.y - 4); y <= p.y + 4; y++) for (let x = Math.floor(p.x - 4); x <= p.x + 4; x++) { const o = S.world.objs.get(G.idx(x, y)); if (o && O[o.t][flag] && G.dist(p.x, p.y, x + .5, y + .5) < r) return true; } return false; };
+  Sim.sell = function (S, p) {
+    if (!Sim.nearFlag(S, p, 'shop', 4.5)) return;
+    let total = 0, n = 0; for (let k = 0; k < INV; k++) { const s = p.inv[k]; if (s && I[s.id].fish) { total += I[s.id].sell * s.n; n += s.n; p.inv[k] = null; } }
+    if (!n) return Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: 'nothing to sell — the stall buys fish', c: '#ff9090', to: p.id, small: true });
+    p.coins += total; S.stats.sold = (S.stats.sold || 0) + total;
+    Sim.ev(S, { t: 'sfx', n: 'coin', x: p.x, y: p.y, to: p.id }); Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.9, s: 'sold ' + n + ' fish for ' + total + ' coins', c: '#ffd24a', to: p.id });
+  };
+  Sim.buy = function (S, p, id) {
+    if (!Sim.nearFlag(S, p, 'shop', 4.5)) return; const it = G.SHOP.find(x => x.id === id); if (!it) return;
+    if (p.coins < it.cost) return Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: 'need ' + it.cost + ' coins', c: '#ff9090', to: p.id, small: true });
+    const left = Sim.give(p, it.id, it.n); if (left === it.n) return Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: 'bag is full', c: '#ff9090', to: p.id, small: true });
+    p.coins -= it.cost; if (left) Sim.spawnDrop(S, it.id, left, p.x, p.y);
+    Sim.ev(S, { t: 'sfx', n: 'coin', x: p.x, y: p.y, to: p.id }); Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.9, s: '+' + it.n + ' ' + I[it.id].name, c: '#e0e0e0', to: p.id, small: true });
+  };
+  // ---------------- player-versus-player dice duels ----------------
+  Sim.duel = function (S, p, a) {
+    const q = S.players[a.to]; const bet = [10, 25, 50, 100, 250].includes(a.bet | 0) ? a.bet | 0 : 25;
+    if (!q || q === p || q.dead) return;
+    if (G.dist(p.x, p.y, q.x, q.y) > 12) return Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: q.name + ' is too far away', c: '#ff9090', to: p.id, small: true });
+    if (p.coins < bet) return Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: 'need ' + bet + ' coins', c: '#ff9090', to: p.id, small: true });
+    if (q.coins < bet) return Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: q.name + " can't cover " + bet + ' coins', c: '#ff9090', to: p.id, small: true });
+    if (S.duels[q.id]) return Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: q.name + ' already has a challenge waiting', c: '#ff9090', to: p.id, small: true });
+    S.duels[q.id] = { from: p.id, bet, t: 25 };
+    Sim.ev(S, { t: 'duelreq', to: q.id, from: p.name, fromId: p.id, bet }); Sim.ev(S, { t: 'txt', x: p.x, y: p.y - 0.8, s: 'challenge sent to ' + q.name, c: '#ffd24a', to: p.id, small: true });
+  };
+  Sim.duelAnswer = function (S, p, ok) {
+    const d = S.duels[p.id]; if (!d) return; delete S.duels[p.id]; const q = S.players[d.from]; if (!q) return;
+    if (!ok) { Sim.ev(S, { t: 'chat', sys: true, msg: p.name + ' declined ' + q.name + "'s dice duel." }); return; }
+    if (p.coins < d.bet || q.coins < d.bet) { Sim.ev(S, { t: 'chat', sys: true, msg: 'The duel is off — someone can no longer cover the bet.' }); return; }
+    const roll = () => 1 + Math.floor(Math.random() * 6); const a = [roll(), roll()], b = [roll(), roll()];
+    if (q.rig && q.rig.dice) { a[0] = Math.min(6, a[0] + 2); q.rig.dice = 0; } if (p.rig && p.rig.dice) { b[0] = Math.min(6, b[0] + 2); p.rig.dice = 0; }
+    const ta = a[0] + a[1], tb = b[0] + b[1]; let winner = null;
+    if (ta !== tb) { winner = ta > tb ? q : p; const loser = winner === q ? p : q; winner.coins += d.bet; loser.coins -= d.bet; }
+    for (const who of [p, q]) Sim.ev(S, { t: 'duelres', to: who.id, a, b, qa: q.name, qb: p.name, bet: d.bet, winner: winner ? winner.name : null, won: winner === who });
+    Sim.ev(S, { t: 'chat', sys: true, msg: q.name + ' rolled ' + ta + ', ' + p.name + ' rolled ' + tb + (winner ? ' — ' + winner.name + ' takes ' + d.bet + ' coins.' : ' — a push.') });
+    if (winner) { Sim.ev(S, { t: 'sfx', n: 'win', x: winner.x, y: winner.y }); Sim.ev(S, { t: 'boom', x: winner.x, y: winner.y, r: 1.0, c: '#ffd24a' }); }
+  };
 
   // ---------------- main step ----------------
   Sim.step = function (S, dt) {
@@ -824,6 +950,7 @@
     if (S.tutHold) tdt = 0;
     if (S.phase === 'run') { S.time += tdt; if (S.time >= G.DAY_LEN) { S.time -= G.DAY_LEN; S.day++; S.waves = {}; S.nev = 'clear'; Sim.ev(S, { t: 'nev', id: 'clear' }); Sim.ev(S, { t: 'daybreak', day: S.day }); Sim.ev(S, { t: 'chat', sys: true, msg: 'Day ' + S.day + ' dawns.' }); for (const id in S.players) { const p = S.players[id]; if (p.dead) { p.dead = false; p.downed = false; p.hp = p.maxHp * 0.5; p.hunger = 60; p.x = S.world.spawn.x; p.y = S.world.spawn.y; p.inv = new Array(INV).fill(null); Sim.ev(S, { t: 'chat', sys: true, msg: p.name + ' washed back ashore.' }); } } } }
     else if (S.phase === 'siege') { S.time = Math.min(S.time + tdt, G.DAY_LEN - 1); S.siegeT -= dt; if (S.siegeT <= 0) { S.phase = 'final'; G.Enemies.spawnLeviathan(S); } }
+    Sim.updateWorldState(S, dt);
     for (const id in S.players) updatePlayer(S, S.players[id], dt);
     G.Enemies.update(S, dt);
     updateProjectiles(S, dt);
@@ -836,13 +963,13 @@
     const players = {};
     for (const id in S.players) {
       const p = S.players[id];
-      players[id] = { id: p.id, name: p.name, col: p.col, hat: p.hat, skin: p.skin, sitting: p.sitting ? 1 : 0, gambles: p.gambles || 0, emote: p.emote > 0 ? +p.emote.toFixed(1) : 0, rig: p.rig, x: +p.x.toFixed(2), y: +p.y.toFixed(2), face: +p.face.toFixed(2), hp: Math.round(p.hp * 10) / 10, maxHp: p.maxHp, stam: Math.round(p.stam), hunger: Math.round(p.hunger), inv: p.inv, held: p.held, armor: p.armor, coins: p.coins, pw: p.pw, buffs: p.buffs.map(b => ({ id: b.id, t: Math.round(b.t) })), swing: p.swing ? { t: +p.swing.t.toFixed(2), dur: p.swing.dur, ang: +p.swing.ang.toFixed(2), arc: p.swing.arc, reach: p.swing.reach, combo: p.swing.combo || 0, anim: p.swing.anim || 'slash', heavy: p.swing.heavy ? 1 : 0 } : null, charge: +p.charge.toFixed(2), dodgeT: p.dodgeT > 0 ? 1 : 0, dodgeCh: p.dodgeCh, blocking: p.blocking ? 1 : 0, draw: +p.draw.toFixed(2), downed: p.downed ? 1 : 0, bleed: Math.round(p.bleed), revive: +p.revive.toFixed(1), dead: p.dead ? 1 : 0, flash: p.flash > 0 ? 1 : 0, moving: p.moving ? 1 : 0, anim: +p.anim.toFixed(2), kills: p.kills, dark: p.dark > 2.5 ? 1 : 0, xp: p.xp, lvl: p.lvl, xpNext: G.XP_FOR(p.lvl), offer: p.offers.length ? p.offers[0] : null, offerT: Math.round(p.offerT), slow: p.slow > 0 ? 1 : 0, burn: p.burn > 0 ? 1 : 0, swCd: Math.round(p.swCd) };
+      players[id] = { id: p.id, name: p.name, col: p.col, hat: p.hat, skin: p.skin, sitting: p.sitting ? 1 : 0, gambles: p.gambles || 0, fish: p.fish ? [+p.fish.x.toFixed(2), +p.fish.y.toFixed(2), p.fish.state === 'bite' ? 1 : 0] : 0, emote: p.emote > 0 ? +p.emote.toFixed(1) : 0, rig: p.rig, x: +p.x.toFixed(2), y: +p.y.toFixed(2), face: +p.face.toFixed(2), hp: Math.round(p.hp * 10) / 10, maxHp: p.maxHp, stam: Math.round(p.stam), hunger: Math.round(p.hunger), inv: p.inv, held: p.held, armor: p.armor, coins: p.coins, pw: p.pw, buffs: p.buffs.map(b => ({ id: b.id, t: Math.round(b.t) })), swing: p.swing ? { t: +p.swing.t.toFixed(2), dur: p.swing.dur, ang: +p.swing.ang.toFixed(2), arc: p.swing.arc, reach: p.swing.reach, combo: p.swing.combo || 0, anim: p.swing.anim || 'slash', heavy: p.swing.heavy ? 1 : 0 } : null, charge: +p.charge.toFixed(2), dodgeT: p.dodgeT > 0 ? 1 : 0, dodgeCh: p.dodgeCh, blocking: p.blocking ? 1 : 0, draw: +p.draw.toFixed(2), downed: p.downed ? 1 : 0, bleed: Math.round(p.bleed), revive: +p.revive.toFixed(1), dead: p.dead ? 1 : 0, flash: p.flash > 0 ? 1 : 0, moving: p.moving ? 1 : 0, anim: +p.anim.toFixed(2), kills: p.kills, dark: p.dark > 2.5 ? 1 : 0, xp: p.xp, lvl: p.lvl, xpNext: G.XP_FOR(p.lvl), offer: p.offers.length ? p.offers[0] : null, offerT: Math.round(p.offerT), slow: p.slow > 0 ? 1 : 0, burn: p.burn > 0 ? 1 : 0, swCd: Math.round(p.swCd) };
     }
     const enemies = S.enemies.filter(e => !e.dead).map(e => [e.id, G.EN_IDX[e.t], +e.x.toFixed(2), +e.y.toFixed(2), Math.round(e.hp), e.maxHp, e.st, +e.face.toFixed(2), e.flash > 0 ? 1 : 0, e.r, e.stun > 0 ? 1 : 0, e.hidden ? 1 : 0, e.owner ? 1 : 0, e.burn > 0 ? 1 : 0, +(e.tm || 0).toFixed(2), e.elite ? 1 : 0]);
     const projs = S.projs.map(p => [p.id, p.type, +p.x.toFixed(2), +p.y.toFixed(2), +Math.atan2(p.vy, p.vx).toFixed(2)]);
     const drops = S.drops.map(d => [d.id, d.item === 'coin' ? -1 : G.ITEM_IDX[d.item], +d.x.toFixed(2), +d.y.toFixed(2), d.n, d.aff || 0, d.q || 0]);
     const puddles = S.puddles.map(p => [+p.x.toFixed(1), +p.y.toFixed(1), p.r, +p.t.toFixed(1)]);
-    const snap = { t: 'snap', time: +S.time.toFixed(2), day: S.day, phase: S.phase, nev: S.nev, siegeT: Math.ceil(S.siegeT), boat: S.boat, bosses: S.bosses, players, enemies, projs, drops, puddles, stats: S.stats, diff: +Sim.difficulty(S).toFixed(2) };
+    const snap = { t: 'snap', time: +S.time.toFixed(2), day: S.day, phase: S.phase, nev: S.nev, siegeT: Math.ceil(S.siegeT), boat: S.boat, bosses: S.bosses, players, enemies, projs, drops, puddles, stats: S.stats, diff: +Sim.difficulty(S).toFixed(2), mode: S.mode, weather: S.weather.id, goal: S.mode === 'casino' ? G.MODES.casino.goal : 0 };
     // object changes
     if (full) { snap.objs = []; for (const [i, o] of w.changes) snap.objs.push([i, o]); snap.tiles = []; for (const [i, o] of w.changes) if (o && O[o.t].floor) snap.tiles.push([i, w.tiles[i]]); snap.full = true; }
     else if (w.pending && w.pending.length) { snap.objs = w.pending; w.pending = []; }

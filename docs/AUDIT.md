@@ -99,3 +99,27 @@ blue instead of damage-red; tutorial casino step works for joined clients (`gamb
   chunking) and a *Server address* field; `?server=host:port` and the injected `__SERVER_ADDR` flag pre-fill it.
 - **Limits stated in the lobby and README.** Plain `ws://` cannot be reached from the https-hosted page (mixed content), and
   internet play through a port still needs port forwarding or a tunnel — the room code remains the no-configuration path.
+
+## Round 6 (terrain, dynamic map, two new modes)
+
+- **Terrain.** `generateWorld` picks an island archetype per seed (classic, crescent, twin with a sandbar, caldera, archipelago)
+  by shaping the radial falloff before the noise is applied; rivers walk downhill from a high interior tile along the lowest
+  neighbour with a little noise, carving shallow water (walkable, slow) and gravel banks, and end in a pond when they run out of
+  downhill. Two new tiles (gravel, snow) were appended to the tile table so every `<= SAND` / `> SAND` test kept its meaning.
+- **Ores.** Per-tile ore rolls were replaced by rare seeds that grow into clusters of 2–6 rocks; the seed renders 1.4× and the
+  cluster ignores the usual gap rule so deposits read as one body. Each strike now spawns a chunk of the vein's ore, the break
+  pays 3–5 more, and the vein regrows from a rubble prefab after 12–22 minutes. Net effect: fewer, bigger deposits that pay out
+  steadily while you mine.
+- **Dynamic map.** A weather state on the sim (clear/rain/fog/storm) rolled at dawn and dusk, mirrored in the snapshot and drawn
+  as greyer fog, a dimmer sun, rain particles and lightning events with thunder; rain doubles regrowth. Flotsam (driftwood, crates)
+  washes onto beaches within 30 tiles of each player every dawn and drifts away a day later.
+- **Gamble With Friends.** The plaza archetype, `S.mode === 'casino'` gates: enemies never spawn, hunger and darkness damage are
+  off, the clock is pinned to neon night, a house allowance every 60 s, first to the coin goal ends the run with a named winner.
+  Duels are host-arbitrated: challenge → 25 s pending offer → both roll 2d6 (Loaded Dice still work) → the pot moves.
+- **Bastion Fishing.** Fishing is a small state machine on the player (`p.fish`: wait → bite window 1.1 s → catch or escape),
+  species weighted by depth, time of day and biome, rods and bait scaling the rare weights. The fishmonger is an object with a
+  `shop` flag: `sell` liquidates every fish at its price, `buy` draws from `G.SHOP`. The bastion is built after normal generation:
+  a ring of stone walls with two doors, stations, a stocked start and a plank dock.
+- **Tests.** `test_modes.js` covers archetype/river/cluster counts, per-hit ore and rubble, weather rolls and lightning, flotsam at
+  dawn, cast/bite/catch, selling and buying, the shop panel, casino rules, a full duel, the allowance and the win, and the bastion
+  layout and kit.
