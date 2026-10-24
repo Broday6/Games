@@ -9,6 +9,7 @@ import { S, commit, undoable, set } from './store.js';
 import { lineChart } from './charts.js';
 import { focusTasks, completeTask, isFocus } from './tasks.js';
 import { current, fmtVal, logGoal } from './goals.js';
+import { eventsOn } from './work.js';
 
 export const MOOD = ['Rough', 'Low', 'Okay', 'Good', 'Great'];
 export const ENERGY = ['Drained', 'Low', 'Steady', 'Good', 'Charged'];
@@ -53,10 +54,10 @@ const isoOf = ts => { const d = new Date(ts); return `${d.getFullYear()}-${Strin
 const hoursOn = d => sum(S.time.filter(t => t.end && isoOf(t.start) === d), t => hours(t.end - t.start - num(t.breakMin) * 60000));
 const trainedOn = d => S.workouts.some(w => w.date === d);
 function morningContext() {
-  const evs = S.events.filter(e => e.date === today()).sort((a, b) => (a.start || '99').localeCompare(b.start || '99'));
+  const evs = eventsOn(today());
   const due = S.tasks.filter(t => !t.done && t.due && t.due <= today()).length;
   const bits = [];
-  if (evs.length) bits.push(`${evs.length} visit${evs.length > 1 ? 's' : ''} on the schedule${evs[0].start ? `, first at ${fmtTime(evs[0].start)}` : ''}`);
+  if (evs.length) bits.push(evs.slice(0, 4).map(e => `${e.title || 'visit'}${e.start ? ' ' + fmtTime(e.start) : ''}`).join(', '));
   else bits.push('nothing on the schedule');
   if (due) bits.push(`${due} to-do${due > 1 ? 's' : ''} due`);
   const lastW = [...S.workouts].sort((a, b) => b.start - a.start)[0];

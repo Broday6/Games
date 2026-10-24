@@ -515,3 +515,6 @@ fieldset.scale-field legend { padding: 0; margin-bottom: 6px; font-size: 13px; f
 .qa span { display: block; font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--muted); }
 .due-chips { margin-top: -4px; }
 .due-chips .chip { height: 30px; font-size: 12.5px; }
+.day-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.day-pick .chip-check span { height: 34px; padding: 0 11px; }
+.row.ev.gym .row-title::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--good); margin-right: 7px; vertical-align: 2px; }

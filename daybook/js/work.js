@@ -2,7 +2,7 @@
 import {
   $, $$, esc, uid, num, sum, round2, acts, chg, icon, toast, sheet, formSheet, field, input, numInput, textarea, select, checkbox,
   today, addDays, weekStart, parseDate, fmtDate, fmtShort, fmtTime, hmOf, tsOf, fmtDur, hours, fmtHrs, relDay, money,
-  monthKey, addMonths, fmtMonth, download, copyText, csv, telLink, mailLink, mapLink, empty, pill, segs,
+  monthKey, addMonths, fmtMonth, download, copyText, csv, telLink, mailLink, mapLink, empty, pill, segs, daysLabel, dayPicker, DOW,
 } from './util.js';
 import { S, commit, undoable, job, client, set } from './store.js';
 
@@ -107,16 +107,24 @@ export function eventRow(e, { showDate = false } = {}) {
   const c = client(j?.clientId);
   const when = e.start ? `${fmtTime(e.start)}${e.end ? '–' + fmtTime(e.end) : ''}` : 'Any time';
   const addr = j?.address || c?.address;
-  return `<div class="row ev${e.done ? ' is-done' : ''}">
-    <button type="button" class="tick${e.done ? ' on' : ''}" data-act="ev-done" data-id="${e.id}" aria-label="${e.done ? 'Mark not done' : 'Mark done'}">${icon('check')}</button>
-    <div class="row-main" data-act="ev-edit" data-id="${e.id}" role="button" tabindex="0">
+  const gymBtn = e.gym && !e.done && e.date === today()
+    ? (S.active ? `<a class="btn sm primary" href="#gym">Resume</a>` : `<button type="button" class="btn sm primary" data-act="wo-next">${icon('play')} Start</button>`) : '';
+  return `<div class="row ev${e.done ? ' is-done' : ''}${e.gym ? ' gym' : ''}">
+    <button type="button" class="tick${e.done ? ' on' : ''}" data-act="ev-done" data-id="${e.id}" data-date="${e.date}" aria-label="${e.done ? 'Mark not done' : 'Mark done'}">${icon('check')}</button>
+    <div class="row-main" data-act="ev-edit" data-id="${e.id}" data-date="${e.date}" role="button" tabindex="0">
       <div class="row-title">${esc(e.title || j?.title || 'Appointment')}</div>
-      <div class="row-sub">${showDate ? esc(relDay(e.date)) + ' · ' : ''}${esc(when)}${c ? ' · ' + esc(c.name) : ''}</div>
+      <div class="row-sub">${showDate ? esc(relDay(e.date)) + ' · ' : ''}${esc(when)}${c ? ' · ' + esc(c.name) : ''}${e.series ? ` · ${icon('repeat', 'xs')} ${esc(daysLabel(e.days))}` : ''}</div>
       ${addr || c?.phone ? `<div class="row-links">${mapLink(addr)}${telLink(c?.phone)}</div>` : ''}
-    </div>
+    </div>${gymBtn}
   </div>`;
 }
-const eventsOn = date => S.events.filter(e => e.date === date).sort((a, b) => (a.start || '99').localeCompare(b.start || '99'));
+// Repeating items (days = weekdays it happens on) expand into one occurrence per matching date.
+const occurs = (e, date) => e.days?.length
+  ? date >= e.date && (!e.until || date <= e.until) && e.days.includes(parseDate(date).getDay()) && !(e.skip || []).includes(date)
+  : e.date === date;
+export const eventsOn = date => S.events.filter(e => occurs(e, date))
+  .map(e => (e.days?.length ? { ...e, date, done: (e.doneDates || []).includes(date), series: true } : e))
+  .sort((a, b) => (a.start || '99').localeCompare(b.start || '99'));
 export const todaysEvents = () => eventsOn(today());
 
 function scheduleView() {
@@ -131,43 +139,73 @@ function scheduleView() {
       ${weekOff ? `<button type="button" class="btn ghost sm" data-act="wk" data-d="0">This week</button>` : ''}
       <span class="grow"></span>
       <button type="button" class="btn ghost sm" data-act="ics-week" data-ws="${ws}" title="Download this week as a calendar file">${icon('cal')} .ics</button>
-      <button type="button" class="btn sm" data-act="ev-new" data-date="${days.includes(t) ? t : ws}">${icon('plus')} Visit</button>
+      <button type="button" class="btn sm" data-act="ev-new" data-date="${days.includes(t) ? t : ws}">${icon('plus')} Add</button>
     </div>
     <div class="week">${days.map(d => {
       const evs = eventsOn(d);
       return `<section class="day${d === t ? ' is-today' : ''}${d < t ? ' is-past' : ''}">
         <header class="day-head"><span class="dow">${fmtDate(d, { weekday: 'short' })}</span><span class="dnum">${parseDate(d).getDate()}</span>
-          <span class="day-hrs">${evs.length ? evs.length + (evs.length > 1 ? ' visits' : ' visit') : ''}</span>
+          <span class="day-hrs">${evs.length ? `${evs.length} scheduled` : ''}</span>
           <button type="button" class="icon-btn sm" data-act="ev-new" data-date="${d}" aria-label="Add on ${fmtDate(d)}">${icon('plus')}</button></header>
         ${evs.length ? `<div class="list">${evs.map(e => eventRow(e)).join('')}</div>` : ''}
       </section>`;
     }).join('')}</div>`;
 }
 acts.wk = el => { const d = +el.dataset.d; weekOff = d === 0 ? 0 : weekOff + d; commit(); };
-acts['ev-done'] = el => { const e = S.events.find(x => x.id === el.dataset.id); if (e) { e.done = !e.done; commit(); } };
+acts['ev-done'] = el => {
+  const e = S.events.find(x => x.id === el.dataset.id);
+  if (!e) return;
+  if (e.days?.length) {
+    const d = el.dataset.date;
+    const list = (e.doneDates || []).filter(x => x >= addDays(today(), -90));
+    e.doneDates = list.includes(d) ? list.filter(x => x !== d) : [...list, d];
+  } else e.done = !e.done;
+  commit();
+};
 acts['ev-new'] = el => eventForm({ date: el.dataset.date || today(), jobId: el.dataset.job || '' });
-acts['ev-edit'] = el => eventForm(S.events.find(x => x.id === el.dataset.id));
+acts['ev-edit'] = el => eventForm(S.events.find(x => x.id === el.dataset.id), el.dataset.date);
 
-function eventForm(e = {}) {
+function eventForm(e = {}, occDate = '') {
   const isNew = !e.id;
+  const series = !!e.days?.length;
   formSheet({
-    title: isNew ? 'Schedule a visit' : 'Edit visit',
-    fields: `${field('Job', select('jobId', jobOptions('No job (personal or other)'), e.jobId))}
-      ${field('What', input('title', e.title || '', 'text', 'placeholder="Defaults to the job name"'))}
-      <div class="grid3">${field('Date', input('date', e.date || today(), 'date', 'required'))}${field('Start', input('start', e.start ?? '08:00', 'time'))}${field('End', input('end', e.end ?? '', 'time'))}</div>
+    title: isNew ? 'Add to schedule' : series ? 'Edit repeating item' : 'Edit',
+    fields: `${field('What', input('title', e.title || '', 'text', 'placeholder="Workout, site visit, Bible study…"'))}
+      ${field('Job', select('jobId', jobOptions('No job (personal or other)'), e.jobId))}
+      <div class="grid3">${field(series ? 'Starting' : 'Date', input('date', e.date || today(), 'date', 'required'))}${field('Start', input('start', e.start ?? '08:00', 'time'))}${field('End', input('end', e.end ?? '', 'time'))}</div>
+      ${field('Repeat', select('repeat', [['', 'Does not repeat'], ['days', 'Every week on certain days']], series ? 'days' : ''))}
+      <div data-days hidden>${dayPicker('day', e.days || [])}${field('Until', input('until', e.until || '', 'date'), 'Optional. Leave blank to keep it going.')}</div>
+      ${checkbox('gym', 'This is a workout (adds a Start button)', !!e.gym)}
       ${field('Notes', textarea('notes', e.notes || ''))}
-      ${isNew ? field('Repeat weekly', select('repeat', [['0', 'Does not repeat'], ...[2, 3, 4, 6, 8, 12].map(n => [String(n - 1), `${n} weeks in a row`])], '0')) : ''}`,
-    del: isNew ? null : () => undoable('Visit deleted', () => { S.events = S.events.filter(x => x.id !== e.id); }),
-    onSubmit: d => {
+      ${series && occDate ? `<div class="row-actions wrap"><button type="button" class="btn ghost sm" data-skip>Skip ${esc(fmtDate(occDate))} only</button><button type="button" class="btn ghost sm" data-ics>${icon('cal')} Add series to my calendar</button></div>` : ''}`,
+    del: isNew ? null : () => undoable(series ? 'Repeating item deleted' : 'Deleted', () => { S.events = S.events.filter(x => x.id !== e.id); }),
+    onMount: (el, s) => {
+      const rep = el.querySelector('[name=repeat]');
+      const sync = () => {
+        const on = rep.value === 'days';
+        el.querySelector('[data-days]').hidden = !on;
+        if (on && !$$('input[name=day]:checked', el).length) {
+          const dow = parseDate(el.querySelector('[name=date]').value || today()).getDay();
+          el.querySelector(`input[name=day][value="${dow}"]`).checked = true;
+        }
+      };
+      rep.addEventListener('change', sync); sync();
+      el.querySelector('[data-skip]')?.addEventListener('click', () => { e.skip = [...(e.skip || []), occDate]; s.close(); commit(); toast(`Skipped ${fmtDate(occDate)}`, { action: { label: 'Undo', fn: () => { e.skip = e.skip.filter(x => x !== occDate); commit(); } } }); });
+      el.querySelector('[data-ics]')?.addEventListener('click', () => download(`${(e.title || 'daybook').replace(/\W+/g, '-').toLowerCase()}.ics`, ics([e]), 'text/calendar'));
+    },
+    onSubmit: (d, form) => {
       if (!d.date) { toast('Pick a date.'); return false; }
-      const base = { jobId: d.jobId, title: d.title.trim(), date: d.date, start: d.start, end: d.end, notes: d.notes.trim() };
+      const days = d.repeat === 'days' ? $$('input[name=day]:checked', form).map(c => +c.value) : [];
+      if (d.repeat === 'days' && !days.length) { toast('Pick at least one day.'); return false; }
+      if (!d.title.trim() && !d.jobId) { toast('Say what it is.'); return false; }
+      const base = { jobId: d.jobId, title: d.title.trim(), date: d.date, start: d.start, end: d.end, notes: d.notes.trim(), days, until: days.length ? d.until : '', gym: d.gym };
       if (isNew) {
-        for (let i = 0; i <= num(d.repeat); i++) S.events.push({ id: uid(), ...base, date: addDays(d.date, i * 7), done: false });
+        S.events.push({ id: uid(), ...base, done: false, doneDates: [], skip: [] });
         const j = job(d.jobId);
         if (j && ['lead', 'quoted'].includes(j.status)) j.status = 'scheduled';
       } else Object.assign(e, base);
       commit();
-      toast(isNew ? 'Visit scheduled' : 'Visit saved');
+      toast(days.length ? `Repeats ${daysLabel(days)}${d.start ? ' at ' + fmtTime(d.start) : ''}` : isNew ? 'Added to schedule' : 'Saved');
     },
   });
 }
@@ -178,10 +216,15 @@ const icsStamp = (date, hm) => date.replace(/-/g, '') + (hm ? 'T' + hm.replace('
 function ics(events) {
   const now = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
   const out = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Daybook//EN', 'CALSCALE:GREGORIAN'];
-  for (const e of events) {
+  for (let e of events) {
     const j = job(e.jobId);
     const c = client(j?.clientId);
-    out.push('BEGIN:VEVENT', `UID:${e.id}@daybook`, `DTSTAMP:${now}`);
+    const rule = e.days?.length && !e.series;
+    let date = e.date;
+    if (rule) while (!e.days.includes(parseDate(date).getDay())) date = addDays(date, 1);
+    e = { ...e, date };
+    out.push('BEGIN:VEVENT', `UID:${e.id}${e.series ? '-' + e.date : ''}@daybook`, `DTSTAMP:${now}`);
+    if (rule) out.push(`RRULE:FREQ=WEEKLY;BYDAY=${e.days.map(d => DOW[d].slice(0, 2).toUpperCase()).join(',')}${e.until ? `;UNTIL=${e.until.replace(/-/g, '')}T235959` : ''}`);
     if (e.start) {
       out.push(`DTSTART:${icsStamp(e.date, e.start)}`, `DTEND:${icsStamp(e.date, e.end && e.end > e.start ? e.end : addHour(e.start))}`);
     } else out.push(`DTSTART;VALUE=DATE:${icsStamp(e.date)}`, `DTEND;VALUE=DATE:${icsStamp(addDays(e.date, 1))}`);
@@ -198,10 +241,10 @@ function ics(events) {
 const addHour = hm => { const [h, m] = hm.split(':').map(Number); return `${String(Math.min(23, h + 1)).padStart(2, '0')}:${String(m).padStart(2, '0')}`; };
 acts['ics-week'] = el => {
   const ws = el.dataset.ws;
-  const evs = S.events.filter(e => e.date >= ws && e.date <= addDays(ws, 6));
-  if (!evs.length) return toast('No visits this week to export.');
+  const evs = Array.from({ length: 7 }, (_, i) => eventsOn(addDays(ws, i))).flat();
+  if (!evs.length) return toast('Nothing scheduled this week to export.');
   download(`daybook-week-${ws}.ics`, ics(evs), 'text/calendar');
-  toast(`Exported ${evs.length} visits. Open the file to add them to your calendar.`);
+  toast(`Exported ${evs.length} items. Open the file to add them to your calendar.`);
 };
 
 // ---------- jobs ----------

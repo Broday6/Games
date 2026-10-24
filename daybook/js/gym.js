@@ -202,6 +202,11 @@ function startWorkout(name, items, templateId = '') {
   commit();
   syncWakeLock();
 }
+acts['wo-next'] = () => {
+  const t = nextTemplate();
+  if (t) startWorkout(t.name, t.items.map(i => newItem(i.exId, i.sets, i.lo, i.hi)), t.id); else startWorkout('Workout', []);
+  location.hash = 'gym';
+};
 acts['wo-start'] = el => {
   const t = S.templates.find(x => x.id === el.dataset.id);
   if (t) startWorkout(t.name, t.items.map(i => newItem(i.exId, i.sets, i.lo, i.hi)), t.id);

@@ -9,7 +9,9 @@ home screen; it then launches full-screen and works without signal on a job site
 On iPhone: Safari → Share → *Add to Home Screen*. On Android: Chrome menu → *Install app*.
 
 **Work**
-- **Schedule** — week view of site visits with tap-to-call and tap-for-directions; repeat weekly; export a week as an
+- **Schedule** — week view of site visits and personal routines with tap-to-call and tap-for-directions. Items can
+  repeat on chosen weekdays (e.g. workouts Mon/Tue/Thu/Fri at 5:40), skip a single day, and workout items get a Start
+  button that opens your next gym template. Export a week, or a repeating series, as an
   `.ics` file so visits land in your phone's calendar with a 30-minute reminder.
 - **Jobs and clients** — status (lead → quoted → scheduled → in progress → complete), hourly or fixed price, per-job
   hours, costs, what's left to bill, and your **effective hourly rate** (earnings minus costs, divided by hours).
@@ -44,7 +46,8 @@ On iPhone: Safari → Share → *Add to Home Screen*. On Android: Chrome menu �
 - **Patterns**: 30-day mood, energy and sleep charts, week-over-week changes, and comparisons such as mood on
   training days vs rest days, energy after 7+ hours of sleep, long workdays, and habit days.
 - **To-dos**: due dates, categories, linked jobs, notes, a star for today's focus, quick snooze, and repeats
-  (daily, weekdays, weekly, every 2 weeks, monthly, quarterly for estimated taxes, yearly).
+  (daily, weekdays, chosen weekdays such as Mon & Thu, weekly, every 2 weeks, monthly, quarterly for estimated taxes,
+  yearly), and Work / Personal / Home filters.
 - **Goals** with progress bars and pace (on track / behind). Track by hand, or automatically from body weight,
   workouts logged, money collected or hours worked.
 - **Habits** with a 7-day grid and streaks, and a searchable **journal** of every check-in (exportable as Markdown).

@@ -1,6 +1,7 @@
 // App shell: tab routing, header, render loop, live clocks, service worker.
-import { $, $$, acts, bus, icon, refreshSheets, clock } from './util.js';
-import { S, load, save } from './store.js';
+import { $, $$, acts, bus, icon, refreshSheets, clock, uid, today as todayISO, addDays, parseDate, toast } from './util.js';
+import { S, load, save, replaceState, fresh } from './store.js';
+import { firstOn } from './tasks.js';
 import * as today from './today.js';
 import * as work from './work.js';
 import * as gym from './gym.js';
@@ -51,8 +52,28 @@ function tick() {
   gym.tickRest();
 }
 
+// A starter pack (window.DAYBOOK_PACK, set by the page that loads Daybook) adds a person's own routines and to-dos
+// once per device. Sample data is cleared first; anything already entered is kept.
+function applyPack(pack) {
+  if (!pack?.id) return;
+  let done = [];
+  try { done = JSON.parse(localStorage.getItem('daybook.packs') || '[]'); } catch { /* storage blocked */ }
+  if (done.includes(pack.id)) return;
+  if (S.sample || !S.welcomed) { const ui = S.ui; replaceState(fresh()); S.ui = { ...ui, lastJob: '' }; }
+  S.welcomed = true;
+  const t = todayISO();
+  const workday = () => { let d = t; while ([0, 6].includes(parseDate(d).getDay())) d = addDays(d, 1); return d; };
+  const due = x => x.repeat === 'days' ? firstOn(x.repeatDays, t) : x.due === 'today' ? t : x.due === 'workday' ? workday() : x.due || '';
+  for (const e of pack.events || []) S.events.push({ id: uid(), date: t, jobId: '', notes: '', done: false, doneDates: [], skip: [], until: '', ...e });
+  for (const x of pack.tasks || []) S.tasks.push({ id: uid(), cat: 'personal', jobId: '', notes: '', focus: '', repeat: '', repeatDays: [], done: false, ...x, due: due(x) });
+  save();
+  try { localStorage.setItem('daybook.packs', JSON.stringify([...done, pack.id])); } catch { /* storage blocked */ }
+  setTimeout(() => toast(`Added your ${(pack.events || []).length + (pack.tasks || []).length} items`), 300);
+}
+
 function boot() {
   load();
+  applyPack(window.DAYBOOK_PACK);
   $('#nav').innerHTML = TABS.map(([id, label]) => `<a href="#${id}" data-tab="${id}">${icon(id)}<span>${label}</span></a>`).join('');
   lastTab = current();
   render();
@@ -60,7 +81,7 @@ function boot() {
   // Re-render on return so "today", timers and overdue states are fresh after the phone sleeps.
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') render(); else save(); });
   window.addEventListener('pagehide', save);
-  if ('serviceWorker' in navigator && /^https:|^http:\/\/localhost/.test(location.href)) {
+  if ('serviceWorker' in navigator && window.top === window && /^https:|^http:\/\/localhost/.test(location.href)) {
     navigator.serviceWorker.register('sw.js').catch(() => { /* offline support is optional */ });
   }
 }

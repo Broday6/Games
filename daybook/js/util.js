@@ -47,6 +47,16 @@ export const addMonthsISO = (s, n) => {
   return iso(d);
 };
 export const avg = arr => { const v = arr.filter(x => Number.isFinite(x) && x > 0); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+export const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+export const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+export const daysLabel = days => {
+  const s = WEEK_ORDER.filter(d => (days || []).includes(d));
+  if (s.length === 7) return 'every day';
+  if (s.join() === '1,2,3,4,5') return 'weekdays';
+  if (s.join() === '6,0') return 'weekends';
+  return s.map(d => DOW[d]).join(', ');
+};
+export const dayPicker = (name, on = []) => `<div class="day-pick" role="group">${WEEK_ORDER.map(d => `<label class="chip-check"><input type="checkbox" name="${name}" value="${d}"${on.includes(d) ? ' checked' : ''}><span>${DOW[d]}</span></label>`).join('')}</div>`;
 export const fmtMonth = key => parseDate(key + '-01').toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 export const fmtDate = (s, o = { weekday: 'short', month: 'short', day: 'numeric' }) => s ? parseDate(s).toLocaleDateString(undefined, o) : '';
 export const fmtShort = s => fmtDate(s, { month: 'short', day: 'numeric' });

@@ -2,7 +2,7 @@
 import { esc, acts, icon, today, addDays, fmtDate, money, fmtHrs, hours, sum } from './util.js';
 import { S, commit, replaceState, fresh } from './store.js';
 import { sampleData } from './seed.js';
-import { timerCard, eventRow, todaysEvents, weekStats, openWork } from './work.js';
+import { timerCard, eventRow, todaysEvents, weekStats, openWork, eventsOn } from './work.js';
 import { todayCard } from './gym.js';
 import { taskRow, dueTasks, habitChips, quickAdd } from './life.js';
 import { promptCard } from './checkin.js';
@@ -31,14 +31,14 @@ acts['go-work'] = el => { openWork(el.dataset.v); location.hash = 'work'; };
 export function view() {
   const t = today();
   const evs = todaysEvents();
-  const tomorrow = S.events.filter(e => e.date === addDays(t, 1));
+  const tomorrow = eventsOn(addDays(t, 1));
   const due = dueTasks().filter(x => !isFocus(x));
   const focus = focusTasks();
   const ws = weekStats();
   return `${!S.welcomed ? welcome() : promptCard()}
     ${timerCard()}
-    <section class="group"><header class="group-head"><h3>Schedule</h3><button type="button" class="btn ghost sm" data-act="ev-new" data-date="${t}">${icon('plus')} Visit</button></header>
-      ${evs.length ? `<div class="list panel">${evs.map(e => eventRow(e)).join('')}</div>` : `<p class="muted small">Nothing scheduled today.${tomorrow.length ? ` Tomorrow: ${tomorrow.length} visit${tomorrow.length > 1 ? 's' : ''}.` : ''}</p>`}</section>
+    <section class="group"><header class="group-head"><h3>Schedule</h3><button type="button" class="btn ghost sm" data-act="ev-new" data-date="${t}">${icon('plus')} Add</button></header>
+      ${evs.length ? `<div class="list panel">${evs.map(e => eventRow(e)).join('')}</div>` : `<p class="muted small">Nothing scheduled today.${tomorrow.length ? ` Tomorrow: ${tomorrow.map(e => e.title || 'visit').slice(0, 3).join(', ')}.` : ''}</p>`}</section>
     ${focus.length ? `<section class="group"><header class="group-head"><h3>Today's focus</h3><span class="muted">${focus.length} of 3</span></header><div class="list panel focus-list">${focus.map(taskRow).join('')}</div></section>` : ''}
     <section class="group"><header class="group-head"><h3>To-do</h3><button type="button" class="btn ghost sm" data-act="go-life" data-v="todo">All</button></header>
       ${due.length ? `<div class="list panel">${due.map(taskRow).join('')}</div>` : ''}${quickAdd('qa-today')}</section>
