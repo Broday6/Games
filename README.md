@@ -1,5 +1,47 @@
 # Games
 
+## DAYBOOK — contracting work + gym tracker (phone app, works offline)
+
+A personal app for running contracting work and training from one place. Open it on your phone and add it to the
+home screen; it then launches full-screen and works without signal on a job site or in a basement gym.
+
+**Open it:** <https://broday6.github.io/Games/daybook/> (after this branch is merged and Pages deploys).
+On iPhone: Safari → Share → *Add to Home Screen*. On Android: Chrome menu → *Install app*.
+
+**Work**
+- **Schedule** — week view of site visits with tap-to-call and tap-for-directions; repeat weekly; export a week as an
+  `.ics` file so visits land in your phone's calendar with a 30-minute reminder.
+- **Jobs and clients** — status (lead → quoted → scheduled → in progress → complete), hourly or fixed price, per-job
+  hours, costs, what's left to bill, and your **effective hourly rate** (earnings minus costs, divided by hours).
+- **Time clock** — clock in to a job with one tap; the clock keeps running if you close the app. Manual entries with
+  unpaid breaks. CSV export.
+- **Expenses and mileage** — materials, fuel, tools, subs, permits; mileage at your per-mile rate; mark items billable
+  and set a materials markup.
+- **Invoices** — built from a job's unbilled hours (one line per day) and billable expenses, so nothing gets billed
+  twice. Edit lines, add sales tax, print or save as PDF, copy as text, or email. Tracks sent, overdue and paid.
+- **Money** — monthly and year-to-date invoiced, collected, spent, net and a tax set-aside; CSV exports for your accountant.
+
+**Gym**
+- Workout logger with templates (Push / Pull / Legs / Upper / Lower to start, fully editable) and a rotation that
+  suggests what's next.
+- **Progression suggestions** on every exercise (double progression: hit the top of the rep range on every set,
+  then add the smallest jump). The suggested weight and reps are pre-filled, so tapping ✓ logs the set.
+- **PR detection** by estimated 1-rep max, **rest timer** with sound and vibration, and the screen stays awake mid-workout.
+- **Bluetooth heart-rate straps** (Polar, Garmin, Wahoo, Coros…) show live BPM and zones and save average and max
+  per workout. Chrome/Edge on Android or desktop; iPhone browsers don't support Bluetooth.
+- **Voice logging** — tap the mic and say "225 for 8 at RPE 8".
+- Progress charts per lift, weekly hard sets per muscle group, body-weight log with a 7-day average, and tools:
+  plate calculator, 1RM percentages, warm-up sets, RPE guide.
+
+**Life** — to-dos (with due dates, categories, linked jobs) and daily habits with streaks.
+
+**Your data** stays in your browser on your device; there is no account or server. Use *More → Download backup*
+regularly and to move to a new phone (*Restore from file*). First launch offers sample data to explore.
+
+Source: [`daybook/`](daybook/) — vanilla JS modules, no build step, no dependencies. `js/work.js` (contracting),
+`js/gym.js` (training), `js/life.js`, `js/today.js`, `js/more.js` (settings, backup), `js/store.js` (state),
+`sw.js` (offline cache).
+
 ## DRIFTWOOD — a co-op survival roguelike (browser, 1–4 players)
 
 A Muck-inspired **first-person** survival roguelike you can play with a friend straight from a link. Wash ashore
