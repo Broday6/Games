@@ -52,12 +52,23 @@ On iPhone: Safari → Share → *Add to Home Screen*. On Android: Chrome menu �
   workouts logged, money collected or hours worked.
 - **Habits** with a 7-day grid and streaks, and a searchable **journal** of every check-in (exportable as Markdown).
 
-**Your data** stays in your browser on your device; there is no account or server. Use *More → Download backup*
+**Inside Claude** (the claude.ai published copy): your data syncs to your Claude account, so it is the same on your
+phone and computer and Claude can read and update it from a chat. An **Ask Claude** button lets you change things by
+talking ("move Bible study to 6:30", "plan my day", "how did this week go?"); every change it makes can be undone.
+
+**Make it yours**: rearrange or hide Today's sections, write your own check-in questions and choose which scales to
+ask, rename or add to-do categories, and type to-dos in plain language with a live preview
+("Call Wes tomorrow 9am #work", "Follow up with Mark every Mon and Thu", "Gutters this weekend #home").
+Habits take a cue, time of day, days of the week and a daily count; streaks forgive a single miss
+("never miss twice") and some habits check themselves off when you log a workout or a check-in.
+
+**Your data** on GitHub Pages stays in your browser on your device; there is no account or server. Use *More → Download backup*
 regularly and to move to a new phone (*Restore from file*). First launch offers sample data to explore.
 
 Source: [`daybook/`](daybook/) — vanilla JS modules, no build step, no dependencies. `js/work.js` (contracting),
 `js/gym.js` (training), `js/life.js` + `js/tasks.js` (to-dos, habits), `js/checkin.js` (check-ins, patterns, journal),
-`js/goals.js`, `js/today.js`, `js/more.js` (settings, backup), `js/store.js` (state),
+`js/goals.js`, `js/habits.js`, `js/parse.js` (quick-add language), `js/sync.js` + `js/assistant.js` (Claude),
+`js/today.js`, `js/more.js` (settings, backup), `js/store.js` (state),
 `sw.js` (offline cache).
 
 ## DRIFTWOOD — a co-op survival roguelike (browser, 1–4 players)

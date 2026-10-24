@@ -8,6 +8,8 @@ import * as gym from './gym.js';
 import * as life from './life.js';
 import * as more from './more.js';
 import './checkin.js';
+import { startSync, status as syncStatus } from './sync.js';
+import { startAssistant, available as askAvailable } from './assistant.js';
 
 const TABS = [
   ['today', 'Today', today],
@@ -31,6 +33,9 @@ function render() {
   $$('#nav [data-tab]').forEach(b => { const on = b.dataset.tab === tab; b.classList.toggle('on', on); b.setAttribute('aria-current', on ? 'page' : 'false'); });
   $('#nav [data-tab=gym]').classList.toggle('live', !!S.active);
   $('#nav [data-tab=work]').classList.toggle('live', !!S.timer);
+  const ask = $('#ask-btn');
+  if (ask) { ask.hidden = !askAvailable(); ask.innerHTML = `${icon('bolt')} Ask Claude`; }
+  document.body.classList.toggle('synced', syncStatus.state === 'on');
   mod.after?.();
   gym.tickRest();
   tick();
@@ -78,6 +83,8 @@ function boot() {
   lastTab = current();
   render();
   setInterval(tick, 500);
+  startSync();
+  startAssistant();
   // Re-render on return so "today", timers and overdue states are fresh after the phone sleeps.
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') render(); else save(); });
   window.addEventListener('pagehide', save);

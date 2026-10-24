@@ -10,6 +10,7 @@ import { lineChart } from './charts.js';
 import { focusTasks, completeTask, isFocus } from './tasks.js';
 import { current, fmtVal, logGoal } from './goals.js';
 import { eventsOn } from './work.js';
+import * as habits from './habits.js';
 
 export const MOOD = ['Rough', 'Low', 'Okay', 'Good', 'Great'];
 export const ENERGY = ['Drained', 'Low', 'Steady', 'Good', 'Charged'];
@@ -21,6 +22,10 @@ const EVENING_Q = ['What got in the way today?', 'What did you learn today?', 'W
 const WEEKLY_Q = ['Biggest win this week', 'What drained you this week?', 'One thing to do differently next week', 'Next week\'s top priority'];
 const dayIndex = d => daysBetween(`${d.slice(0, 4)}-01-01`, d);
 const promptFor = (list, d) => list[dayIndex(d) % list.length];
+// Your own questions (More → Check-ins) replace the rotating ones; one per line.
+export const customQ = kind => String(set({ morning: 'ciMorningQ', evening: 'ciEveningQ', weekly: 'ciWeeklyQ' }[kind]) || '').split('\n').map(x => x.trim()).filter(Boolean);
+const asks = k => String(set('ciScales') ?? 'sleep,energy,mood,stress').split(',').includes(k);
+export const DEFAULT_Q = { morning: MORNING_Q, evening: EVENING_Q, weekly: WEEKLY_Q };
 
 // ---------- what is due ----------
 const nowHM = () => hmOf(Date.now());
@@ -66,9 +71,9 @@ function morningContext() {
 }
 function eveningContext() {
   const h = hoursOn(today());
-  const habitsDone = (S.habitLog[today()] || []).length;
+  const hs = habits.todays();
   const bits = [h ? `${fmtHrs(h)} worked` : 'no hours logged', trainedOn(today()) ? 'trained today' : 'rest day from the gym'];
-  if (S.habits.length) bits.push(`${habitsDone} of ${S.habits.length} habits`);
+  if (hs.length) bits.push(`${hs.filter(x => habits.isDone(x, today())).length} of ${hs.length} habits`);
   return `<p class="context">${icon('moon')}<span>Today: ${esc(bits.join(' · '))}.</span></p>`;
 }
 
@@ -104,29 +109,30 @@ export function openCheckin(kind, existing) {
 function morningFields(e, date) {
   const candidates = S.tasks.filter(x => !x.done && (!x.due || x.due <= addDays(date, 7)))
     .sort((a, b) => (isFocus(b) - isFocus(a)) || (a.due || '9').localeCompare(b.due || '9')).slice(0, 10);
+  const own = customQ('morning');
   const q = answerOf(e, promptFor(MORNING_Q, date)) ? promptFor(MORNING_Q, date) : (e?.notes?.find(n => MORNING_Q.includes(n.q))?.q || promptFor(MORNING_Q, date));
   return `${e ? '' : morningContext()}
-    <div class="field"><span class="lbl">Hours of sleep</span><div class="inline">${numInput('sleep', e?.sleep || '', 'placeholder="7.5" style="max-width:110px"')}${[5, 6, 7, 8, 9].map(h => `<button type="button" class="chip" data-sleep="${h}">${h}</button>`).join('')}</div></div>
-    ${scale('energy', ENERGY, e?.energy, 'Energy')}
-    ${scale('mood', MOOD, e?.mood, 'Mood')}
+    ${asks('sleep') ? `<div class="field"><span class="lbl">Hours of sleep</span><div class="inline">${numInput('sleep', e?.sleep || '', 'placeholder="7.5" style="max-width:110px"')}${[5, 6, 7, 8, 9].map(h => `<button type="button" class="chip" data-sleep="${h}">${h}</button>`).join('')}</div></div>` : ''}
+    ${asks('energy') ? scale('energy', ENERGY, e?.energy, 'Energy') : ''}
+    ${asks('mood') ? scale('mood', MOOD, e?.mood, 'Mood') : ''}
     <div class="field"><span class="lbl">Today's focus <span class="muted">· up to 3</span></span>
       ${candidates.length ? `<div class="pick-list">${candidates.map(x => `<label class="check-field"><input type="checkbox" name="focus" value="${x.id}"${isFocus(x) ? ' checked' : ''}><span>${esc(x.title)}${x.due ? ` <small class="muted">${esc(x.due < date ? 'overdue' : x.due === date ? 'today' : fmtShort(x.due))}</small>` : ''}</span></label>`).join('')}</div>` : ''}
       <input name="newFocus" id="f-newFocus" placeholder="Add something new to focus on"></div>
-    ${qa('q1', q, answerOf(e, q))}
+    ${own.length ? own.map((x, i) => qa('c' + i, x, answerOf(e, x))).join('') : qa('q1', q, answerOf(e, q))}
     ${qa('q2', 'Anything else on your mind?', answerOf(e, 'Anything else on your mind?'))}`;
 }
 function eveningFields(e, date) {
   const focus = S.tasks.filter(x => x.focus === date);
   const q = e?.notes?.find(n => EVENING_Q.includes(n.q))?.q || promptFor(EVENING_Q, date);
-  const doneToday = S.habitLog[date] || [];
+  const own = customQ('evening');
+  const hs = habits.active().filter(h => habits.scheduledOn(h, date));
   return `${e ? '' : eveningContext()}
-    ${scale('mood', MOOD, e?.mood, 'Mood')}
-    ${scale('stress', STRESS, e?.stress, 'Stress')}
+    ${asks('mood') ? scale('mood', MOOD, e?.mood, 'Mood') : ''}
+    ${asks('stress') ? scale('stress', STRESS, e?.stress, 'Stress') : ''}
     ${focus.length ? `<div class="field"><span class="lbl">Today's focus. Check off what got done.</span><div class="pick-list">${focus.map(x => `<label class="check-field"><input type="checkbox" name="fdone" value="${x.id}"${x.done ? ' checked' : ''}><span>${esc(x.title)}</span></label>`).join('')}</div>
       ${checkbox('rollover', 'Move anything unfinished to tomorrow', true)}</div>` : ''}
-    ${S.habits.length ? `<div class="field"><span class="lbl">Habits today</span><div class="chips">${S.habits.map(h => `<label class="chip-check"><input type="checkbox" name="habit" value="${h.id}"${doneToday.includes(h.id) ? ' checked' : ''}><span>${esc(h.name)}</span></label>`).join('')}</div></div>` : ''}
-    ${qa('q1', 'Win of the day', answerOf(e, 'Win of the day'), 'Big or small')}
-    ${qa('q2', q, answerOf(e, q))}
+    ${hs.length ? `<div class="field"><span class="lbl">Habits today</span><div class="chips">${hs.map(h => `<label class="chip-check"><input type="checkbox" name="habit" value="${h.id}"${habits.isDone(h, date) ? ' checked' : ''}><span>${esc(h.name)}</span></label>`).join('')}</div></div>` : ''}
+    ${own.length ? own.map((x, i) => qa('c' + i, x, answerOf(e, x))).join('') : `${qa('q1', 'Win of the day', answerOf(e, 'Win of the day'), 'Big or small')}${qa('q2', q, answerOf(e, q))}`}
     ${qa('q3', 'Anything else on your mind?', answerOf(e, 'Anything else on your mind?'))}`;
 }
 function weekStats(ws) {
@@ -153,7 +159,7 @@ function weeklyFields(e) {
     ${goals.length ? `<div class="field"><span class="lbl">Goal check</span><div class="goal-updates">${goals.map(g => g.kind === 'manual'
       ? `<label class="goal-upd"><span>${esc(g.title)} <small class="muted">now ${esc(fmtVal(g, current(g)))} · target ${esc(fmtVal(g, num(g.target)))}</small></span><input name="goal-${g.id}" data-goal="${g.id}" inputmode="decimal" placeholder="New value"></label>`
       : `<div class="goal-upd"><span>${esc(g.title)} <small class="muted">tracked automatically</small></span><b>${esc(fmtVal(g, current(g)))}</b></div>`).join('')}</div></div>` : ''}
-    ${WEEKLY_Q.map((q, i) => qa('w' + i, q, answerOf(e, q))).join('')}
+    ${(customQ('weekly').length ? customQ('weekly') : WEEKLY_Q).map((q, i) => qa('w' + i, q, answerOf(e, q))).join('')}
     ${e ? '' : checkbox('addPriority', 'Add next week\'s top priority to my to-dos for Monday', true)}
     ${qa('w9', 'Anything else on your mind?', answerOf(e, 'Anything else on your mind?'))}`;
 }
@@ -175,13 +181,13 @@ function saveCheckin(kind, e, date, d, form) {
       if (c.checked && !t.done) completeTask(t);
       else if (!c.checked && !t.done && d.rollover) { t.due = addDays(date, 1); t.focus = ''; }
     });
-    if ($$('input[name=habit]', form).length) S.habitLog[date] = $$('input[name=habit]:checked', form).map(c => c.value);
+    $$('input[name=habit]', form).forEach(c => { const h = S.habits.find(x => x.id === c.value); if (h && c.checked !== habits.isDone(h, date)) habits.setCount(h, date, c.checked ? habits.target(h) : 0); });
   }
   if (kind === 'weekly') {
     rec.week = rec.week || reviewWeek() || weekStart(today());
     Object.assign(rec, { notes });
     $$('input[data-goal]', form).forEach(inp => { const g = S.goals.find(x => x.id === inp.dataset.goal); if (g && inp.value.trim() !== '') logGoal(g, num(inp.value)); });
-    const pri = notes.find(n => n.q === "Next week's top priority");
+    const pri = notes.find(n => /priority/i.test(n.q));
     if (!e && d.addPriority && pri) {
       const mon = addDays(rec.week, 7);
       S.tasks.push({ id: uid(), title: pri.a, due: mon < today() ? today() : mon, cat: 'personal', jobId: '', done: false, focus: '', repeat: '', notes: 'From your weekly review' });
@@ -233,8 +239,8 @@ export function insights() {
   say(compare(energy, d => trainedOn(addDays(d, -1)), 'the morning after a workout', 'otherwise'), 'Energy');
   say(compare(energy, d => sleep[d] >= 7, 'after 7+ hours of sleep', 'after less'), 'Energy');
   say(compare(mood, d => hoursOn(d) > 9, 'on days you work more than 9 hours', 'on shorter days'), 'Mood');
-  const habitDays = d => (S.habitLog[d] || []).length >= Math.max(1, Math.ceil(S.habits.length * 0.66));
-  if (S.habits.length) say(compare(mood, habitDays, 'on days you hit most of your habits', 'on other days'), 'Mood');
+  const habitDays = d => { const hs = habits.active().filter(h => habits.scheduledOn(h, d)); return hs.length > 0 && hs.filter(h => habits.isDone(h, d)).length >= Math.ceil(hs.length * 0.66); };
+  if (habits.active().length) say(compare(mood, habitDays, 'on days you hit most of your habits', 'on other days'), 'Mood');
   return out;
 }
 function lowStretch() {

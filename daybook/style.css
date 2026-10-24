@@ -1,3 +1,4 @@
+@charset "utf-8";
 /* Daybook. Layout: one phone-width column, sticky stamped date header, bottom tab bar; panels only where rows group. */
 :root {
   --bg: #eef1f5;
@@ -518,3 +519,55 @@ fieldset.scale-field legend { padding: 0; margin-bottom: 6px; font-size: 13px; f
 .day-pick { display: flex; flex-wrap: wrap; gap: 6px; }
 .day-pick .chip-check span { height: 34px; padding: 0 11px; }
 .row.ev.gym .row-title::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--good); margin-right: 7px; vertical-align: 2px; }
+
+/* ---------- round 4: header ask button, quick-add preview, habits, chat, layout editor ---------- */
+.top-in { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
+.top-titles { display: flex; flex-direction: column; min-width: 0; }
+.ask-top { flex: none; color: var(--accent); border-color: var(--accent); }
+.ask-top .i { width: 16px; height: 16px; }
+body.synced #page-eyebrow::after { content: " \00B7  synced"; color: var(--good); }
+body.has-sheet #toasts { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+.quick-add { display: flex; flex-direction: column; gap: 4px; }
+.qa-preview { font-size: 12.5px; color: var(--muted); min-height: 0; display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.qa-preview:empty { display: none; }
+.qa-preview .i { color: var(--accent); }
+.ask-bar { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--accent); border-radius: var(--r); padding: 6px 6px 6px 12px; }
+.ask-bar > .i { color: var(--accent); }
+.ask-bar input { border: 0 !important; background: transparent !important; flex: 1; min-width: 0; padding-inline: 2px !important; }
+.ask-bar input:focus { outline: none; }
+.center-row { justify-content: center; }
+.habit-chip .count { font-variant-numeric: tabular-nums; font-weight: 800; }
+.habit-chip.risk { border-color: var(--warn); }
+.risk-tag { color: var(--warn) !important; font-weight: 700; }
+.habit-list { display: flex; flex-direction: column; gap: 8px; }
+.habit-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+.habit-card.risk { border-color: var(--warn); }
+.habit-card header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.habit-card .hg-name { font-size: 15.5px; }
+.habit-streak { font: 700 22px/1 var(--display); color: var(--accent); display: flex; align-items: baseline; gap: 3px; }
+.habit-streak small { font: 600 11px var(--body); color: var(--muted); }
+.hc-days { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.hc-days .hg-cell { width: 36px; height: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; color: var(--muted); }
+.hc-days .hg-cell small { font-size: 10px; font-weight: 700; line-height: 1; }
+.hc-days .hg-cell.on { color: var(--accent-fg); }
+.hc-days .hg-cell.on small { color: inherit; opacity: .85; }
+.hc-days .hg-cell.part { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.hc-days .hg-cell.part b { font-size: 12px; }
+.hc-days .hg-cell.is-today { box-shadow: 0 0 0 2px var(--accent-soft); }
+.hc-days .hg-cell.off { border-style: dashed; background: transparent; opacity: .5; cursor: default; }
+.hc-rate { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; font: 700 17px/1 var(--display); font-variant-numeric: tabular-nums; }
+.hc-rate small { font: 600 10.5px var(--body); color: var(--muted); }
+.risk-note { font-size: 12.5px; color: var(--warn); font-weight: 600; }
+.layout-rows { display: flex; flex-direction: column; margin: 8px 0; }
+.layout-row { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-top: 1px solid var(--line); }
+.sheet.chat { height: min(86dvh, 760px); }
+.sheet.chat .sheet-body { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; }
+.chat-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; min-height: 120px; }
+.msg { display: flex; }
+.msg.user { justify-content: flex-end; }
+.msg .bubble { max-width: 86%; padding: 9px 12px; border-radius: 14px; white-space: pre-wrap; font-size: 14.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.msg.user .bubble { background: var(--accent); color: var(--accent-fg); border-bottom-right-radius: 4px; }
+.msg.assistant .bubble { background: var(--surface-2); border-bottom-left-radius: 4px; }
+.bubble.thinking { color: var(--muted); font-style: italic; }
+.chat-form { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--line); padding-top: 10px; }
+.chat-form .row-actions { margin-top: 4px; }

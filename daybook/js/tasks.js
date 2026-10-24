@@ -29,6 +29,12 @@ export function nextDue(due, repeat, days = []) {
 export const repeatText = t => t.repeat === 'days' ? `every ${daysLabel(t.repeatDays)}` : (REPEAT_LABEL[t.repeat] || '').toLowerCase();
 // First matching weekday on or after a date (for a new "certain weekdays" task).
 export const firstOn = (days, from = today()) => { let d = from; for (let i = 0; i < 7 && !days.includes(parseDate(d).getDay()); i++) d = addDays(d, 1); return d; };
+// Categories are yours to rename and extend (More → To-do categories); keys are stable slugs.
+export const DEFAULT_CATS = 'Work, Personal, Home, Errand, Health';
+export const slug = l => String(l).trim().toLowerCase().replace(/[^\p{L}\d]+/gu, '-').replace(/^-|-$/g, '');
+export const cats = () => [...new Map(String(S.settings.cats || DEFAULT_CATS).split(',').map(x => x.trim()).filter(Boolean).map(l => [slug(l), l])).entries()];
+export const catLabel = k => cats().find(c => c[0] === k)?.[1] || (k ? k[0].toUpperCase() + k.slice(1) : 'Personal');
+export function addCat(label) { if (!cats().some(c => c[0] === slug(label))) S.settings.cats = `${S.settings.cats || DEFAULT_CATS}, ${label[0].toUpperCase()}${label.slice(1)}`; }
 export const isFocus = t => !t.done && t.focus === today();
 export const focusTasks = () => S.tasks.filter(isFocus);
 

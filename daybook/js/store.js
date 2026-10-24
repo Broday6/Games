@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS = {
   invNote: 'Thank you for your business.', payNote: '',
   units: 'lb', bar: '45', plates: '45, 35, 25, 10, 5, 2.5', rest: '120', setTarget: '12', age: '',
   checkins: 'on', amTime: '07:00', pmTime: '20:30', reviewDay: '0',
+  cats: 'Work, Personal, Home, Errand, Health', ciScales: 'sleep,energy,mood,stress', ciMorningQ: '', ciEveningQ: '', ciWeeklyQ: '', todayLayout: '',
 };
 
 export function fresh() {
@@ -19,7 +20,7 @@ export function fresh() {
     v: 1, created: Date.now(), welcomed: false, sample: false,
     settings: { ...DEFAULT_SETTINGS },
     clients: [], jobs: [], events: [], time: [], timer: null, expenses: [], invoices: [],
-    tasks: [], checkins: [], goals: [], habits: HABITS.map(name => ({ id: uid() + name.length, name })), habitLog: {},
+    tasks: [], checkins: [], goals: [], habits: HABITS.map(h => ({ id: uid() + h.name.length, ...h })), habitLog: {}, habitCount: {},
     exercises: EXERCISES.map(e => ({ ...e })), templates: TEMPLATES.map(t => ({ ...t, items: t.items.map(i => ({ ...i })) })),
     workouts: [], active: null, body: [], ui: {},
   };
@@ -48,7 +49,10 @@ export function load() {
   try { navigator.storage?.persist?.(); } catch { /* optional */ }
 }
 
-export function save() {
+// Other modules (sync) hook in after each save.
+export const hooks = { afterSave: null };
+export function save({ quiet = false } = {}) {
+  if (!quiet) hooks.afterSave?.();
   try { localStorage.setItem(KEY, JSON.stringify(S)); storage.ok = true; }
   catch {
     storage.ok = false;

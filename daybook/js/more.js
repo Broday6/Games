@@ -1,6 +1,9 @@
 // More: settings, backup/restore, install help and storage status.
 import { esc, acts, chg, icon, toast, today, download, copyText, confirmSheet, sheet, setCurrency, num } from './util.js';
 import { S, commit, save, storage, exportJSON, importJSON, replaceState, fresh } from './store.js';
+import { status as sync } from './sync.js';
+import { available as askAvailable } from './assistant.js';
+import { DEFAULT_Q, customQ } from './checkin.js';
 
 const f = (k, label, hint = '', attrs = '') => `<label class="field"><span class="lbl">${esc(label)}</span><input id="set-${k}" data-chg="setting" data-k="${k}" value="${esc(S.settings[k])}" ${attrs}>${hint ? `<small>${hint}</small>` : ''}</label>`;
 const sel = (k, label, opts) => `<label class="field"><span class="lbl">${esc(label)}</span><select id="set-${k}" data-chg="setting" data-k="${k}">${opts.map(([v, l]) => `<option value="${esc(v)}"${String(S.settings[k]) === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
@@ -51,10 +54,18 @@ export function view() {
       ${sel('checkins', 'Ask me how I am doing', [['on', 'Yes, show check-ins on Today'], ['off', 'No, only when I open them']])}
       <div class="grid3">${f('amTime', 'Morning', '', 'type="time"')}${f('pmTime', 'Evening', '', 'type="time"')}${sel('reviewDay', 'Weekly review', [['0', 'Sunday'], ['1', 'Monday'], ['5', 'Friday'], ['6', 'Saturday']])}</div>
       <p class="muted small">The app cannot buzz your phone on its own while closed. Add the reminders to your phone's calendar and it will ping you at these times with a link back here.</p>
-      <div><button type="button" class="btn" data-act="checkin-reminders">${icon('cal')} Add reminders to my calendar</button></div></div></section>
+      <div><button type="button" class="btn" data-act="checkin-reminders">${icon('cal')} Add reminders to my calendar</button></div>
+      <div class="field"><span class="lbl">What to ask</span><div class="chips">${[['sleep', 'Sleep'], ['energy', 'Energy'], ['mood', 'Mood'], ['stress', 'Stress']].map(([k, l]) => `<label class="chip-check"><input type="checkbox" data-scale="${k}"${String(S.settings.ciScales ?? '').split(',').includes(k) ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div></div>
+      <div><button type="button" class="btn ghost" data-act="ci-questions">${icon('edit')} Write my own questions</button>
+        <span class="muted small">${['morning', 'evening', 'weekly'].some(k => customQ(k).length) ? 'Using your questions' : 'Using Daybook\'s rotating questions'}</span></div></div></section>
+    <section class="group"><header class="group-head"><h3>To-dos and Today</h3></header><div class="panel pad form">
+      ${f('cats', 'To-do categories', 'Comma separated. Rename or add your own, like Church or Family. In quick add, type #home to file a to-do.')}
+      <div><button type="button" class="btn ghost" data-act="today-layout">${icon('more')} Customize Today</button></div></div></section>
     <section class="group"><header class="group-head"><h3>Install on your phone</h3></header><div class="panel pad">${installHelp()}</div></section>
-    <section class="group"><header class="group-head"><h3>Your data</h3></header><div class="panel pad">
-      <p class="muted small">${counts}. Stored only in this browser on this device${storage.ok ? '' : ' <b class="bad-text">(saving is blocked here: export a backup now)</b>'}. Export a backup regularly and before switching phones.</p>
+    <section class="group"><header class="group-head"><h3>Your data</h3>${sync.state === 'on' ? '<span class="pill good">Synced</span>' : ''}</header><div class="panel pad">
+      <p class="muted small">${counts}. ${sync.state === 'on'
+        ? `Saved to your Claude account, so it is the same on your phone and computer, and Claude can read and update it when you ask in a chat.${askAvailable() ? ' Use Ask Claude at the top to make changes by talking.' : ''}`
+        : sync.state === 'connecting' ? 'Connecting to your Claude account…' : `Stored only in this browser on this device${storage.ok ? '' : ' <b class="bad-text">(saving is blocked here: export a backup now)</b>'}.`} Export a backup now and then.</p>
       <div class="row-actions wrap"><button type="button" class="btn" data-act="backup">${icon('download')} Download backup</button><button type="button" class="btn ghost" data-act="backup-copy">${icon('copy')} Copy backup</button>
       <label class="btn ghost file-btn">${icon('upload')} Restore from file<input type="file" id="restore-file" accept=".json,application/json" data-chg="restore"></label>
       <button type="button" class="btn ghost" data-act="restore-paste">Paste a backup</button></div>
@@ -63,6 +74,27 @@ export function view() {
     <p class="muted small center">Daybook · works offline · no account, no tracking</p>`;
 }
 
+document.addEventListener('change', e => {
+  const k = e.target.dataset?.scale;
+  if (!k) return;
+  const on = [...document.querySelectorAll('[data-scale]')].filter(x => x.checked).map(x => x.dataset.scale);
+  S.settings.ciScales = on.join(',');
+  commit();
+  toast('Saved', { ms: 1200 });
+});
+acts['ci-questions'] = () => {
+  const box = (k, key, label) => `<label class="field"><span class="lbl">${label}</span><textarea id="ciq-${k}" rows="4" data-q-key="${key}" placeholder="${esc(DEFAULT_Q[k].slice(0, 3).join('\n'))}">${esc(S.settings[key] || '')}</textarea></label>`;
+  const s = sheet({
+    title: 'Check-in questions',
+    body: `<p class="muted small">One question per line. Leave a box empty to use Daybook's rotating questions for that check-in. Good questions are short and about something you can act on.</p>
+      <div class="form">${box('morning', 'ciMorningQ', 'Morning')}${box('evening', 'ciEveningQ', 'Evening')}${box('weekly', 'ciWeeklyQ', 'Weekly review')}</div>
+      <div class="row-actions end"><button type="button" class="btn ghost" data-close>Cancel</button><button type="button" class="btn primary" data-save>Save</button></div>`,
+  });
+  s.el.querySelector('[data-save]').onclick = () => {
+    s.el.querySelectorAll('[data-q-key]').forEach(t => { S.settings[t.dataset.qKey] = t.value.split('\n').map(x => x.trim()).filter(Boolean).join('\n'); });
+    s.close(); commit(); toast('Questions saved');
+  };
+};
 acts.backup = () => { download(`daybook-backup-${today()}.json`, exportJSON(), 'application/json'); S.ui.lastBackup = today(); save(); };
 acts['backup-copy'] = () => copyText(exportJSON(), 'Backup copied. Paste it into a note or email to yourself.');
 chg.restore = el => {

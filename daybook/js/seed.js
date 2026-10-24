@@ -51,7 +51,11 @@ export const TEMPLATES = [
   T('t_lower', 'Lower', [['squat', 3, 5, 8], ['rdl', 3, 8, 10], ['split_squat', 3, 8, 10], ['leg_curl', 3, 10, 12], ['calf_raise', 3, 12, 15], ['hanging_raise', 3, 10, 15]]),
 ];
 
-export const HABITS = ['Drink 3 L water', '7+ hours sleep', 'Hit protein target'];
+export const HABITS = [
+  { name: 'Drink water', when: 'anytime', target: 8, unit: 'glasses', cue: 'Every time I get back in the truck' },
+  { name: 'Plan tomorrow (2 minutes)', when: 'evening', cue: 'Before I leave the last job site' },
+  { name: 'Hit protein target', when: 'anytime' },
+];
 
 // Sample data so the app can be explored before entering anything real. Everything is relative to today.
 export function sampleData(S) {
