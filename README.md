@@ -33,13 +33,28 @@ On iPhone: Safari → Share → *Add to Home Screen*. On Android: Chrome menu �
 - Progress charts per lift, weekly hard sets per muscle group, body-weight log with a 7-day average, and tools:
   plate calculator, 1RM percentages, warm-up sets, RPE guide.
 
-**Life** — to-dos (with due dates, categories, linked jobs) and daily habits with streaks.
+**Life**
+- **Check-ins that ask how you're doing.** Morning: sleep, energy, mood, and pick up to three things to focus on
+  today, with your schedule and due to-dos shown for context. Evening: mood, stress, check off your focus items
+  (unfinished ones roll to tomorrow), habits, win of the day, and a rotating reflection question. Weekly review:
+  the week in numbers (hours, money collected, workouts, to-dos done, average mood and sleep), a goal check that
+  asks for your latest numbers, and four reflection questions. Today shows whichever check-in is due.
+- **Reminders**: *More → Check-ins → Add reminders to my calendar* puts daily and weekly prompts in your phone's
+  calendar with a link back to the app.
+- **Patterns**: 30-day mood, energy and sleep charts, week-over-week changes, and comparisons such as mood on
+  training days vs rest days, energy after 7+ hours of sleep, long workdays, and habit days.
+- **To-dos**: due dates, categories, linked jobs, notes, a star for today's focus, quick snooze, and repeats
+  (daily, weekdays, weekly, every 2 weeks, monthly, quarterly for estimated taxes, yearly).
+- **Goals** with progress bars and pace (on track / behind). Track by hand, or automatically from body weight,
+  workouts logged, money collected or hours worked.
+- **Habits** with a 7-day grid and streaks, and a searchable **journal** of every check-in (exportable as Markdown).
 
 **Your data** stays in your browser on your device; there is no account or server. Use *More → Download backup*
 regularly and to move to a new phone (*Restore from file*). First launch offers sample data to explore.
 
 Source: [`daybook/`](daybook/) — vanilla JS modules, no build step, no dependencies. `js/work.js` (contracting),
-`js/gym.js` (training), `js/life.js`, `js/today.js`, `js/more.js` (settings, backup), `js/store.js` (state),
+`js/gym.js` (training), `js/life.js` + `js/tasks.js` (to-dos, habits), `js/checkin.js` (check-ins, patterns, journal),
+`js/goals.js`, `js/today.js`, `js/more.js` (settings, backup), `js/store.js` (state),
 `sw.js` (offline cache).
 
 ## DRIFTWOOD — a co-op survival roguelike (browser, 1–4 players)

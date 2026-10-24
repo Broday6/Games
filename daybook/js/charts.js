@@ -1,7 +1,7 @@
 // Small SVG line chart drawn to scale: time on x (dates), value on y, faint grid, area fill, emphasized last point.
 import { esc, parseDate, fmtShort } from './util.js';
 
-export function lineChart(points, { fmt = v => String(Math.round(v)), avg = null, h = 180 } = {}) {
+export function lineChart(points, { fmt = v => String(Math.round(v)), avg = null, h = 180, yMin = null, yMax = null, yStep = 0 } = {}) {
   if (points.length < 2) return '<p class="muted small chart-empty">Log this at least twice to see a trend.</p>';
   const W = 600, H = h, L = 44, R = 64, T = 14, B = 26;
   const xs = points.map(p => parseDate(p.x).getTime());
@@ -10,9 +10,9 @@ export function lineChart(points, { fmt = v => String(Math.round(v)), avg = null
   if (x1 === x0) x1 = x0 + 864e5;
   let lo = Math.min(...ys), hi = Math.max(...ys);
   const span = hi - lo || Math.max(1, Math.abs(hi) * 0.05);
-  const step = niceStep(span / 2);
-  lo = Math.floor((lo - span * 0.08) / step) * step;
-  hi = Math.ceil((hi + span * 0.08) / step) * step;
+  const step = yStep || niceStep(span / 2);
+  lo = yMin ?? Math.floor((lo - span * 0.08) / step) * step;
+  hi = yMax ?? Math.ceil((hi + span * 0.08) / step) * step;
   const sx = t => L + (t - x0) / (x1 - x0) * (W - L - R);
   const sy = v => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
   const ticks = [];

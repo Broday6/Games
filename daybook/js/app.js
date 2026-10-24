@@ -6,6 +6,7 @@ import * as work from './work.js';
 import * as gym from './gym.js';
 import * as life from './life.js';
 import * as more from './more.js';
+import './checkin.js';
 
 const TABS = [
   ['today', 'Today', today],

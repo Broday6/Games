@@ -102,12 +102,15 @@ export function sampleData(S) {
   ];
   S.settings.nextInv = 1002;
   S.tasks = [
-    { id: uid(), title: 'Order grout: Bright White, unsanded', due: t, cat: 'work', done: false, jobId: j1 },
+    { id: uid(), title: 'Order grout: Bright White, unsanded', due: t, cat: 'work', done: false, jobId: j1, focus: t },
+    { id: uid(), title: 'Book truck inspection', due: d(3), cat: 'personal', done: false, jobId: '', focus: t },
+    { id: uid(), title: 'Call Mom', due: d(1), cat: 'personal', done: false, jobId: '', repeat: 'weekly' },
+    { id: uid(), title: 'Truck insurance payment', due: d(6), cat: 'personal', done: false, jobId: '', repeat: 'monthly', notes: 'Autopay is off. Pay through the app.' },
     { id: uid(), title: 'Call Dunmore about Unit 4B keys', due: d(1), cat: 'work', done: false, jobId: j2 },
     { id: uid(), title: 'Send vanity quote to the Whitfields', due: d(2), cat: 'work', done: false, jobId: j4 },
     { id: uid(), title: 'Renew general liability insurance', due: d(11), cat: 'work', done: false, jobId: '' },
     { id: uid(), title: 'Truck oil change', due: d(-1), cat: 'personal', done: false, jobId: '' },
-    { id: uid(), title: 'Pay quarterly estimated taxes', due: d(-5), cat: 'personal', done: true, jobId: '', doneAt: Date.now() - 4e8 },
+    { id: uid(), title: 'Pay quarterly estimated taxes', due: d(-5), cat: 'personal', done: true, jobId: '', doneAt: Date.now() - 4e8, repeat: 'quarterly' },
   ];
   S.habitLog = {};
   for (let i = 1; i <= 6; i++) S.habitLog[d(-i)] = S.habits.filter((h, k) => (i + k) % 3 !== 0).map(h => h.id);
@@ -131,6 +134,35 @@ export function sampleData(S) {
     return { id: uid() + k, name: tpl.name, templateId: tid, date: d(day), start, end: start + (58 + k % 3 * 6) * 60000, items, hr: k > 5 ? { sum: 128 * 900, n: 900, max: 168 } : null, notes: '' };
   });
   S.body = Array.from({ length: 15 }, (_, i) => ({ date: d(-28 + i * 2), weight: String(Math.round((193 - i * 0.28 + ((i * 7) % 5 - 2) * 0.35) * 10) / 10) }));
+  // Two weeks of check-ins. Mood and energy run a little higher around workouts and good sleep.
+  const trained = new Set(S.workouts.map(w => w.date));
+  const wins = ['Finished the herringbone without a bad cut', 'Got paid by Dunmore', 'Hit every set on squats', 'Home in time for dinner', 'Quote sent before lunch', 'Deck walkthrough went great'];
+  const blockers = ['Supply house was out of thinset', 'Too much driving between jobs', 'Phone calls all afternoon', 'Rain pushed the deck work', 'Slept badly'];
+  S.checkins = [];
+  for (let i = 14; i >= 1; i--) {
+    const day = d(-i);
+    const r = ((i * 37) % 11) / 10;
+    const sleep = Math.round((6.2 + r * 1.8 + (trained.has(d(-i - 1)) ? 0.4 : 0)) * 2) / 2;
+    const energy = Math.max(1, Math.min(5, Math.round(2 + sleep / 3.2 + (trained.has(d(-i - 1)) ? 0.6 : 0) - 0.3)));
+    const mood = Math.max(1, Math.min(5, Math.round(2.4 + r + (trained.has(day) ? 1 : 0))));
+    S.checkins.push({ id: uid() + 'm' + i, kind: 'morning', date: day, ts: tsOf(day, '06:4' + (i % 10)), sleep, energy, mood: Math.max(1, mood - (r > .6 ? 1 : 0)),
+      notes: i % 3 === 0 ? [{ q: 'What would make today a win?', a: 'Get the field tile done and leave by 4.' }] : [] });
+    S.checkins.push({ id: uid() + 'e' + i, kind: 'evening', date: day, ts: tsOf(day, '21:1' + (i % 10)), mood, stress: Math.max(1, Math.min(5, 5 - mood + (i % 2))),
+      notes: [{ q: 'Win of the day', a: wins[i % wins.length] }, ...(i % 2 ? [{ q: 'What got in the way today?', a: blockers[i % blockers.length] }] : [])] });
+  }
+  let sun = d(-1); while (new Date(sun + 'T12:00').getDay() !== 0) sun = addDays(sun, -1);
+  const mon = addDays(sun, -6);
+  S.checkins.push({ id: uid() + 'w', kind: 'weekly', date: sun, week: mon, ts: tsOf(sun, '18:20'), notes: [
+    { q: 'Biggest win this week', a: 'Whitfield deck invoice sent and three solid workouts.' },
+    { q: 'What drained you this week?', a: 'Chasing materials. Order everything for a job in one trip.' },
+    { q: "Next week's top priority", a: 'Finish the Ortega kitchen on time' }] });
+  S.goals = [
+    { id: uid() + 'g1', title: 'Emergency fund', kind: 'manual', start: '1200', target: '5000', unit: '$', due: d(68), created: d(-40), done: false,
+      log: [{ date: d(-33), value: '1650', note: '' }, { date: d(-26), value: '2100', note: 'Bifold job paid' }, { date: d(-12), value: '2400', note: '' }, { date: mon, value: '2650', note: '' }] },
+    { id: uid() + 'g2', title: 'Get to 185 lb', kind: 'bodyweight', start: '193', target: '185', unit: 'lb', due: d(60), created: d(-28), done: false, log: [] },
+    { id: uid() + 'g3', title: 'Train 36 times before New Year', kind: 'workouts', start: '0', target: '36', unit: 'workouts', due: d(68), created: d(-21), done: false, log: [] },
+    { id: uid() + 'g4', title: 'Read 6 books', kind: 'manual', start: '0', target: '6', unit: 'books', due: d(160), created: d(-50), done: false, log: [{ date: d(-20), value: '1', note: 'Atomic Habits' }] },
+  ];
   S.sample = true;
   S.welcomed = true;
 }

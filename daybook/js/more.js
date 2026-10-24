@@ -30,7 +30,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferr
 acts.install = async () => { if (!deferredPrompt) return; deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt = null; commit(); };
 
 export function view() {
-  const counts = `${S.jobs.length} jobs · ${S.time.length} time entries · ${S.invoices.length} invoices · ${S.workouts.length} workouts`;
+  const counts = `${S.jobs.length} jobs · ${S.time.length} time entries · ${S.invoices.length} invoices · ${S.workouts.length} workouts · ${S.checkins.length} check-ins · ${S.goals.length} goals`;
   return `<section class="group"><header class="group-head"><h3>You and your business</h3></header><div class="panel pad form">
       <div class="grid2">${f('name', 'Your name')}${f('biz', 'Business name', 'Shown at the top of invoices.')}</div>
       ${f('bizAddr', 'Business address')}
@@ -47,6 +47,11 @@ export function view() {
       ${f('plates', 'Plates you have (per pair)', 'Comma separated. Used by the plate calculator.')}
       <div class="grid2">${f('rest', 'Rest timer (seconds)', 'Big lifts use their own longer rest. 0 turns the timer off.', 'inputmode="numeric"')}${f('setTarget', 'Weekly hard sets per muscle', '10–20 is the usual range for growth.', 'inputmode="numeric"')}</div>
       ${f('age', 'Age (for heart-rate zones)', '', 'inputmode="numeric"')}</div></section>
+    <section class="group"><header class="group-head"><h3>Check-ins</h3></header><div class="panel pad form">
+      ${sel('checkins', 'Ask me how I am doing', [['on', 'Yes, show check-ins on Today'], ['off', 'No, only when I open them']])}
+      <div class="grid3">${f('amTime', 'Morning', '', 'type="time"')}${f('pmTime', 'Evening', '', 'type="time"')}${sel('reviewDay', 'Weekly review', [['0', 'Sunday'], ['1', 'Monday'], ['5', 'Friday'], ['6', 'Saturday']])}</div>
+      <p class="muted small">The app cannot buzz your phone on its own while closed. Add the reminders to your phone's calendar and it will ping you at these times with a link back here.</p>
+      <div><button type="button" class="btn" data-act="checkin-reminders">${icon('cal')} Add reminders to my calendar</button></div></div></section>
     <section class="group"><header class="group-head"><h3>Install on your phone</h3></header><div class="panel pad">${installHelp()}</div></section>
     <section class="group"><header class="group-head"><h3>Your data</h3></header><div class="panel pad">
       <p class="muted small">${counts}. Stored only in this browser on this device${storage.ok ? '' : ' <b class="bad-text">(saving is blocked here: export a backup now)</b>'}. Export a backup regularly and before switching phones.</p>

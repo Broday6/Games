@@ -11,6 +11,7 @@ export const DEFAULT_SETTINGS = {
   rate: '75', mileRate: '0.70', taxPct: '25', markupPct: '0', terms: '14', nextInv: 1001,
   invNote: 'Thank you for your business.', payNote: '',
   units: 'lb', bar: '45', plates: '45, 35, 25, 10, 5, 2.5', rest: '120', setTarget: '12', age: '',
+  checkins: 'on', amTime: '07:00', pmTime: '20:30', reviewDay: '0',
 };
 
 export function fresh() {
@@ -18,7 +19,7 @@ export function fresh() {
     v: 1, created: Date.now(), welcomed: false, sample: false,
     settings: { ...DEFAULT_SETTINGS },
     clients: [], jobs: [], events: [], time: [], timer: null, expenses: [], invoices: [],
-    tasks: [], habits: HABITS.map(name => ({ id: uid() + name.length, name })), habitLog: {},
+    tasks: [], checkins: [], goals: [], habits: HABITS.map(name => ({ id: uid() + name.length, name })), habitLog: {},
     exercises: EXERCISES.map(e => ({ ...e })), templates: TEMPLATES.map(t => ({ ...t, items: t.items.map(i => ({ ...i })) })),
     workouts: [], active: null, body: [], ui: {},
   };

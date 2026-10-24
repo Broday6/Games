@@ -40,6 +40,13 @@ export const weekStart = s => { const d = parseDate(s); d.setDate(d.getDate() - 
 export const daysBetween = (a, b) => Math.round((parseDate(b) - parseDate(a)) / 864e5);
 export const monthKey = s => String(s).slice(0, 7);
 export const addMonths = (key, n) => { const [y, m] = key.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
+export const addMonthsISO = (s, n) => {
+  const d = parseDate(s); const day = d.getDate();
+  d.setDate(1); d.setMonth(d.getMonth() + n);
+  d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+  return iso(d);
+};
+export const avg = arr => { const v = arr.filter(x => Number.isFinite(x) && x > 0); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
 export const fmtMonth = key => parseDate(key + '-01').toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 export const fmtDate = (s, o = { weekday: 'short', month: 'short', day: 'numeric' }) => s ? parseDate(s).toLocaleDateString(undefined, o) : '';
 export const fmtShort = s => fmtDate(s, { month: 'short', day: 'numeric' });
@@ -108,6 +115,11 @@ const P = {
   bolt: 'M13 3L5 13.5h6L10 21l8-10.5h-6z',
   scale: 'M5 20h14l-1.5-12h-11zM9.5 8a2.5 2.5 0 0 1 5 0M12 11.5l1.5 3',
   repeat: 'M17 2.5l3 3-3 3M4 11.5v-1a5 5 0 0 1 5-5h11M7 21.5l-3-3 3-3M20 12.5v1a5 5 0 0 1-5 5H4',
+  star: 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z',
+  sun: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2.5v2M12 19.5v2M4.6 4.6L6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4',
+  moon: 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z',
+  flag: 'M5.5 21V4M5.5 4.5h11.5l-2.2 4.2 2.2 4.3H5.5',
+  book: 'M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5zM20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z',
 };
 export const icon = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${P[name] || ''}"/></svg>`;
 
