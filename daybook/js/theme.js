@@ -61,16 +61,60 @@ export const THEMES = [
       pal('#000000', '#0b0b0b', '#1d1d1d', '#000000', '#bdbdbd', '#ffffff', '#d4d4d4', '#ffd400', '#000000', '#3a3200', '#5dff9a', '#0f3320', '#ffb340', '#3a2600', '#ff6b6b', '#3d1010', '#9cc8ff', '#102a44', '#0b0b0b')),
   },
 ];
-export const theme = () => THEMES.find(t => t.id === S.settings?.skin) || THEMES[0];
+const baseTheme = () => THEMES.find(t => t.id === S.settings?.skin) || THEMES[0];
+
+// ---------- your edits on top of a theme ----------
+export const DISPLAY_FONTS = [
+  ['Barlow Condensed', 'Barlow+Condensed:wght@600;700', 700, '"Arial Narrow", sans-serif'], ['Oswald', 'Oswald:wght@500;600;700', 600, '"Arial Narrow", sans-serif'],
+  ['Bebas Neue', 'Bebas+Neue', 400, 'Impact, sans-serif'], ['Anton', 'Anton', 400, 'Impact, sans-serif'], ['Archivo Black', 'Archivo+Black', 400, '"Arial Black", sans-serif'],
+  ['Chakra Petch', 'Chakra+Petch:wght@600;700', 700, 'sans-serif'], ['IBM Plex Mono', 'IBM+Plex+Mono:wght@600;700', 600, 'ui-monospace, monospace'],
+  ['Fraunces', 'Fraunces:opsz,wght@9..144,600;9..144,700', 600, 'Georgia, serif'], ['Playfair Display', 'Playfair+Display:wght@600;700', 700, 'Georgia, serif'],
+  ['Rubik', 'Rubik:wght@600;700;800', 700, 'sans-serif'], ['Sora', 'Sora:wght@600;700', 700, 'sans-serif'],
+];
+export const BODY_FONTS = [
+  ['Public Sans', 'Public+Sans:wght@400;500;600;700'], ['Inter', 'Inter:wght@400;500;600;700'], ['Manrope', 'Manrope:wght@400;500;600;700'],
+  ['Nunito Sans', 'Nunito+Sans:wght@400;600;700'], ['IBM Plex Sans', 'IBM+Plex+Sans:wght@400;500;600;700'], ['Atkinson Hyperlegible', 'Atkinson+Hyperlegible:wght@400;700'],
+  ['DM Sans', 'DM+Sans:wght@400;500;600;700'], ['Lexend', 'Lexend:wght@400;500;600;700'], ['Source Serif 4', 'Source+Serif+4:opsz,wght@8..60,400;8..60,600'],
+];
+export const ACCENTS = ['#1c58cf', '#0e7490', '#0f8a6a', '#3d7a58', '#5f8c1f', '#d4a017', '#e36414', '#cf2f36', '#c2185b', '#7b3fbf', '#334155', '#111827'];
+export const CORNERS = { sharp: [3, 2, 2], soft: [12, 10, 10], round: [20, 14, 999] };
+const hex = h => { const m = String(h).replace('#', '').match(/^([0-9a-f]{6})$/i); return m ? [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16)) : null; };
+const toHex = rgb => '#' + rgb.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
+const mix = (a, b, t) => toHex(hex(a).map((v, i) => v * (1 - t) + hex(b)[i] * t));
+const lum = h => { const c = hex(h).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+// Keep a picked accent readable as text on this theme's surface, in light and dark.
+function accentTokens(a, pal, dark) {
+  let acc = a;
+  for (let i = 0; i < 8 && contrast(acc, pal.surface) < 3.2; i++) acc = mix(acc, dark ? '#ffffff' : '#000000', 0.18);
+  return { accent: acc, 'accent-fg': contrast(acc, '#ffffff') >= 3 ? '#ffffff' : '#111111', 'accent-soft': mix(pal.surface, acc, dark ? 0.24 : 0.14) };
+}
+export const custom = () => S.settings?.custom || {};
+export const isCustomized = () => Object.values(custom()).some(Boolean);
+export function theme() {
+  const t = baseTheme(), cu = custom();
+  const out = { ...t };
+  const df = DISPLAY_FONTS.find(f => f[0] === cu.display);
+  if (df) Object.assign(out, { display: `"${df[0]}", ${df[3]}`, dw: df[2], gfx: [...(out.gfx || []), df[1]] });
+  const bf = BODY_FONTS.find(f => f[0] === cu.body);
+  if (bf) Object.assign(out, { body: `"${bf[0]}", system-ui, sans-serif`, gfx: [...(out.gfx || []), bf[1]] });
+  if (CORNERS[cu.corners]) [out.r, out.rs, out.btn] = CORNERS[cu.corners];
+  if (cu.cards) out.cards = cu.cards;
+  if (cu.headings) out.headings = cu.headings;
+  if (hex(cu.accent)) out.colors = { light: { ...t.colors.light, ...accentTokens(cu.accent, t.colors.light, false) }, dark: { ...t.colors.dark, ...accentTokens(cu.accent, t.colors.dark, true) } };
+  return out;
+}
 
 const fontLinks = new Set();
 export function loadFonts(t) {
-  if (fontLinks.has(t.id)) return;
-  fontLinks.add(t.id);
-  const l = document.createElement('link');
-  l.rel = 'stylesheet';
-  l.href = `https://fonts.googleapis.com/css2?${t.gf}&display=swap`;
-  document.head.appendChild(l);
+  for (const q of [t.gf, ...(t.gfx || []).map(f => 'family=' + f)]) {
+    if (!q || fontLinks.has(q)) continue;
+    fontLinks.add(q);
+    const l = document.createElement('link');
+    l.rel = 'stylesheet';
+    l.href = `https://fonts.googleapis.com/css2?${q}&display=swap`;
+    document.head.appendChild(l);
+  }
 }
 
 // The viewer (or the OS) decides light vs dark unless the person picked one in Appearance.
@@ -95,7 +139,7 @@ export function applyTheme() {
   const dark = wantsDark(t);
   const st = S.settings || {};
   const root = document.documentElement;
-  const key = [t.id, dark, st.text, st.density, st.nav].join('|');
+  const key = [t.id, dark, st.text, st.density, st.nav, JSON.stringify(custom())].join('|');
   if (key === last) return;
   last = key;
   loadFonts(t);

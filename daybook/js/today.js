@@ -10,6 +10,7 @@ import { promptCard } from './checkin.js';
 import { focusTasks, isFocus } from './tasks.js';
 import { timeline, unplannedCount } from './plan.js';
 import { followupsCard } from './people.js';
+import * as bills from './bills.js';
 import * as habits from './habits.js';
 import { workoutPlannedOn } from './gym.js';
 import * as fit from './fitness.js';
@@ -32,14 +33,15 @@ acts.sample = () => { sampleData(S); commit(); };
 acts['start-fresh'] = () => { S.welcomed = true; commit(); };
 acts['clear-sample'] = () => { const ui = S.ui; replaceState(fresh()); S.welcomed = true; S.ui = { ...ui, lastJob: '' }; commit(); };
 acts['go-fuel'] = () => { S.ui.gymTab = 'fuel'; if (location.hash === '#gym') commit(); else location.hash = 'gym'; };
-acts['go-life'] = el => { S.ui.lifeTab = el.dataset.v; location.hash = 'life'; };
+acts['go-life'] = el => { S.ui.lifeSec = el.dataset.v; if (location.hash === '#life') commit(); else location.hash = 'life'; };
 acts['go-work'] = el => { openWork(el.dataset.v); location.hash = 'work'; };
 
 // Today is yours to arrange: More → Customize Today, or the button at the bottom.
-export const SECTIONS = [['rings', 'Your day (rings)'], ['checkin', 'Check-in prompt'], ['ask', 'Ask Claude'], ['timer', 'Time clock'], ['schedule', 'Schedule'], ['people', 'Follow-ups'], ['focus', "Today's focus"], ['todo', 'To-do'], ['habits', 'Habits'], ['fuel', 'Food (calories and protein)'], ['gym', 'Fitness'], ['week', 'This week (work numbers)'], ['quick', 'Quick buttons']];
+export const SECTIONS = [['rings', 'Your day (rings)'], ['checkin', 'Check-in prompt'], ['ask', 'Ask Claude'], ['timer', 'Time clock'], ['schedule', 'Schedule'], ['people', 'Follow-ups'], ['bills', 'Bills due'], ['focus', "Today's focus"], ['todo', 'To-do'], ['habits', 'Habits'], ['fuel', 'Food (calories and protein)'], ['gym', 'Fitness'], ['week', 'This week (work numbers)'], ['quick', 'Quick buttons']];
 export function layout() {
   const saved = String(S.settings.todayLayout || '').split(',').filter(Boolean).map(x => x.split(':')).filter(([k]) => SECTIONS.some(s => s[0] === k));
-  const missing = SECTIONS.filter(([k]) => !saved.some(([x]) => x === k)).map(([k]) => [k, '1']);
+  // New sections show up on their own; the Ask bar starts hidden because the header has Ask Claude.
+  const missing = SECTIONS.filter(([k]) => !saved.some(([x]) => x === k)).map(([k]) => [k, k === 'ask' ? '0' : '1']);
   return [...saved, ...missing].map(([k, on]) => ({ k, on: on !== '0' }));
 }
 const saveLayout = l => { S.settings.todayLayout = l.map(x => `${x.k}:${x.on ? 1 : 0}`).join(','); };
@@ -100,6 +102,7 @@ export function view() {
     timer: () => (S.jobs.length || S.timer ? timerCard() : ''),
     rings: () => ringsCard(),
     people: () => followupsCard(),
+    bills: () => bills.todayCard(),
     schedule: () => {
       const tl = S.settings.schedView !== 'list';
       const want = unplannedCount();

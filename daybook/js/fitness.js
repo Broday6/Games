@@ -176,38 +176,86 @@ acts['cut-maintain'] = () => { const c = cut(); if (!c) return; c.pace = '0'; c.
 // ---------- setup ----------
 acts['cut-setup'] = () => cutForm(S.cut || {});
 acts['cut-end'] = () => undoable('Cut plan ended. Your logs are kept.', () => { S.cut = { ...S.cut, on: false, ended: today() }; });
+// Height as typed by people: 5'10", 5 10, 5ft 10in, 70 (inches) or 178 (cm).
+export function parseHeight(ft, inch) {
+  const raw = String(ft || '').trim();
+  if (kg()) return num(raw);
+  const m = raw.match(/^(\d)\s*(?:'|ft|feet|’|\s)\s*(\d{1,2}(?:\.\d)?)?/i);
+  if (m) return +m[1] * 12 + num(m[2] || inch);
+  const n = num(raw);
+  if (n > 0 && n < 9) return n * 12 + num(inch); // just feet in the first box
+  return n; // already inches
+}
+const LOOK = {
+  m: [['10', 'Lean', 'Abs clearly visible, veins on the arms'], ['13', 'Athletic', 'Outline of abs, defined shoulders and arms'], ['17', 'Fit', 'Some definition, a little softness at the waist'], ['22', 'Average', 'Soft midsection, no ab outline'], ['27', 'Above average', 'Belly sits out past the chest line'], ['33', 'Higher', 'Rounder all over']],
+  f: [['18', 'Lean', 'Abs visible, defined arms and legs'], ['22', 'Athletic', 'Some ab outline, toned'], ['26', 'Fit', 'Flat stomach, little definition'], ['30', 'Average', 'Soft hips and midsection'], ['35', 'Above average', 'Fuller midsection and hips'], ['40', 'Higher', 'Rounder all over']],
+};
 function cutForm(c) {
   const w = trendNow();
   const isNew = !c.on;
+  const ht = num(c.height);
+  const method = c.bfMethod || 'look';
+  const radio = (name, opts, cur) => `<div class="segs seg-radio" role="radiogroup">${opts.map(([v, l]) => `<label class="seg${v === cur ? ' on' : ''}"><input type="radio" name="${name}" value="${v}"${v === cur ? ' checked' : ''}>${l}</label>`).join('')}</div>`;
   formSheet({
     title: isNew ? 'Set up your cut' : 'Edit your plan',
-    fields: `<p class="muted small">This builds daily calorie, protein and step targets, then adjusts them from your weigh-ins and food log. It is general guidance, not medical advice; check with a doctor if you have a health condition.</p>
-      <div class="grid2">${field('Sex', select('sex', [['m', 'Male'], ['f', 'Female']], c.sex || 'm'), 'Used for the body-fat and calorie formulas.')}${field('Age', numInput('age', set('age') || ''))}</div>
-      <div class="grid2">${field(`Height (${kg() ? 'cm' : 'inches'})`, numInput('height', c.height || '', `placeholder="${kg() ? '178' : '70'}"`))}${field(`Weight now (${U()})`, numInput('weight', w ? Math.round(fromLb(w) * 10) / 10 : '', 'required'))}</div>
-      ${field('Body fat now (%)', numInput('bf', c.startBF || '', 'placeholder="If you know it"'), 'Or measure below and Daybook estimates it.')}
-      <div class="grid3">${field(`Waist at navel (${kg() ? 'cm' : 'in'})`, numInput('waist', ''))}${field(`Neck (${kg() ? 'cm' : 'in'})`, numInput('neck', ''))}${field(`Hips (${kg() ? 'cm' : 'in'})`, numInput('hip', ''), 'Women only')}</div>
+    fields: `<p class="muted small">Daybook turns this into daily calorie, protein and step targets, then adjusts them from your weigh-ins. General guidance, not medical advice.</p>
+      <h4 class="form-h">You</h4>
+      ${radio('sex', [['m', 'Male'], ['f', 'Female']], c.sex || 'm')}
+      <div class="grid3">${kg() ? field('Height (cm)', numInput('ft', ht || '', 'placeholder="178"')) : `${field('Height (ft)', numInput('ft', ht ? Math.floor(ht / 12) : '', 'placeholder="5"'))}${field('Inches', numInput('in', ht ? Math.round(ht % 12) : '', 'placeholder="10"'))}`}${field('Age', numInput('age', set('age') || '', 'placeholder="30"'))}</div>
+      ${field(`Weight now (${U()})`, numInput('weight', w ? Math.round(fromLb(w) * 10) / 10 : '', `placeholder="${kg() ? '86' : '190'}"`))}
+      <h4 class="form-h">Body fat now</h4>
+      ${radio('method', [['look', 'By look'], ['tape', 'Tape measure'], ['known', 'I know it']], method)}
+      <div data-m="look"><div class="look-list" data-look></div></div>
+      <div data-m="tape" hidden><div class="grid3">${field(`Waist at navel (${kg() ? 'cm' : 'in'})`, numInput('waist', ''))}${field(`Neck (${kg() ? 'cm' : 'in'})`, numInput('neck', ''))}<div data-hip>${field(`Hips (${kg() ? 'cm' : 'in'})`, numInput('hip', ''))}</div></div><p class="muted small">Measure in the morning, tape snug, not tight.</p></div>
+      <div data-m="known" hidden>${field('Body fat (%)', numInput('bf', c.startBF || '', 'placeholder="18"'))}</div>
+      <h4 class="form-h">Plan</h4>
       ${field('Your days', select('activity', ACTIVITY.map(a => [a[0], a[1]]), c.activity || 'active'))}
-      <div class="grid2">${field('Goal body fat (%)', numInput('goalBF', c.goalBF || ''), 'Lean and visibly defined: about 10–12% for men, 18–20% for women. Stage-shredded levels are not sustainable.')}${field('Pace', select('pace', PACES, String(c.pace || '0.75')))}</div>
-      ${field('Daily steps target', select('steps', [['7000', '7,000'], ['8000', '8,000'], ['10000', '10,000'], ['12000', '12,000']], String(c.steps || 10000)))}`,
+      <div class="grid2">${field('Goal body fat (%)', numInput('goalBF', c.goalBF || ''), 'Lean and defined: about 10–12% for men, 18–20% for women.')}${field('Pace', select('pace', PACES, String(c.pace || '0.75')))}</div>
+      ${field('Daily steps', select('steps', [['7000', '7,000'], ['8000', '8,000'], ['10000', '10,000'], ['12000', '12,000']], String(c.steps || 10000)))}`,
     del: isNew ? null : () => acts['cut-end'](),
-    onMount: el => { const sx = el.querySelector('[name=sex]'); const g = el.querySelector('[name=goalBF]'); const sync = () => { if (!g.value) g.placeholder = sx.value === 'f' ? '20' : '11'; }; sx.addEventListener('change', sync); sync(); },
-    onSubmit: d => {
+    onMount: el => {
+      const val = n => el.querySelector(`[name=${n}]:checked`)?.value;
+      const drawLook = () => {
+        const sex = val('sex') || 'm';
+        const cur = el.querySelector('[name=lookbf]:checked')?.value || (method === 'look' && c.startBF ? String(c.startBF) : '');
+        el.querySelector('[data-look]').innerHTML = LOOK[sex].map(([v, l, dsc]) => `<label class="look-opt"><input type="radio" name="lookbf" value="${v}"${v === cur ? ' checked' : ''}><span><b>${l} <small>~${v}%</small></b><small>${dsc}</small></span></label>`).join('');
+      };
+      const sync = () => {
+        const m = val('method');
+        el.querySelectorAll('[data-m]').forEach(x => { x.hidden = x.dataset.m !== m; });
+        el.querySelector('[data-hip]').hidden = val('sex') !== 'f';
+        el.querySelectorAll('.seg-radio .seg').forEach(x => x.classList.toggle('on', x.querySelector('input').checked));
+        const g = el.querySelector('[name=goalBF]');
+        g.placeholder = val('sex') === 'f' ? '20' : '11';
+      };
+      el.addEventListener('change', e => { if (e.target.name === 'sex') drawLook(); if (['sex', 'method'].includes(e.target.name)) sync(); });
+      drawLook(); sync();
+    },
+    onSubmit: (d, form) => {
+      const sex = form.querySelector('[name=sex]:checked').value;
+      const method = form.querySelector('[name=method]:checked').value;
+      const height = parseHeight(d.ft, d.in);
       const wt = num(d.weight);
-      if (!wt) { toast('Enter your weight.'); return false; }
-      if (!num(d.height)) { toast('Enter your height.'); return false; }
-      const est = navyBF(d.sex, d.height, d.waist, d.neck, d.hip);
-      const bf = num(d.bf) || est;
-      if (!bf) { toast(d.sex === 'f' ? 'Enter your body fat, or waist, neck and hips.' : 'Enter your body fat, or waist and neck measurements.'); return false; }
-      const goal = num(d.goalBF) || (d.sex === 'f' ? 20 : 11);
-      if (goal >= bf) { toast(`Your goal (${goal}%) should be below where you are now (${round2(bf)}%).`); return false; }
-      const floorGoal = d.sex === 'f' ? 15 : 7;
-      if (goal < floorGoal) { toast(`${goal}% is contest-stage lean and not safe to hold. Pick ${floorGoal}% or higher.`); return false; }
+      const bad = msg => { toast(msg, { kind: 'bad' }); return false; };
+      if (kg() ? height < 120 || height > 230 : height < 48 || height > 90) return bad(kg() ? 'Enter your height in centimeters, like 178.' : 'Enter your height in feet and inches, like 5 and 10.');
+      if (!wt || (kg() ? wt < 35 || wt > 250 : wt < 80 || wt > 550)) return bad(`Enter your weight in ${U()}.`);
+      let bf = 0;
+      if (method === 'known') bf = num(d.bf);
+      if (method === 'tape') { bf = navyBF(sex, height, d.waist, d.neck, d.hip); if (!bf) return bad(sex === 'f' ? 'Enter waist, neck and hips. The waist must be bigger than the neck.' : 'Enter waist and neck. The waist must be bigger than the neck.'); }
+      if (method === 'look') { bf = num(form.querySelector('[name=lookbf]:checked')?.value); if (!bf) return bad('Pick the description closest to how you look.'); }
+      if (!(bf > 3 && bf < 60)) return bad('Body fat should be a percentage, like 18.');
+      const goal = num(d.goalBF) || (sex === 'f' ? 20 : 11);
+      const floorGoal = sex === 'f' ? 15 : 7;
+      if (goal < floorGoal) return bad(`${goal}% is contest-stage lean and not safe to hold. Pick ${floorGoal}% or higher.`);
+      if (goal >= bf) return bad(`Your goal (${goal}%) should be below where you are now (about ${round2(bf)}%).`);
       if (num(d.age)) S.settings.age = d.age;
-      S.body = S.body.filter(b => b.date !== today());
-      S.body.push({ date: today(), weight: String(wt), bf: String(round2(bf)), waist: d.waist, neck: d.neck, hip: d.hip });
-      S.cut = { ...(S.cut || {}), on: true, phase: 'cut', sex: d.sex, height: d.height, activity: d.activity, goalBF: String(goal), pace: d.pace, steps: d.steps, start: isNew ? today() : c.start, startWeight: String(toLb(wt)), startBF: String(round2(bf)), adj: isNew ? 0 : c.adj || 0 };
+      const entry = S.body.find(b => b.date === today());
+      const m = method === 'tape' ? { bf: String(round2(bf)), waist: d.waist, neck: d.neck, hip: d.hip || '' } : method === 'known' ? { bf: String(round2(bf)) } : {};
+      if (entry) Object.assign(entry, { weight: String(wt), ...m }); else S.body.push({ date: today(), weight: String(wt), ...m });
+      S.cut = { ...(S.cut || {}), on: true, phase: 'cut', sex, height: String(height), activity: d.activity, goalBF: String(goal), pace: d.pace, steps: d.steps, bfMethod: method, start: isNew ? today() : c.start, startWeight: String(toLb(wt)), startBF: String(round2(bf)), adj: isNew ? 0 : c.adj || 0 };
       commit();
-      toast(isNew ? `Plan set: ${targets().kcal.toLocaleString()} kcal and ${targets().p} g protein a day` : 'Plan updated');
+      const t = targets();
+      toast(isNew ? `Plan set: ${t.kcal.toLocaleString()} kcal and ${t.p} g protein a day` : 'Plan updated');
     },
   });
 }

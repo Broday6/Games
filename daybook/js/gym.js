@@ -332,7 +332,8 @@ function activeView() {
     </section>
     ${a.items.map((it, i) => exBlock(it, i, a.items.length)).join('') || empty('No exercises yet', 'Add your first exercise to start logging.')}
     <div class="row-actions wrap"><button type="button" class="btn" data-act="ex-add">${icon('plus')} Add exercise</button><span class="grow"></span>
-      <button type="button" class="btn ghost danger-text" data-act="wo-discard">Discard</button><button type="button" class="btn primary" data-act="wo-finish">${icon('check')} Finish workout</button></div>`;
+      <button type="button" class="btn ghost danger-text" data-act="wo-discard">Discard</button><button type="button" class="btn primary" data-act="wo-finish">${icon('check')} Finish workout</button></div>
+    <div class="link-row"><button type="button" class="btn ghost sm" data-act="gym-tab" data-v="tools">${icon('scale')} Plates, 1RM, warm-ups</button><button type="button" class="btn ghost sm" data-act="gym-tab" data-v="history">${icon('clock')} History</button></div>`;
 }
 function exBlock(it, i, n) {
   const ex = exercise(it.exId) || { name: 'Deleted exercise', group: '' };
@@ -407,7 +408,8 @@ function startView() {
       <div class="week-plan">${WEEK_ORDER.map(d => `<label class="wp-day${d === parseDate(today()).getDay() ? ' is-today' : ''}${gymDays.includes(d) ? ' gym' : ''}"><span>${DOW[d]}</span>
         <select data-chg="program-day" data-d="${d}" aria-label="${DOW[d]} workout"><option value="">Rest</option>${S.templates.map(tp => `<option value="${tp.id}"${program()[d] === tp.id ? ' selected' : ''}>${esc(tp.name)}</option>`).join('')}</select></label>`).join('')}</div>
       <p class="muted small">${Object.values(program()).some(Boolean) ? 'Start opens the planned workout for the day. Days left on Rest follow your rotation.' : 'Pick a workout for each training day, or leave it empty to rotate through your templates.'}</p></section>`;
-  return `${t ? `<section class="hero-card"><span class="eyebrow">${programFor(today()) === t ? `Planned for ${DOW[parseDate(today()).getDay()]}` : 'Up next in your rotation'}</span><h2>${esc(t.name)}</h2>
+  return `<div class="link-row"><button type="button" class="btn ghost sm" data-act="gym-tab" data-v="history">${icon('clock')} History</button><button type="button" class="btn ghost sm" data-act="gym-tab" data-v="tools">${icon('scale')} Plates, 1RM, warm-ups</button></div>
+    ${t ? `<section class="hero-card"><span class="eyebrow">${programFor(today()) === t ? `Planned for ${DOW[parseDate(today()).getDay()]}` : 'Up next in your rotation'}</span><h2>${esc(t.name)}</h2>
       <p class="muted">${t.items.map(i => esc(exName(i.exId))).join(' · ')}</p>
       <button type="button" class="btn primary lg" data-act="wo-start" data-id="${t.id}">${icon('play')} Start ${esc(t.name)}</button></section>` : ''}
     <section class="group"><header class="group-head"><h3>Templates</h3><button type="button" class="btn ghost sm" data-act="tpl-new">${icon('plus')} Template</button></header>
@@ -588,7 +590,7 @@ function progressView() {
       <h4 class="sub-h">Recent sessions</h4>
       <div class="list panel">${sessions.slice(-6).reverse().map(x => `<div class="row"><div class="row-main"><div class="row-title">${esc(fmtDate(x.w.date))}</div><div class="row-sub sets-line">${x.sets.map(s => `<span class="${s.pr ? 'pr-text' : ''}">${num(s.w) ? esc(s.w) + '×' : ''}${esc(s.r)}</span>`).join('')}</div></div><div class="row-end"><span class="row-num">${byWeight ? fmtW(Math.round(x.best)) : ''}</span></div></div>`).join('')}</div>`;
   }
-  return `${exHtml}${muscleBars()}${bodyView()}`;
+  return `<div class="link-row"><button type="button" class="btn ghost sm" data-act="gym-tab" data-v="history">${icon('clock')} Workout history</button></div>${exHtml}${muscleBars()}${bodyView()}`;
 }
 chg['prog-ex'] = el => { S.ui.progEx = el.value; commit(); };
 
@@ -682,11 +684,16 @@ export function updateTools() {
 document.addEventListener('input', e => { if (e.target.closest('[data-tool]')) { updateTools(); save(); } });
 
 // ---------- view ----------
-const TABS = [['coach', 'Coach'], ['workout', 'Workout'], ['fuel', 'Fuel'], ['progress', 'Progress'], ['history', 'History'], ['tools', 'Tools']];
+const TABS = [['coach', 'Coach'], ['workout', 'Workout'], ['fuel', 'Fuel'], ['progress', 'Progress']];
+// History and Tools open from inside Progress and Workout, so the tab row fits on a phone.
+const INNER = { history: ['progress', 'Progress', 'History'], tools: ['workout', 'Workout', 'Tools'] };
 export function view() {
-  const tab = TABS.some(t => t[0] === S.ui.gymTab) ? S.ui.gymTab : 'coach';
+  const tab = TABS.some(t => t[0] === S.ui.gymTab) || INNER[S.ui.gymTab] ? S.ui.gymTab : 'coach';
   const body = { coach: fit.coachView, workout: () => (S.active ? activeView() : startView()), fuel: fit.fuelView, history: historyView, progress: progressView, tools: toolsView }[tab]();
-  return `<div class="fit-zone">${segs('gym-tab', TABS.map(([v, l]) => [v, v === 'workout' && S.active ? 'Workout •' : l]), tab)}<div class="tab-body">${body}</div></div>`;
+  const inner = INNER[tab];
+  return `<div class="fit-zone">${segs('gym-tab', TABS.map(([v, l]) => [v, v === 'workout' && S.active ? 'Workout •' : l]), inner ? inner[0] : tab)}
+    ${inner ? `<div class="hub-back"><button type="button" class="btn ghost sm" data-act="gym-tab" data-v="${inner[0]}">${icon('chevL')} ${inner[1]}</button></div><h2 class="hub-title">${inner[2]}</h2>` : ''}
+    <div class="tab-body">${body}</div></div>`;
 }
 export function after() { updateTools(); tickRest(); syncWakeLock(); }
 acts['gym-tab'] = el => { S.ui.gymTab = el.dataset.v; commit(); window.scrollTo(0, 0); };

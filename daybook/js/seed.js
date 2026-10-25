@@ -184,6 +184,13 @@ export function sampleData(S) {
   S.food.push({ id: uid() + 'today', date: t, t: Date.now(), name: 'Eggs and toast', kcal: 420, p: 28, c: 34, f: 18 });
   S.steps = Object.fromEntries(Array.from({ length: 7 }, (_, i) => [d(-i - 1), 7000 + ((i * 1733) % 5200)]));
   S.cardio = [{ id: uid() + 'c1', date: d(-2), kind: 'incline', mins: 30 }];
+  S.bills = [
+    { id: uid() + 'b1', name: 'Rent', amount: '1450', due: d(5), anchor: d(5), repeat: 'monthly', cat: 'housing', remind: '5', autopay: false, history: [{ date: d(-26), amount: '1450' }] },
+    { id: uid() + 'b2', name: 'Truck payment', amount: '512.40', due: d(1), anchor: d(1), repeat: 'monthly', cat: 'vehicle', remind: '3', autopay: true, history: [] },
+    { id: uid() + 'b3', name: 'Truck insurance', amount: '142', due: d(-1), anchor: d(-1), repeat: 'monthly', cat: 'insurance', remind: '3', autopay: false, history: [] },
+    { id: uid() + 'b4', name: 'Phone', amount: '85', due: d(12), anchor: d(12), repeat: 'monthly', cat: 'phone', remind: '3', autopay: true, history: [] },
+    { id: uid() + 'b5', name: 'General liability insurance', amount: '1260', due: d(40), anchor: d(40), repeat: 'yearly', cat: 'insurance', remind: '7', autopay: false, history: [] },
+  ];
   S.sample = true;
   S.welcomed = true;
 }

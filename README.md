@@ -24,8 +24,9 @@ On iPhone: Safari → Share → *Add to Home Screen*. On Android: Chrome menu �
 - **Money** — monthly and year-to-date invoiced, collected, spent, net and a tax set-aside; CSV exports for your accountant.
 
 **Fitness** (the Gym tab, now with its own scoreboard look)
-- **Coach**: a cutting plan to a lean body-fat goal while keeping muscle. You enter height, weight and either body fat
-  or waist/neck (and hips) for a Navy-method estimate, your activity, a goal and a pace (0.5–1% of body weight a week).
+- **Coach**: a cutting plan to a lean body-fat goal while keeping muscle. You enter height (feet and inches, or cm),
+  weight and body fat three ways: pick the description that looks like you, measure waist/neck (and hips) for a
+  Navy-method estimate, or type a known number. Then your activity, a goal and a pace (0.5–1% of body weight a week).
   It sets daily calories, protein (about 1 g per lb of goal weight), carbs, fat and steps; tracks a smoothed weight
   trend and weekly rate; estimates body fat from lean mass between weekly measurements; learns your real calorie burn
   from two weeks of weigh-ins and food logs; and posts notes with one-tap fixes (too fast, stalled, protein short,
@@ -61,6 +62,10 @@ On iPhone: Safari → Share → *Add to Home Screen*. On Android: Chrome menu �
 - **To-dos**: due dates, categories, linked jobs, notes, a star for today's focus, quick snooze, and repeats
   (daily, weekdays, chosen weekdays such as Mon & Thu, weekly, every 2 weeks, monthly, quarterly for estimated taxes,
   yearly), and Work / Personal / Home filters.
+- **Bills**: what you owe, how much, how often (weekly to yearly, or one time), category and whether it's on autopay.
+  Bills due within their reminder window show on Today with a one-tap Paid that logs the amount and moves the bill to
+  its next date (skip a cycle when needed). Autopay bills log themselves once their date passes. Totals for the next
+  7 days, paid this month and the monthly cost; paused bills are kept but not counted.
 - **Goals** with progress bars and pace (on track / behind). Track by hand, or automatically from body weight,
   workouts logged, money collected or hours worked.
 - **Habits** with a 7-day grid and streaks, and a searchable **journal** of every check-in (exportable as Markdown).
@@ -83,7 +88,12 @@ to save it to that day or discard it.
 **Themes**: six complete looks, each with its own typefaces, colors, shapes and card style, in light and dark:
 Chalk Line, Field Notes (kraft paper and typewriter type), Blueprint, Iron (gym-floor graphite and poster type), Sunday
 (sage and a soft serif) and Job Site (maximum contrast and big type for full sun). Text size, spacing and a floating or
-edge tab bar are separate options under More → Appearance.
+edge tab bar are separate options under More → Appearance. **Make it yours** in the same place changes any theme's
+accent color (swatches or any color, with text kept readable), headline and body fonts, corner shape, card style and
+heading case.
+
+**Layout**: Life and More open on a grid of sections with live summaries (what's due, what's overdue) instead of a long
+row of tabs; tapping the tab again returns to the grid. Long forms keep Save in reach at the bottom of the sheet.
 
 **Make it yours**: rearrange or hide Today's sections, write your own check-in questions and choose which scales to
 ask, rename or add to-do categories, and type to-dos in plain language with a live preview
@@ -96,7 +106,7 @@ regularly and to move to a new phone (*Restore from file*). First launch offers 
 
 Source: [`daybook/`](daybook/) — vanilla JS modules, no build step, no dependencies. `js/work.js` (contracting),
 `js/gym.js` (training), `js/life.js` + `js/tasks.js` (to-dos, habits), `js/checkin.js` (check-ins, patterns, journal),
-`js/goals.js`, `js/habits.js`, `js/parse.js` (quick-add language), `js/sync.js` + `js/assistant.js` (Claude), `js/plan.js` (timeline, plan my day), `js/people.js`, `js/fitness.js` (coach, fuel, recovery),
+`js/goals.js`, `js/habits.js`, `js/parse.js` (quick-add language), `js/sync.js` + `js/assistant.js` (Claude), `js/plan.js` (timeline, plan my day), `js/people.js`, `js/bills.js`, `js/fitness.js` (coach, fuel, recovery), `js/theme.js` (themes and custom looks),
 `js/today.js`, `js/more.js` (settings, backup), `js/store.js` (state),
 `sw.js` (offline cache).
 

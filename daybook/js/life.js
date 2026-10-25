@@ -1,5 +1,5 @@
 // Life: to-dos (work and personal), plus the Check-in, Habits, Goals and Journal tabs.
-import { $, $$, esc, uid, acts, icon, toast, formSheet, field, input, select, textarea, checkbox, today, addDays, relDay, fmtTime, parseDate, empty, segs, dayPicker } from './util.js';
+import { $, $$, esc, uid, num, sum, acts, icon, toast, formSheet, field, input, select, textarea, checkbox, today, addDays, relDay, fmtTime, parseDate, empty, segs, dayPicker, hubView, money } from './util.js';
 import { S, commit, undoable, job } from './store.js';
 import { REPEATS, completeTask, isFocus, repeatText, firstOn, cats, catLabel, addCat } from './tasks.js';
 import { parseTask, describe } from './parse.js';
@@ -7,6 +7,7 @@ import * as checkin from './checkin.js';
 import * as goals from './goals.js';
 import * as habits from './habits.js';
 import * as people from './people.js';
+import * as billsMod from './bills.js';
 
 export { habitChips } from './habits.js';
 
@@ -118,9 +119,7 @@ document.addEventListener('submit', e => {
 });
 
 let showDone = false;
-const TABS = [['checkin', 'Check-in'], ['todo', 'To-do'], ['people', 'People'], ['habits', 'Habits'], ['goals', 'Goals'], ['journal', 'Journal']];
 export function view() {
-  const lifeTab = TABS.some(x => x[0] === S.ui.lifeTab) ? S.ui.lifeTab : 'checkin';
   const t = today();
   const cat = S.ui.taskCat || 'all';
   const inCat = x => cat === 'all' || x.cat === cat;
@@ -139,11 +138,26 @@ export function view() {
     ${quickAdd('qa-life', { defaultDue: '' })}
     ${groups.length ? groups.map(([l, list]) => `<section class="group"><header class="group-head"><h3>${l}</h3><span class="muted">${list.length}</span></header><div class="list panel">${list.map(x => taskRow(x)).join('')}</div></section>`).join('') : empty('All clear', 'Nothing on your list. Add a to-do above.')}
     ${doneList.length ? `<button type="button" class="btn ghost block" data-act="toggle-done">${showDone ? 'Hide' : 'Show'} completed (${doneList.length})</button>${showDone ? `<div class="list panel">${doneList.slice(0, 30).map(x => taskRow(x)).join('')}</div>` : ''}` : ''}`;
-  const body = { checkin: checkin.view, todo: () => todo, people: people.view, habits: habits.view, goals: goals.view, journal: checkin.journalView }[lifeTab]();
-  const due = checkin.dueCheckins().length;
-  return `${segs('life-tab', TABS.map(([v, l]) => [v, v === 'todo' && open.length ? `${l} ${open.length}` : v === 'people' && people.dueToday().length ? `${l} ${people.dueToday().length}` : v === 'checkin' && due ? `${l} •` : l]), lifeTab)}<div class="tab-body">${body}</div>`;
+  const allOpen = S.tasks.filter(x => !x.done);
+  const overdue = allOpen.filter(x => x.due && x.due < t).length;
+  const ciDue = checkin.dueCheckins();
+  const hs = habits.todays();
+  const hDone = hs.filter(h => habits.isDone(h, t)).length;
+  const bDue = billsMod.dueSoon();
+  const pDue = people.dueToday();
+  const goalsOpen = S.goals.filter(g => !g.done).length;
+  const sections = [
+    { id: 'checkin', title: 'Check-in', icon: 'sun', sub: ciDue.length ? `${{ morning: 'Morning', evening: 'Evening', weekly: 'Weekly review' }[ciDue[0]]} check-in is ready` : 'Mood, sleep, reflections and patterns', alert: ciDue.length > 0, html: checkin.view },
+    { id: 'todo', title: 'To-do', icon: 'life', sub: allOpen.length ? `${allOpen.length} open${overdue ? `, ${overdue} overdue` : ''}` : 'All clear', badge: allOpen.length || '', alert: overdue > 0, html: () => todo },
+    { id: 'bills', title: 'Bills', icon: 'receipt', sub: bDue.length ? `${money(sum(bDue, b => num(b.amount)))} due soon` : billsMod.bills().length ? `${money(billsMod.monthlyTotal())} a month` : 'Track what you pay and when', alert: bDue.some(b => b.due <= t && !b.autopay), badge: bDue.length || '', html: billsMod.view },
+    { id: 'people', title: 'People', icon: 'user', sub: pDue.length ? `${pDue.map(p => p.name).slice(0, 3).join(', ')} to follow up` : `${(S.people || []).length} people`, alert: pDue.some(p => p.next < t), badge: pDue.length || '', html: people.view },
+    { id: 'habits', title: 'Habits', icon: 'check', sub: hs.length ? `${hDone} of ${hs.length} done today` : 'Build routines that stick', html: habits.view },
+    { id: 'goals', title: 'Goals', icon: 'flag', sub: goalsOpen ? `${goalsOpen} active` : 'Set a target and track pace', html: goals.view },
+    { id: 'journal', title: 'Journal', icon: 'book', sub: `${S.checkins.length} entr${S.checkins.length === 1 ? 'y' : 'ies'}`, html: checkin.journalView },
+  ];
+  return hubView({ cur: S.ui.lifeSec, act: 'life-sec', backLabel: 'Life', sections });
 }
-acts['life-tab'] = el => { S.ui.lifeTab = el.dataset.v; commit(); window.scrollTo(0, 0); };
+acts['life-sec'] = el => { S.ui.lifeSec = el.dataset.v; commit(); window.scrollTo(0, 0); };
 acts['task-cat'] = el => { S.ui.taskCat = el.dataset.v; commit(); };
 acts['toggle-done'] = () => { showDone = !showDone; commit(); };
 export const focusInput = () => $('#qa-today')?.focus();

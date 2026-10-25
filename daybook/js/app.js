@@ -11,6 +11,7 @@ import './checkin.js';
 import { startSync, status as syncStatus } from './sync.js';
 import { startAssistant, available as askAvailable } from './assistant.js';
 import { applyTheme, watchMode } from './theme.js';
+import { runAutopay } from './bills.js';
 
 const TABS = [
   ['today', 'Today', today],
@@ -84,11 +85,25 @@ function boot() {
   watchMode();
   applyPack(window.DAYBOOK_PACK);
   $('#nav').innerHTML = TABS.map(([id, label]) => `<a href="#${id}" data-tab="${id}">${icon(id)}<span>${label}</span></a>`).join('');
+  // Tapping the tab you are already on goes back to its main screen.
+  $('#nav').addEventListener('click', e => {
+    const a = e.target.closest('[data-tab]');
+    if (!a) return;
+    if (a.dataset.tab === 'life') S.ui.lifeSec = '';
+    if (a.dataset.tab === 'more') S.ui.moreTab = '';
+    if (a.dataset.tab !== current()) return;
+    e.preventDefault();
+    if (a.dataset.tab === 'gym') S.ui.gymTab = S.ui.gymTab === 'history' || S.ui.gymTab === 'tools' ? 'workout' : S.ui.gymTab;
+    if (a.dataset.tab === 'work' && S.ui.workTab === 'clients') S.ui.workTab = 'jobs';
+    render(); window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
   lastTab = current();
   render();
   setInterval(tick, 500);
   startSync();
   startAssistant();
+  // Autopay bills log themselves once their date passes (after sync has had a moment to load).
+  setTimeout(() => { const n = runAutopay(); if (n) { save(); render(); toast(`Logged ${n} autopay bill${n > 1 ? 's' : ''}`); } }, 2500);
   // Re-render on return so "today", timers and overdue states are fresh after the phone sleeps.
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') render(); else save(); });
   window.addEventListener('pagehide', save);

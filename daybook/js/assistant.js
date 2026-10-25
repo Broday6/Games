@@ -11,6 +11,7 @@ import { logGoal } from './goals.js';
 import * as people from './people.js';
 import { planDay } from './plan.js';
 import * as fit from './fitness.js';
+import * as billsMod from './bills.js';
 
 let sample = null;
 export async function startAssistant() {
@@ -273,6 +274,44 @@ const TOOLS = [
     },
   },
   {
+    name: 'list_bills',
+    description: 'Bills with ids: name, amount, next due date, how often, autopay, category, and the last payment.',
+    execute: () => billsMod.bills().filter(b => !b.done).map(b => ({ id: b.id, name: b.name, amount: num(b.amount), due: b.due, repeat: b.repeat || 'monthly', autopay: !!b.autopay, category: b.cat, paused: !!b.paused, last_paid: b.lastPaid || null })),
+  },
+  {
+    name: 'save_bill',
+    description: 'Add (no id) or change (with id) a bill. repeat: monthly, biweekly, weekly, quarterly, yearly, once. category: housing, utilities, phone, insurance, vehicle, loan, card, subs, giving, other. delete:true removes it.',
+    inputSchema: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, amount: { type: 'number' }, due: { type: 'string', description: 'next due date YYYY-MM-DD' }, repeat: { type: 'string' }, autopay: { type: 'boolean' }, category: { type: 'string' }, notes: { type: 'string' }, delete: { type: 'boolean' } } },
+    execute: input => {
+      const list = billsMod.bills();
+      let b = input.id ? list.find(x => x.id === String(input.id)) : null;
+      if (input.id && !b) throw new Error('No bill with that id. Call list_bills.');
+      if (b && input.delete) { S.bills = list.filter(x => x !== b); touch(); return 'deleted'; }
+      if (!b) { if (!input.name || !isDate(input.due)) throw new Error('A new bill needs a name and a due date.'); b = { id: uid(), created: today(), history: [], repeat: 'monthly', cat: 'other', remind: '3' }; list.push(b); }
+      if (input.name) b.name = String(input.name).trim();
+      if (input.amount !== undefined) b.amount = String(num(input.amount));
+      if (isDate(input.due)) { b.due = input.due; b.anchor = input.due; }
+      if (input.repeat && billsMod.FREQ.some(f => f[0] === input.repeat)) { b.repeat = input.repeat; b.anchor = b.due; }
+      if (input.autopay !== undefined) b.autopay = !!input.autopay;
+      if (input.category && billsMod.BILL_CATS.some(c => c[0] === input.category)) b.cat = input.category;
+      if (input.notes !== undefined) b.notes = String(input.notes);
+      touch();
+      return { id: b.id, name: b.name, amount: num(b.amount), due: b.due, repeat: b.repeat, autopay: !!b.autopay };
+    },
+  },
+  {
+    name: 'pay_bill',
+    description: 'Mark a bill paid (optionally a different amount) and move it to its next due date.',
+    inputSchema: { type: 'object', properties: { id: { type: 'string' }, amount: { type: 'number' } }, required: ['id'] },
+    execute: ({ id, amount }) => {
+      const b = billsMod.bills().find(x => x.id === String(id));
+      if (!b) throw new Error('No bill with that id. Call list_bills.');
+      billsMod.pay(b, amount ?? b.amount);
+      touch();
+      return { name: b.name, next_due: b.done ? null : b.due };
+    },
+  },
+  {
     name: 'update_goal',
     description: 'Log a new current value for a goal that is updated by hand (from get_reflection goals).',
     inputSchema: { type: 'object', properties: { id: { type: 'string' }, value: { type: 'number' }, note: { type: 'string' } }, required: ['id', 'value'] },
@@ -306,7 +345,7 @@ export function openChat(first = '') {
     title: 'Ask Claude',
     cls: 'chat',
     body: `<div class="chat-log" id="chat-log">${turns.length ? turns.map(t => bubble(t.role, t.content)).join('') : `<p class="muted small">Tell me what to add or change, or ask how your week is going. I can see your schedule, to-dos, habits, check-ins and goals.</p>
-        <div class="chips">${['Plan my day', 'How is my cut going?', 'I had 2 eggs, toast and a protein shake', 'Who do I need to follow up with?', 'How did this week go?', 'Move Bible study to 6:30pm', 'Suggest a morning routine that fits my 5:40 workouts', 'What should I focus on today?'].map(x => `<button type="button" class="chip" data-suggest="${esc(x)}">${esc(x)}</button>`).join('')}</div>`}</div>
+        <div class="chips">${['Plan my day', 'What bills are due this week?', 'How is my cut going?', 'I had 2 eggs, toast and a protein shake', 'Who do I need to follow up with?', 'How did this week go?', 'Move Bible study to 6:30pm', 'Suggest a morning routine that fits my 5:40 workouts', 'What should I focus on today?'].map(x => `<button type="button" class="chip" data-suggest="${esc(x)}">${esc(x)}</button>`).join('')}</div>`}</div>
       <form class="chat-form" data-chat-form><label class="sr-only" for="chat-in">Message</label><textarea id="chat-in" rows="2" placeholder="Message Claude"></textarea>
         <div class="row-actions"><span class="muted small grow" data-chat-status></span><button type="button" class="btn ghost sm" data-stop hidden>Stop</button><button type="submit" class="btn primary sm">Send</button></div></form>`,
     onMount: el => {

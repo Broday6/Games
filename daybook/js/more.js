@@ -1,10 +1,10 @@
 // More: settings, backup/restore, install help and storage status.
-import { esc, acts, chg, icon, toast, today, download, copyText, confirmSheet, sheet, setCurrency, num } from './util.js';
+import { esc, acts, chg, icon, toast, today, download, copyText, confirmSheet, sheet, setCurrency, num, hubView } from './util.js';
 import { S, commit, save, storage, exportJSON, importJSON, replaceState, fresh } from './store.js';
 import { status as sync } from './sync.js';
 import { available as askAvailable } from './assistant.js';
 import { DEFAULT_Q, customQ } from './checkin.js';
-import { THEMES, theme, tokensCss, loadFonts } from './theme.js';
+import { THEMES, theme, tokensCss, loadFonts, ACCENTS, DISPLAY_FONTS, BODY_FONTS, custom, isCustomized } from './theme.js';
 
 const f = (k, label, hint = '', attrs = '') => `<label class="field"><span class="lbl">${esc(label)}</span><input id="set-${k}" data-chg="setting" data-k="${k}" value="${esc(S.settings[k])}" ${attrs}>${hint ? `<small>${hint}</small>` : ''}</label>`;
 const sel = (k, label, opts) => `<label class="field"><span class="lbl">${esc(label)}</span><select id="set-${k}" data-chg="setting" data-k="${k}">${opts.map(([v, l]) => `<option value="${esc(v)}"${String(S.settings[k]) === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
@@ -36,21 +36,56 @@ let deferredPrompt = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; });
 acts.install = async () => { if (!deferredPrompt) return; deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt = null; commit(); };
 
+// The settings page is a list of sections; each opens on its own instead of one long scroll.
+const MORE_META = {
+  'Appearance': ['appearance', 'more', () => `${theme().name}${isCustomized() ? ', customized' : ''}`],
+  'You and your business': ['profile', 'user', () => S.settings.name || S.settings.biz || 'Name, business, contact'],
+  'Rates and money': ['money', 'receipt', () => `${S.settings.currency} · $${S.settings.rate}/h default`],
+  'Invoices': ['invoices', 'mail', () => `Next number ${S.settings.nextInv}`],
+  'Fitness': ['gym', 'gym', () => `${S.settings.units}, ${S.settings.rest}s rest`],
+  'Check-ins': ['checkins', 'sun', () => (S.settings.checkins === 'off' ? 'Off' : `${S.settings.amTime} and ${S.settings.pmTime}`)],
+  'To-dos and Today': ['today', 'life', () => 'Categories, Today layout'],
+  'Install on your phone': ['install', 'download', () => 'Home screen icon'],
+  'Your data': ['data', 'copy', () => 'Backup, restore, sync'],
+};
+function hubify(html) {
+  const parts = html.split(/(?=<section class="group"><header class="group-head"><h3>)/);
+  const tail = parts[parts.length - 1].split('<p class="muted small center">');
+  parts[parts.length - 1] = tail[0];
+  const secs = parts.filter(x => x.startsWith('<section')).map(x => {
+    const title = x.match(/<h3>(.*?)<\/h3>/)[1];
+    const [id, ic, sub] = MORE_META[title] || [title.toLowerCase().replace(/\W+/g, '-'), 'more', () => ''];
+    return { id, title, icon: ic, sub: sub(), html: () => x.replace(/<header class="group-head"><h3>.*?<\/h3>/, '<header class="group-head">') };
+  });
+  return hubView({ cur: S.ui.moreTab, act: 'more-open', backLabel: 'More', sections: secs }) + (S.ui.moreTab ? '' : `<p class="muted small center">${tail[1] || ''}`);
+}
+acts['more-open'] = el => { S.ui.moreTab = el.dataset.v; commit(); window.scrollTo(0, 0); };
+
 export function view() {
   const counts = `${S.jobs.length} jobs · ${S.time.length} time entries · ${S.invoices.length} invoices · ${S.workouts.length} workouts · ${S.checkins.length} check-ins · ${S.goals.length} goals`;
   const optSeg = (k, items, def) => `<div class="segs" role="radiogroup">${items.map(([v, l]) => `<button type="button" class="seg${(S.settings[k] || def) === v ? ' on' : ''}" data-act="appearance" data-k="${k}" data-v="${v}" role="radio" aria-checked="${(S.settings[k] || def) === v}">${esc(l)}</button>`).join('')}</div>`;
   const cur = theme();
+  const cseg = (k, items) => `<div class="segs" role="radiogroup">${items.map(([v, l]) => `<button type="button" class="seg${(custom()[k] || '') === v ? ' on' : ''}" data-act="custom" data-k="${k}" data-v="${v}" role="radio" aria-checked="${(custom()[k] || '') === v}">${esc(l)}</button>`).join('')}</div>`;
   const appearance = `<section class="group"><header class="group-head"><h3>Appearance</h3><span class="muted">${esc(cur.name)}</span></header><div class="panel pad form">
       <div class="theme-grid">${THEMES.map(t => { loadFonts(t); const dark = t.single === 'dark' || document.documentElement.dataset.dark === '1'; return `<button type="button" class="theme-card${t.id === cur.id ? ' on' : ''}" data-act="appearance" data-k="skin" data-v="${t.id}" aria-pressed="${t.id === cur.id}">
         <div class="tc-preview" style="${esc(tokensCss(t, dark))}"><span class="tc-title" style="text-transform:${t.headings === 'upper' ? 'uppercase' : 'none'}">Monday</span>
           <span class="tc-row"><span>Workout</span><b>5:40am</b></span><span class="tc-row"><span>Bible study</span><b>7pm</b></span><span class="tc-btn">Check in</span></div>
         <span class="tc-name">${esc(t.name)}${t.id === cur.id ? icon('check') : ''}</span></button>`; }).join('')}</div>
       <p class="muted small">${esc(cur.blurb)}</p>
+      <div class="editor"><h4 class="form-h">Make it yours${isCustomized() ? ` <button type="button" class="link small" data-act="custom-reset">Reset to ${esc(cur.name)}</button>` : ''}</h4>
+        <div class="opt-row"><span class="lbl muted small">Accent color</span><div class="swatches">${ACCENTS.map(a => `<button type="button" class="swatch${custom().accent === a ? ' on' : ''}" style="--sw:${a}" data-act="custom" data-k="accent" data-v="${a}" aria-label="Accent color ${a}"></button>`).join('')}
+          <label class="swatch pick${custom().accent && !ACCENTS.includes(custom().accent) ? ' on' : ''}" title="Any color" style="--sw:${esc(custom().accent || '#888888')}"><input type="color" id="accent-any" data-chg="custom" data-k="accent" value="${esc(custom().accent || '#1c58cf')}" aria-label="Pick any accent color">+</label></div></div>
+        <div class="grid2"><label class="field"><span class="lbl">Heading font</span><select id="font-display" data-chg="custom" data-k="display"><option value="">${esc(cur.name)} default</option>${DISPLAY_FONTS.map(f => `<option${custom().display === f[0] ? ' selected' : ''}>${esc(f[0])}</option>`).join('')}</select></label>
+          <label class="field"><span class="lbl">Body font</span><select id="font-body" data-chg="custom" data-k="body"><option value="">${esc(cur.name)} default</option>${BODY_FONTS.map(f => `<option${custom().body === f[0] ? ' selected' : ''}>${esc(f[0])}</option>`).join('')}</select></label></div>
+        <div class="font-sample"><b>Monday, October 26</b><span>Follow up with Mark, then grout outside.</span></div>
+        <div class="opt-row"><span class="lbl muted small">Corners</span>${cseg('corners', [['', 'Theme'], ['sharp', 'Sharp'], ['soft', 'Soft'], ['round', 'Round']])}</div>
+        <div class="opt-row"><span class="lbl muted small">Cards</span>${cseg('cards', [['', 'Theme'], ['border', 'Outlined'], ['shadow', 'Raised'], ['flat', 'Flat'], ['bold', 'Bold']])}</div>
+        <div class="opt-row"><span class="lbl muted small">Headings</span>${cseg('headings', [['', 'Theme'], ['upper', 'CAPITALS'], ['normal', 'Normal']])}</div></div>
       <div class="opt-row"><span class="lbl muted small">Light or dark${cur.single ? ' (this theme has one look)' : ''}</span>${optSeg('mode', [['auto', 'Match phone'], ['light', 'Light'], ['dark', 'Dark']], 'auto')}</div>
       <div class="opt-row"><span class="lbl muted small">Text size</span>${optSeg('text', [['auto', 'Theme'], ['small', 'Small'], ['normal', 'Normal'], ['large', 'Large'], ['xl', 'Extra large']], 'auto')}</div>
       <div class="grid2"><div class="opt-row"><span class="lbl muted small">Spacing</span>${optSeg('density', [['comfortable', 'Roomy'], ['compact', 'Compact']], 'comfortable')}</div>
       <div class="opt-row"><span class="lbl muted small">Tab bar</span>${optSeg('nav', [['auto', 'Theme'], ['bar', 'Edge'], ['float', 'Floating']], 'auto')}</div></div></div></section>`;
-  return `${appearance}<section class="group"><header class="group-head"><h3>You and your business</h3></header><div class="panel pad form">
+  return hubify(`${appearance}<section class="group"><header class="group-head"><h3>You and your business</h3></header><div class="panel pad form">
       <div class="grid2">${f('name', 'Your name')}${f('biz', 'Business name', 'Shown at the top of invoices.')}</div>
       ${f('bizAddr', 'Business address')}
       <div class="grid2">${f('bizPhone', 'Phone', '', 'type="tel"')}${f('bizEmail', 'Email', '', 'type="email"')}</div></div></section>
@@ -61,7 +96,7 @@ export function view() {
     <section class="group"><header class="group-head"><h3>Invoices</h3></header><div class="panel pad form">
       <div class="grid2">${f('nextInv', 'Next invoice number', '', 'inputmode="numeric"')}${f('terms', 'Payment terms (days)', 'Net 14 sets the due date 14 days out.', 'inputmode="numeric"')}</div>
       ${f('invNote', 'Default note')}${f('payNote', 'How to pay', 'e.g. Checks to Ortiz Carpentry LLC · Zelle 555-201-4417')}</div></section>
-    <section class="group"><header class="group-head"><h3>Gym</h3></header><div class="panel pad form">
+    <section class="group"><header class="group-head"><h3>Fitness</h3></header><div class="panel pad form">
       <div class="grid2">${sel('units', 'Units', [['lb', 'Pounds (lb)'], ['kg', 'Kilograms (kg)']])}${f('bar', 'Barbell weight', '', 'inputmode="decimal"')}</div>
       ${f('plates', 'Plates you have (per pair)', 'Comma separated. Used by the plate calculator.')}
       <div class="grid2">${f('rest', 'Rest timer (seconds)', 'Big lifts use their own longer rest. 0 turns the timer off.', 'inputmode="numeric"')}${f('setTarget', 'Weekly hard sets per muscle', '10–20 is the usual range for growth.', 'inputmode="numeric"')}</div>
@@ -87,7 +122,7 @@ export function view() {
       <button type="button" class="btn ghost" data-act="restore-paste">Paste a backup</button></div>
       ${S.sample ? `<p class="callout">You are looking at sample data. <button type="button" class="link" data-act="clear-sample">Clear it and start fresh</button></p>` : ''}
       <div class="row-actions"><button type="button" class="btn ghost danger-text" data-act="reset">${icon('trash')} Erase everything</button></div></div></section>
-    <p class="muted small center">Daybook · works offline · no account, no tracking</p>`;
+    <p class="muted small center">Daybook · works offline · no account, no tracking</p>`);
 }
 
 document.addEventListener('change', e => {
@@ -111,6 +146,9 @@ acts['ci-questions'] = () => {
     s.close(); commit(); toast('Questions saved');
   };
 };
+acts.custom = el => { S.settings.custom = { ...custom(), [el.dataset.k]: el.dataset.v }; commit(); };
+chg.custom = el => { S.settings.custom = { ...custom(), [el.dataset.k]: el.value }; commit(); };
+acts['custom-reset'] = () => { S.settings.custom = {}; commit(); toast('Back to the original theme'); };
 acts.appearance = el => {
   S.settings[el.dataset.k] = el.dataset.v;
   commit();

@@ -253,7 +253,7 @@ function jobsView() {
   const f = { open: j => ['active', 'scheduled'].includes(j.status), leads: j => ['lead', 'quoted'].includes(j.status), done: j => j.status === 'done', all: j => j.status !== 'archived' };
   const list = sortedJobs().filter(f[jobFilter]);
   return `<div class="toolbar">${segs('job-filter', [['open', 'Open'], ['leads', 'Leads'], ['done', 'Complete'], ['all', 'All']], jobFilter)}<span class="grow"></span>
-    <button type="button" class="btn sm" data-act="job-new">${icon('plus')} Job</button></div>
+    <button type="button" class="btn ghost sm" data-act="work-tab" data-v="clients">${icon('user')} Clients</button><button type="button" class="btn sm" data-act="job-new">${icon('plus')} Job</button></div>
     ${list.length ? `<div class="list panel">${list.map(jobRow).join('')}</div>` : empty('No jobs here yet', jobFilter === 'open' ? 'Jobs you schedule or start show up here.' : '', `<button type="button" class="btn" data-act="job-new">${icon('plus')} New job</button>`)}`;
 }
 function jobRow(j) {
@@ -757,11 +757,12 @@ function invoiceForm(inv) {
 }
 
 // ---------- view ----------
-const TABS = [['schedule', 'Schedule'], ['jobs', 'Jobs'], ['time', 'Time'], ['invoices', 'Invoices'], ['money', 'Money'], ['clients', 'Clients']];
+const TABS = [['schedule', 'Schedule'], ['jobs', 'Jobs'], ['time', 'Time'], ['invoices', 'Invoices'], ['money', 'Money']];
 const VIEWS = { schedule: scheduleView, jobs: jobsView, time: timeView, invoices: invoicesView, money: moneyView, clients: clientsView };
 export function view() {
   const tab = VIEWS[S.ui.workTab] ? S.ui.workTab : 'schedule';
-  return `${segs('work-tab', TABS, tab)}<div class="tab-body">${VIEWS[tab]()}</div>`;
+  const inClients = tab === 'clients';
+  return `${segs('work-tab', TABS, inClients ? 'jobs' : tab)}${inClients ? `<div class="hub-back"><button type="button" class="btn ghost sm" data-act="work-tab" data-v="jobs">${icon('chevL')} Jobs</button></div><h2 class="hub-title">Clients</h2>` : ''}<div class="tab-body">${VIEWS[tab]()}</div>`;
 }
 acts['work-tab'] = el => { S.ui.workTab = el.dataset.v; commit(); window.scrollTo(0, 0); };
 export const openWork = tab => { S.ui.workTab = tab; };

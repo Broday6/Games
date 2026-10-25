@@ -6,7 +6,7 @@
 // Layout: collection `daybook`, one document per top-level key ({v: value}); long histories are split by
 // year (`workouts.2026`) to stay well under the 256 KiB document limit. `meta` holds the small flags.
 import { bus, toast } from './util.js';
-import { S, save, hooks } from './store.js';
+import { S, save, hooks, DEFAULT_SETTINGS } from './store.js';
 
 const LOCAL_ONLY = new Set(['ui']);
 const META = ['v', 'created', 'welcomed', 'sample'];
@@ -15,7 +15,10 @@ const SERIES = { workouts: x => String(x.date).slice(0, 4), checkins: x => Strin
 
 export const status = { state: 'off', at: 0, error: '' };
 let col = null, ready = false, pushing = false, again = false, timer = 0;
-const written = new Map(); // document id -> JSON last known to be in the store
+const written = new Map(); // document id -> canonical JSON last known to be in the store
+// The store hands documents back with their keys sorted, so compare in a key-order-independent form.
+const sortKeys = v => (Array.isArray(v) ? v.map(sortKeys) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, sortKeys(v[k])])) : v);
+const canon = v => JSON.stringify(sortKeys(v));
 
 function wanted() {
   const docs = new Map();
@@ -39,16 +42,17 @@ function apply(docs) {
   let changed = false;
   for (const key of keys) {
     const ids = [...docs.keys()].filter(id => id === key || id.startsWith(key + '.'));
-    const dirty = [...local.keys()].filter(id => id === key || id.startsWith(key + '.')).some(id => written.has(id) && JSON.stringify(local.get(id)) !== written.get(id));
-    for (const id of ids) written.set(id, JSON.stringify(docs.get(id)));
+    const dirty = [...local.keys()].filter(id => id === key || id.startsWith(key + '.')).some(id => written.has(id) && canon(local.get(id)) !== written.get(id));
+    for (const id of ids) written.set(id, canon(docs.get(id)));
     if (dirty) continue;
     if (key === 'meta') {
       const m = docs.get('meta').v || {};
       for (const k of META) if (m[k] !== undefined && m[k] !== S[k]) { S[k] = m[k]; changed = true; }
       continue;
     }
-    const val = SERIES[key] ? ids.sort().flatMap(id => docs.get(id).v || []) : docs.get(key).v;
-    if (JSON.stringify(S[key]) !== JSON.stringify(val)) { S[key] = val; changed = true; }
+    let val = SERIES[key] ? ids.sort().flatMap(id => docs.get(id).v || []) : docs.get(key).v;
+    if (key === 'settings') val = { ...DEFAULT_SETTINGS, program: {}, ...(val || {}) }; // settings saved by an older version lack newer defaults
+    if (canon(S[key]) !== canon(val)) { S[key] = val; changed = true; }
   }
   if (changed) { save({ quiet: true }); bus.render(); }
 }
@@ -60,7 +64,7 @@ async function push() {
   try {
     const want = wanted();
     for (const [id, data] of want) {
-      const j = JSON.stringify(data);
+      const j = canon(data);
       if (written.get(id) === j) continue;
       if (j.length > 250000) throw { code: 'too_large', message: id };
       await col.doc(id).set(data);

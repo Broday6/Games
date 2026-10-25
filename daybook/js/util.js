@@ -145,7 +145,8 @@ export function toast(msg, { action, ms = 3800, kind = '' } = {}) {
   const kill = () => { t.classList.add('out'); setTimeout(() => t.remove(), 220); };
   if (action) t.querySelector('button').onclick = () => { action.fn(); kill(); };
   toastHost.appendChild(t);
-  while (toastHost.children.length > 3) toastHost.firstChild.remove();
+  for (const old of [...toastHost.children]) if (old !== t && old.textContent.startsWith(msg.slice(0, 24))) old.remove(); // no near-duplicates
+  while (toastHost.children.length > 2) toastHost.firstChild.remove();
   setTimeout(kill, action ? Math.max(ms, 6000) : ms);
 }
 
@@ -261,6 +262,13 @@ export const telLink = p => p ? `<a class="contact" href="tel:${esc(p.replace(/[
 export const mailLink = m => m ? `<a class="contact" href="mailto:${esc(m)}">${icon('mail')}${esc(m)}</a>` : '';
 export const mapLink = a => a ? `<a class="contact" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a)}" target="_blank" rel="noopener">${icon('pin')}${esc(a)}</a>` : '';
 
+// A section hub: tiles that open one section at a time, with a back button.
+export function hubView({ cur, act, backLabel, sections }) {
+  const s = sections.find(x => x.id === cur);
+  if (s) return `<div class="hub-back"><button type="button" class="btn ghost sm" data-act="${act}" data-v="">${icon('chevL')} ${esc(backLabel)}</button></div><h2 class="hub-title">${esc(s.title)}</h2><div class="tab-body">${s.html()}</div>`;
+  return `<div class="hub">${sections.map(x => `<button type="button" class="hub-tile${x.alert ? ' alert' : ''}" data-act="${act}" data-v="${x.id}">
+    <span class="hub-ico">${icon(x.icon)}</span><span class="hub-text"><b>${esc(x.title)}</b><small>${x.sub}</small></span>${x.badge ? `<span class="hub-badge">${esc(x.badge)}</span>` : ''}${icon('chevR', 'chev')}</button>`).join('')}</div>`;
+}
 export const empty = (title, text = '', action = '') => `<div class="empty"><strong>${esc(title)}</strong>${text ? `<p>${text}</p>` : ''}${action}</div>`;
 export const pill = (label, kind = '') => `<span class="pill ${kind}">${esc(label)}</span>`;
 export const segs = (act, items, cur) => `<div class="segs" role="tablist">${items.map(([v, l]) => `<button type="button" role="tab" class="seg${v === cur ? ' on' : ''}" aria-selected="${v === cur}" data-act="${act}" data-v="${esc(v)}">${esc(l)}</button>`).join('')}</div>`;
