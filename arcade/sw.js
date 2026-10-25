@@ -1,8 +1,9 @@
 // Pocket Arcade hub service worker. Each game registers its own worker for its own folder; this one only
 // answers for the hub's files so it never shadows a game's cache.
-const CACHE = 'arcade-hub-v1';
+const CACHE = 'arcade-hub-v2';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png',
-  'apple-touch-icon.png', 'driftwood.svg', 'nighttide/icon-192.png', 'deepcast/icon-192.png', 'diceden/icon-192.png'];
+  'apple-touch-icon.png', 'driftwood.svg', 'nighttide/icon-192.png', 'deepcast/icon-192.png', 'diceden/icon-192.png',
+  'emberdeck/icon-192.png', 'tidewall/icon-192.png', 'highcard/icon-192.png', 'luckyreels/icon-192.png'];
 const URLS = new Set(FILES.map((f) => new URL(f, self.registration.scope).href));
 
 self.addEventListener('install', (e) => {

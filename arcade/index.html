@@ -60,7 +60,7 @@
   .install p { margin: 0; flex: 1; font-size: 14px; color: var(--muted); }
   .install b { color: var(--text); }
 
-  .games { list-style: none; margin: 24px 0 0; padding: 0; display: grid; gap: 14px; }
+  .games { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
   .game {
     display: grid;
     grid-template-columns: 76px 1fr;
@@ -122,6 +122,7 @@
     <button id="installBtn" hidden>Install</button>
   </div>
 
+  <h3>Roguelikes</h3>
   <ul class="games">
     <li>
       <a class="game" href="nighttide/index.html">
@@ -134,12 +135,45 @@
       </a>
     </li>
     <li>
-      <a class="game" href="deepcast/index.html">
-        <img src="deepcast/icon-192.png" alt="" width="76" height="76">
+      <a class="game" href="emberdeck/index.html">
+        <img src="emberdeck/icon-192.png" alt="" width="76" height="76">
         <div>
-          <h2>Deep Cast</h2>
-          <p>Cast, hook and reel 40+ species across five waters. Fill the Fishdex, chase records and legendaries.</p>
-          <div class="tags"><span class="go">Play</span><span>Fishing</span><span>Collection</span><span>Chill</span></div>
+          <h2>Ember Deck</h2>
+          <p>Build a deck, read enemy intents and climb three acts of branching paths. Relics, potions, three heroes, three bosses.</p>
+          <div class="tags"><span class="go">Play</span><span>Deckbuilder</span><span>Roguelike</span><span>Turn-based</span></div>
+        </div>
+      </a>
+    </li>
+    <li>
+      <a class="game" href="tidewall/index.html">
+        <img src="tidewall/icon-192.png" alt="" width="76" height="76">
+        <div>
+          <h2>Tidewall</h2>
+          <p>Wall the shore by day, hold the lighthouse by night. Shape the maze, branch your towers, survive twenty nights.</p>
+          <div class="tags"><span class="go">Play</span><span>Tower defense</span><span>Roguelite</span><span>Strategy</span></div>
+        </div>
+      </a>
+    </li>
+  </ul>
+  <h3>Cards &amp; casino</h3>
+  <ul class="games">
+    <li>
+      <a class="game" href="highcard/index.html">
+        <img src="highcard/icon-192.png" alt="" width="76" height="76">
+        <div>
+          <h2>High Card</h2>
+          <p>Play poker hands to beat the blinds, then stack charms that bend the scoring until the numbers explode.</p>
+          <div class="tags"><span class="go">Play</span><span>Cards</span><span>Roguelite</span><span>Play money</span></div>
+        </div>
+      </a>
+    </li>
+    <li>
+      <a class="game" href="luckyreels/index.html">
+        <img src="luckyreels/icon-192.png" alt="" width="76" height="76">
+        <div>
+          <h2>Lucky Reels</h2>
+          <p>Your slot machine, your symbols. Cats drink milk, bees pollinate, bombs go off. Make rent or lose the machine.</p>
+          <div class="tags"><span class="go">Play</span><span>Slots</span><span>Roguelike</span><span>Play money</span></div>
         </div>
       </a>
     </li>
@@ -153,6 +187,22 @@
         </div>
       </a>
     </li>
+  </ul>
+  <h3>Chill</h3>
+  <ul class="games">
+    <li>
+      <a class="game" href="deepcast/index.html">
+        <img src="deepcast/icon-192.png" alt="" width="76" height="76">
+        <div>
+          <h2>Deep Cast</h2>
+          <p>Cast, hook and reel 40+ species across five waters. Fill the Fishdex, chase records and legendaries.</p>
+          <div class="tags"><span class="go">Play</span><span>Fishing</span><span>Collection</span><span>Chill</span></div>
+        </div>
+      </a>
+    </li>
+  </ul>
+  <h3>On a computer</h3>
+  <ul class="games">
     <li>
       <a class="game" href="https://broday6.github.io/Games/driftwood/">
         <img src="driftwood.svg" alt="" width="76" height="76">
@@ -165,7 +215,7 @@
     </li>
   </ul>
 
-  <h3>Put a game on your home screen</h3>
+  <h3 class="help-h">Put a game on your home screen</h3>
   <div class="help">
     Each game installs as its own app. Open the game first, then:
     <ol>
