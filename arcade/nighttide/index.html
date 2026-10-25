@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Night Tide</title>
+<meta name="description" content="A one-thumb survival roguelite. Hold the beach against the shadow tide until dawn.">
+<meta name="theme-color" content="#0b1026">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Night Tide">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game" aria-label="Night Tide play field"></canvas>
+<div id="safe" aria-hidden="true"></div>
+<button id="pauseBtn" class="pause-btn hidden" aria-label="Pause"><span></span><span></span></button>
+
+<!-- TITLE -->
+<section id="title" class="screen title-screen">
+  <div class="topbar">
+    <a class="back" href="../">‹ Arcade</a>
+    <div class="pill"><i class="shard"></i><span id="titleShards">0</span></div>
+  </div>
+  <div class="hero">
+    <div class="moon"></div>
+    <h1 class="logo"><span>NIGHT</span><span>TIDE</span></h1>
+    <p class="tagline">Hold the beach until dawn.</p>
+  </div>
+  <div class="menu">
+    <button id="playBtn" class="btn primary big">Play</button>
+    <button id="charBtn" class="btn wide"><canvas id="charPrev" width="72" height="72"></canvas><span class="col"><small>Castaway</small><b id="charName">Pip</b></span><span class="chev">›</span></button>
+    <div class="row2">
+      <button id="shopBtn" class="btn">Upgrades</button>
+      <button id="setBtn" class="btn">Settings</button>
+    </div>
+    <p class="best" id="bestLine"></p>
+  </div>
+</section>
+
+<!-- CHARACTERS -->
+<section id="chars" class="screen hidden">
+  <div class="head"><button class="btn icon backBtn" data-to="title" aria-label="Back">‹</button><h2>Castaways</h2><div class="pill"><i class="shard"></i><span class="shardCount">0</span></div></div>
+  <div id="charList" class="list"></div>
+</section>
+
+<!-- SHOP -->
+<section id="shop" class="screen hidden">
+  <div class="head"><button class="btn icon backBtn" data-to="title" aria-label="Back">‹</button><h2>Upgrades</h2><div class="pill"><i class="shard"></i><span class="shardCount">0</span></div></div>
+  <p class="sub">Permanent boosts, bought with Shards earned each night.</p>
+  <div id="shopList" class="list grid"></div>
+</section>
+
+<!-- SETTINGS -->
+<section id="settings" class="screen hidden">
+  <div class="head"><button class="btn icon backBtn" data-to="title" aria-label="Back">‹</button><h2>Settings</h2><div></div></div>
+  <div class="list settings-list" id="setList"></div>
+  <div class="howto">
+    <h3>How to play</h3>
+    <p><b>Touch anywhere and drag</b> to move — the stick appears under your thumb. On desktop use <b>WASD</b> or the <b>arrow keys</b>. Weapons fire on their own.</p>
+    <p>Collect <b>tide gems</b> to level up and pick upgrades. Max a weapon and own its partner passive, then open a <b>chest</b> from a glowing elite to evolve it.</p>
+    <p>Bosses rise at <b>3:00</b>, <b>6:00</b> and <b>9:00</b>. Survive to <b>10:00</b> and dawn wins the run.</p>
+    <p class="keys">Keys: <b>Esc/P</b> pause · <b>1 2 3</b> pick a card · <b>R</b> reroll · <b>Enter</b> continue</p>
+  </div>
+  <button id="resetBtn" class="btn danger">Reset progress</button>
+</section>
+
+<!-- LEVEL UP -->
+<section id="levelup" class="screen modal hidden">
+  <div class="lv-head"><div class="lv-burst"></div><h2 class="lv-title">LEVEL UP!</h2><p class="sub">Choose one</p></div>
+  <div id="cards" class="cards"></div>
+  <div class="row2 tight"><button id="rerollBtn" class="btn">Reroll</button></div>
+</section>
+
+<!-- CHEST -->
+<section id="chest" class="screen modal hidden">
+  <h2 class="chest-title" id="chestTitle">TREASURE!</h2>
+  <canvas id="chestCv" width="240" height="190"></canvas>
+  <div id="chestItems" class="chest-items"></div>
+  <button id="chestBtn" class="btn primary">Open</button>
+</section>
+
+<!-- PAUSE -->
+<section id="pause" class="screen modal hidden">
+  <h2>Paused</h2>
+  <div class="pause-stats" id="pauseStats"></div>
+  <div class="build" id="pauseBuild"></div>
+  <div class="list settings-list compact" id="pauseSet"></div>
+  <button id="resumeBtn" class="btn primary big">Resume</button>
+  <button id="quitBtn" class="btn">End run</button>
+</section>
+
+<!-- SUMMARY -->
+<section id="summary" class="screen modal hidden">
+  <h2 id="sumTitle" class="sum-title">THE TIDE TOOK YOU</h2>
+  <p id="sumSub" class="sub"></p>
+  <div class="stats" id="sumStats"></div>
+  <div class="shards-earned"><i class="shard big"></i><span>+<b id="sumShards">0</b> Shards</span></div>
+  <h3>Damage by weapon</h3>
+  <div id="sumWeapons" class="dmg-list"></div>
+  <div class="row2">
+    <button id="againBtn" class="btn primary">Play again</button>
+    <button id="homeBtn" class="btn">Title</button>
+  </div>
+</section>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="js/data.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/art.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>

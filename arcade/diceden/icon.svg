@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="75%">
+      <stop offset="0" stop-color="#3a1670"/>
+      <stop offset=".6" stop-color="#1a0b36"/>
+      <stop offset="1" stop-color="#0c0520"/>
+    </radialGradient>
+    <radialGradient id="felt" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#17867a"/>
+      <stop offset="1" stop-color="#073a36"/>
+    </radialGradient>
+    <linearGradient id="d1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff6f98"/>
+      <stop offset="1" stop-color="#c41848"/>
+    </linearGradient>
+    <linearGradient id="d2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fffaf0"/>
+      <stop offset="1" stop-color="#d9ccb4"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="9" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <ellipse cx="256" cy="300" rx="170" ry="120" fill="url(#felt)" stroke="#f7c948" stroke-width="8" filter="url(#glow)"/>
+  <g transform="rotate(-14 196 236)">
+    <rect x="116" y="156" width="160" height="160" rx="34" fill="#7e0d2e"/>
+    <rect x="110" y="148" width="160" height="160" rx="34" fill="url(#d1)"/>
+    <circle cx="150" cy="188" r="15" fill="#fff6e8"/><circle cx="230" cy="188" r="15" fill="#fff6e8"/>
+    <circle cx="190" cy="228" r="15" fill="#fff6e8"/>
+    <circle cx="150" cy="268" r="15" fill="#fff6e8"/><circle cx="230" cy="268" r="15" fill="#fff6e8"/>
+  </g>
+  <g transform="rotate(12 318 300)">
+    <rect x="252" y="236" width="140" height="140" rx="30" fill="#a8977a"/>
+    <rect x="246" y="228" width="140" height="140" rx="30" fill="url(#d2)"/>
+    <circle cx="316" cy="298" r="20" fill="#c8193c"/>
+  </g>
+  <circle cx="380" cy="160" r="26" fill="#f7c948" stroke="#7a5200" stroke-width="5" filter="url(#glow)"/>
+  <circle cx="380" cy="160" r="12" fill="none" stroke="#7a5200" stroke-width="4" stroke-dasharray="6 5"/>
+</svg>

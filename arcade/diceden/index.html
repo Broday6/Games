@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Dice Den</title>
+<meta name="description" content="Neon dice party games for one phone: Liar's Dice, Farkle and Ship, Captain & Crew. Pass-and-play or vs bots. Play chips only.">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#120a24">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Dice Den">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <section id="scr-lobby" class="screen active"></section>
+  <section id="scr-players" class="screen"></section>
+  <section id="scr-leaders" class="screen"></section>
+  <section id="scr-settings" class="screen"></section>
+  <section id="scr-game" class="screen"></section>
+</div>
+<div id="modal" class="modal hidden"></div>
+<div id="handoff" class="handoff hidden"></div>
+<div id="toast" aria-live="polite"></div>
+<canvas id="fx"></canvas>
+<noscript><p style="padding:24px">Dice Den needs JavaScript.</p></noscript>
+<script src="rules.js"></script>
+<script src="dice.js"></script>
+<script src="audio.js"></script>
+<script src="app.js"></script>
+<script src="games.js"></script>
+</body>
+</html>
