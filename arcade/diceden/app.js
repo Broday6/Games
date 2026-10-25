@@ -165,7 +165,7 @@
     people: sv('<circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.2A5 5 0 0 1 21 19"/>'),
     back: sv('<path d="M15 5l-7 7 7 7"/>'),
     close: sv('<path d="M6 6l12 12M18 6L6 18"/>'),
-    book: sv('<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5"/>'),
+    book: sv('<path d="M2.5 5.5c3.2-1.3 6.3-1 9.5 1v13c-3.2-2-6.3-2.3-9.5-1z"/><path d="M21.5 5.5c-3.2-1.3-6.3-1-9.5 1v13c3.2-2 6.3-2.3 9.5-1z"/>'),
     up: sv('<path d="M6 15l6-6 6 6"/>'), down: sv('<path d="M6 9l6 6 6-6"/>'),
     trash: sv('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>'),
   };
@@ -600,8 +600,7 @@
   ['touchstart', 'pointerdown', 'keydown'].forEach((ev) => document.addEventListener(ev, () => Au.resume(), { passive: true }));
   // block double-tap zoom / pinch on iOS
   document.addEventListener('gesturestart', (e) => e.preventDefault());
-  let lastTouch = 0;
-  document.addEventListener('touchend', (e) => { const now = Date.now(); if (now - lastTouch < 300 && !e.target.closest('input')) e.preventDefault(); lastTouch = now; }, { passive: false });
+  document.addEventListener('dragstart', (e) => { if (e.target && e.target.tagName === 'IMG') e.preventDefault(); });
 
   function onboard() {
     if (humans().length) return;

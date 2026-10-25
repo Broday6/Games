@@ -21,6 +21,7 @@
       this.nodes = $$('.it', this.track);
       $('.up', el).onclick = (e) => { e.stopPropagation(); this.step(1); };
       $('.dn', el).onclick = (e) => { e.stopPropagation(); this.step(-1); };
+      el.addEventListener('dragstart', (e) => e.preventDefault());
       el.addEventListener('wheel', (e) => { e.preventDefault(); this.step(e.deltaY < 0 ? 1 : -1); }, { passive: false });
       let sy = 0, sp = 0, moved = 0, down = false;
       el.addEventListener('pointerdown', (e) => {
@@ -173,7 +174,7 @@
         const pr = DD.P(p.id) || {};
         const h = lastBy[i];
         const thinking = s.phase === 'bidding' && s.turn === i && p.type === 'bot';
-        return `<div class="seat ${s.phase === 'bidding' && s.turn === i ? 'turn' : ''} ${p.out ? 'out' : ''}" data-seat="${i}">
+        return `<div class="seat ${s.phase === 'bidding' && s.turn === i ? 'turn' : ''} ${p.out ? 'out' : ''} ${i === this.viewer ? 'me' : ''}" data-seat="${i}">
           ${thinking ? '<div class="think"><i></i><i></i><i></i></div>' : ''}
           <div class="nm"><span class="dot" style="background:${COLORS[pr.theme] || '#fff'}"></span><span class="nmt">${esc(p.name)}</span><span class="tag ${p.out || i === this.viewer ? 'key' : ''}">${p.out ? 'out' : i === this.viewer ? 'you' : p.type === 'bot' ? R.PERSONALITIES[p.personality].label : ''}</span></div>
           <div class="srow"><div class="cnt">${Array.from({ length: 5 }, (_, k) => `<i class="${k < p.count ? '' : 'gone'}"></i>`).join('')}</div>
@@ -545,7 +546,7 @@
         const remain = s.dice.length - this.sel.length;
         const hot = ss && remain === 0;
         el.innerHTML = `<button class="btn cyan" data-act="fkbank" ${ss ? '' : 'disabled'}>Bank ${ss ? (s.turnScore + ss).toLocaleString() : ''}</button>
-          <button class="btn gold" data-act="fkroll" ${ss ? '' : 'disabled'}>${hot ? 'Hot dice! Roll 6' : `Roll ${remain || ''} more`}</button>`;
+          <button class="btn gold" data-act="fkroll" ${ss ? '' : 'disabled'}>${hot ? 'Hot dice! Roll 6' : ss ? `Roll ${remain} more` : 'Roll'}</button>`;
         hint.textContent = ss ? '' : 'Tap scoring dice to set them aside';
         if (ss) DD.Shake.handler = () => this.humanRoll();
       }

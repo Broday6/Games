@@ -32,6 +32,7 @@ body { font: 17px/1.4 ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "S
 button { font: inherit; color: inherit; touch-action: manipulation; }
 input, select { font: inherit; }
 input { -webkit-user-select: text; user-select: text; }
+img, canvas { -webkit-user-drag: none; user-drag: none; }
 .hidden { display: none !important; }
 .invisible { visibility: hidden !important; }
 
@@ -225,8 +226,10 @@ h3 { margin: 18px 0 8px; font-size: 18px; color: var(--gold2); }
 .seat.turn .tag { padding-right: 18px; }
 .ld-seats.tight .tag:not(.key) { display: none; }
 .ld-seats.tight .seat .nm { font-size: 13px; }
+.ld-seats.tight .seat.me:not(.out) .tag { display: none; }
+.seat.me .nmt { color: var(--gold2); }
 .ld-center { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; position: relative; }
-.bidbig { display: flex; align-items: center; gap: 10px; font-size: 44px; font-weight: 900; text-shadow: 0 0 14px rgba(0, 0, 0, .6); }
+.bidbig { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 44px; font-weight: 900; text-shadow: 0 0 14px rgba(0, 0, 0, .6); }
 .bidbig img { width: 52px; height: 52px; filter: drop-shadow(0 0 10px rgba(255, 255, 255, .35)); }
 .bidbig.pop { animation: pop .35s ease-out; }
 .bidby { color: #d8fff8; font-size: 15px; }
@@ -243,7 +246,7 @@ h3 { margin: 18px 0 8px; font-size: 18px; color: var(--gold2); }
 .wheel::before { content: ''; position: absolute; left: 6px; right: 6px; top: 50%; height: 44px; margin-top: -22px; border-radius: 10px; border: 2px solid var(--gold); box-shadow: 0 0 14px rgba(247, 201, 72, .35); pointer-events: none; }
 .wheel .track { position: absolute; left: 0; right: 0; top: 50%; }
 .wheel .it { position: absolute; left: 0; right: 0; height: 44px; margin-top: -22px; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 900; transition: opacity .15s; }
-.wheel .it img { width: 34px; height: 34px; }
+.wheel .it img { width: 34px; height: 34px; pointer-events: none; }
 .wheel .it.bad { opacity: .25 !important; }
 .wheel .arrow { position: absolute; left: 0; right: 0; height: 18px; border: 0; padding: 0; background: transparent; color: var(--gold2); opacity: .75; cursor: pointer; z-index: 2; display: flex; justify-content: center; align-items: center; }
 .wheel .arrow svg { width: 14px !important; height: 14px !important; }

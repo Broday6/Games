@@ -1,5 +1,5 @@
 // Dice Den service worker: precache everything, serve cache-first with network fallback (works offline).
-const CACHE = 'diceden-v1';
+const CACHE = 'diceden-v2';
 const FILES = ['./', 'index.html', 'style.css', 'rules.js', 'dice.js', 'audio.js', 'app.js', 'games.js',
   'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 
