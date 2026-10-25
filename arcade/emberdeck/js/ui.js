@@ -139,10 +139,10 @@
     }
     const txt = E.cardText(run && run.combat ? run : null, c, tgt);
     return (d.unp ? '' : '<div class="cost ' + ccls + '">' + cost + '</div>') +
-      '<div class="nm">' + U.esc(d.n) + (c.up ? '+' : '') + '</div>' +
+      '<div class="nm' + (d.n.length > 12 ? ' long' : '') + '">' + U.esc(d.n) + (c.up ? '+' : '') + '</div>' +
       '<div class="art">' + Art.icon(d.art) + '</div>' +
       '<div class="ty">' + TYPE[d.t] + (d.r === 'uncommon' || d.r === 'rare' ? '<i></i>' : '') + '</div>' +
-      '<div class="tx"><span>' + U.fmtText(txt) + '</span></div>';
+      '<div class="tx' + (txt.length > 92 ? ' xl' : txt.length > 64 ? ' l' : '') + '"><span>' + U.fmtText(txt) + '</span></div>';
   };
   U.cardEl = function (c, o) {
     o = o || {};
@@ -381,7 +381,7 @@
       const n = list.filter((c) => seen.has(c.k) || c.r === 'starter' || c.r === 'special').length;
       $('comp-n').textContent = n + '/' + list.length;
       const g = U.el('div', 'grid');
-      g.style.setProperty('--cw', 'min(29vw, 120px)'); g.style.setProperty('--chh', 'calc(min(29vw, 120px) * 1.42)');
+      g.style.setProperty('--cw', 'min(27vw, 120px)'); g.style.setProperty('--chh', 'calc(min(27vw, 120px) * 1.42)');
       for (const d of list) {
         const known = seen.has(d.k) || d.r === 'starter' || d.r === 'special';
         const el = known ? U.cardEl({ k: d.k, up: 0 }, { cls: 'static', tag: 'button' }) : U.el('button', 'card static back');
@@ -489,9 +489,10 @@
       if (run.asc >= (m.maxAsc[run.char] || 0) && run.asc < ED.MAX_ASC) { m.maxAsc[run.char] = run.asc + 1; unlocks.push('Ascension ' + (run.asc + 1) + ' unlocked for the ' + ED.CHARS[run.char].short + '!'); }
     }
     const totalWins = m.wins.cast + m.wins.witch + m.wins.rogue;
+    const nextHero = !m.unlocked.witch ? 'witch' : 'rogue';
     for (const k of ['witch', 'rogue']) {
       if (m.unlocked[k]) continue;
-      if (m.xp >= UNLOCK[k].xp || totalWins >= UNLOCK[k].wins || (won && k === (m.unlocked.witch ? 'rogue' : 'witch'))) { m.unlocked[k] = true; unlocks.push(ED.CHARS[k].n + ' has joined you!'); }
+      if (m.xp >= UNLOCK[k].xp || totalWins >= UNLOCK[k].wins || (won && k === nextHero)) { m.unlocked[k] = true; unlocks.push(ED.CHARS[k].n + ' has joined you!'); }
     }
     const entry = { ch: run.char, asc: run.asc, won, floor: run.floor, act: run.act, score, killedBy: run.killedBy || '', seed: run.seed, date: Date.now(), time: Math.round(secs),
       deck: run.deck.map((c) => c.k + (c.up ? '+' : '')), relics: run.relics.map((r) => r.k) };

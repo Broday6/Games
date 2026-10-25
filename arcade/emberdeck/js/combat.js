@@ -70,8 +70,8 @@
     busy = true; renderControls();
     if (C.turn === 1 && C.type !== 'fight') {
       const boss = C.type === 'boss';
-      const nm = boss ? ED.ENEMIES[C.en[0].k].n : 'Elite';
-      U.banner('<small>' + (boss ? 'Boss' : 'Danger') + '</small>' + U.esc(nm), boss ? 'phase' : 'enemy', 1300);
+      const nm = ED.ENEMIES[C.en[0].k].n;
+      U.banner('<small>' + (boss ? 'Boss' : 'Elite') + '</small>' + U.esc(nm), boss ? 'phase' : 'enemy', 1300);
       if (boss) { Au.play('phase'); FX.shake(8); }
       await U.wait(boss ? 900 : 500);
     }
@@ -117,7 +117,7 @@
     const sts = U.el('div', 'sts'); sts.style.maxWidth = Math.max(80, px) + 'px';
     const nm = U.el('div', 'fname', U.esc(d.n));
     root0.append(it, wrap, b, sts, nm);
-    root0.style.minWidth = Math.min(px, 90) + 'px';
+    root0.style.width = Math.max(px, 76) + 'px';
     const o = { root: root0, wrap, cv, bar: b, sts, it, id: e.id, px, k: e.k };
     U.on(it, (ev) => { ev.stopPropagation(); intentTip(e.id, it); }, false);
     root0.addEventListener('click', (ev) => { if (ev.target.closest('.st') || ev.target.closest('.intent')) return; Au.unlock(); onFoeTap(e.id, root0); });
@@ -136,7 +136,7 @@
     for (const e of live) {
       const o = foeEls.get(e.id);
       const px = foeSize(e, live.length);
-      if (Math.abs(px - o.px) > 4) { o.px = px; Art.drawSprite(o.cv, ED.ENEMIES[e.k].art, ED.ENEMIES[e.k].col, px); o.bar.style.width = Math.max(70, Math.min(px * 0.9, 150)) + 'px'; o.sts.style.maxWidth = Math.max(80, px) + 'px'; }
+      if (Math.abs(px - o.px) > 4) { o.px = px; o.root.style.width = Math.max(px, 76) + 'px'; Art.drawSprite(o.cv, ED.ENEMIES[e.k].art, ED.ENEMIES[e.k].col, px); o.bar.style.width = Math.max(70, Math.min(px * 0.9, 150)) + 'px'; o.sts.style.maxWidth = Math.max(80, px) + 'px'; }
       updateCreature(o, e);
       updateIntent(o, e, false);
     }

@@ -134,7 +134,9 @@ h3 { margin: 18px 0 8px; font-size: 13px; color: var(--dim); text-transform: upp
 .pot { width: 34px; height: 38px; border-radius: 10px; border: 1px dashed rgba(255, 255, 255, 0.16); background: rgba(0, 0, 0, 0.2); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
 .pot.full { border-style: solid; border-color: var(--line2); background: rgba(30, 22, 40, 0.9); }
 .pot .ic { font-size: 24px; color: var(--pc); --ia: var(--pc); --iao: 0.75; filter: drop-shadow(0 0 4px var(--pc)); }
-.relics { display: flex; gap: 4px; margin-top: 5px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; min-height: 32px; touch-action: pan-x; }
+.hrow2 { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
+.chip.ib.sm { height: 34px; width: 40px; }
+.relics { flex: 1; min-width: 0; display: flex; gap: 4px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; min-height: 32px; touch-action: pan-x; }
 .relics::-webkit-scrollbar { display: none; }
 .relic { flex-shrink: 0; width: 32px; height: 32px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; background: rgba(40, 28, 52, 0.9); border: 1px solid var(--line); cursor: pointer; padding: 0; position: relative; color: var(--rc, #e8d8c8); }
 .relic .ic { font-size: 21px; --ia: var(--rc, #e8d8c8); --iao: 0.4; }
@@ -202,6 +204,7 @@ h3 { margin: 18px 0 8px; font-size: 13px; color: var(--dim); text-transform: upp
   background: radial-gradient(circle at 35% 30%, #ffe0a8, #ff8a3d 45%, #9a3a10); border: calc(var(--cw) * 0.02) solid #2a1208; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); z-index: 2; }
 .card .cost.dn { color: #b6ff9a; } .card .cost.upc { color: #ffb0b0; }
 .card .cost.na { color: #ff9090; filter: saturate(0.4) brightness(0.8); }
+.card .nm.long { font-size: 0.9em; }
 .card .nm { margin: 7% 6% 0 22%; height: 1.4em; font: 700 1.04em/1.4 var(--serif); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.01em; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6); }
 .card.up .nm { color: #9dff8a; }
 .card .art { margin: 3% 8% 0; height: 31%; border-radius: calc(var(--cw) * 0.04); display: flex; align-items: center; justify-content: center;
@@ -213,6 +216,8 @@ h3 { margin: 18px 0 8px; font-size: 13px; color: var(--dim); text-transform: upp
 .card .ty i { display: inline-block; width: 0.6em; height: 0.6em; border-radius: 50%; background: var(--rar); margin: 0 0.3em; vertical-align: 0.05em; }
 .card .tx { margin: 1% 6% 0; font-size: 0.94em; line-height: 1.22; color: #f8eee6; display: flex; align-items: center; justify-content: center; height: 40%; overflow: hidden; }
 .card .tx span { display: block; }
+.card .tx.l { font-size: 0.84em; line-height: 1.16; }
+.card .tx.xl { font-size: 0.76em; line-height: 1.12; }
 .card .tx b { color: #fff; font-weight: 900; }
 .card .tx b.up { color: #8dff73; } .card .tx b.dn { color: #ff8a8a; }
 .card .tx em { font-style: normal; font-weight: 800; color: var(--accent2); }
@@ -284,15 +289,15 @@ h3 { margin: 18px 0 8px; font-size: 13px; color: var(--dim); text-transform: upp
 @keyframes glint { from { background-position: 140% 0; } to { background-position: -40% 0; } }
 @keyframes shieldPop { 0% { transform: translateY(-50%) scale(0.6); } 60% { transform: translateY(-50%) scale(1.25); } 100% { transform: translateY(-50%) scale(1); } }
 .shieldb b { position: relative; z-index: 1; text-shadow: 0 1px 2px #000; }
-.sts { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; margin-top: 3px; min-height: 22px; max-width: 100%; }
+.sts { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 6px; margin-top: 3px; min-height: 22px; max-width: 100%; }
 .st { position: relative; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; background: rgba(10, 6, 14, 0.75); color: var(--sc); padding: 0; border: 0; cursor: pointer; }
 .st .ic { font-size: 17px; --ia: var(--sc); --iao: 0.5; }
 .st em { position: absolute; right: -3px; bottom: -4px; font-style: normal; font-size: 10.5px; font-weight: 900; color: #fff; text-shadow: 0 1px 2px #000, 0 0 3px #000; }
 .st.neg em { color: #ff9a9a; }
 .st.pop { animation: intentPop 0.35s ease-out; }
-.fname { font-size: 11.5px; font-weight: 800; color: var(--dim); margin-top: 1px; white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+.fname { font-size: 11px; font-weight: 800; color: var(--dim); margin-top: 1px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; text-align: center; }
 #me .bar { width: 112px; }
-#prompt { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); z-index: 40; display: flex; gap: 8px; align-items: center; background: rgba(12, 8, 18, 0.92); border: 1px solid var(--line2); border-radius: 14px; padding: 6px 6px 6px 14px; font-weight: 800; font-size: 15px; white-space: nowrap; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6); }
+#prompt { position: absolute; left: 50%; top: 6px; transform: translateX(-50%); z-index: 40; display: flex; gap: 8px; align-items: center; background: rgba(12, 8, 18, 0.92); border: 1px solid var(--line2); border-radius: 14px; padding: 6px 6px 6px 14px; font-weight: 800; font-size: 15px; white-space: nowrap; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6); }
 #prompt .btn { min-height: 40px; padding: 6px 14px; font-size: 15px; }
 #controls { position: relative; height: 54px; display: flex; align-items: center; gap: 8px; padding: 0 calc(var(--sar) + 10px) 0 calc(var(--sal) + 10px); z-index: 30; }
 #controls .sp { flex: 1; }
@@ -314,7 +319,7 @@ h3 { margin: 18px 0 8px; font-size: 13px; color: var(--dim); text-transform: upp
 #endturn.wait { filter: grayscale(1) brightness(0.7); pointer-events: none; }
 #endturn.nudge { animation: nudge 1.2s ease-in-out infinite; }
 @keyframes nudge { 0%, 100% { box-shadow: 0 4px 0 #8f3a10, 0 0 10px rgba(255, 130, 60, 0.3); } 50% { box-shadow: 0 4px 0 #8f3a10, 0 0 28px rgba(255, 170, 80, 0.9); } }
-#hand { position: relative; height: calc(var(--chh) + 10px + var(--sab)); z-index: 35; }
+#hand { position: relative; height: calc(var(--chh) + 22px + var(--sab)); z-index: 35; }
 #hand .card.drag { transition: none; z-index: 70 !important; }
 #hand .card.flyout { pointer-events: none; transition: transform 0.32s cubic-bezier(0.4, 0, 0.6, 1), opacity 0.32s; }
 #hand .card.burn { pointer-events: none; animation: burnAway 0.55s ease-in forwards; }

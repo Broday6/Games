@@ -53,6 +53,7 @@
   const VIEWS = { map: 'v-map', combat: 'v-combat', reward: 'v-reward', shop: 'v-shop', rest: 'v-rest', event: 'v-event', treasure: 'v-treasure', bossRelic: 'v-boss' };
   U.route = function () {
     const run = S.run;
+    U.hideTip();
     if (!run) { U.show('title'); return; }
     if (run.phase === 'victory' || run.phase === 'dead') { U.closeModal(); U.finishRun(run); return; }
     if (U.screen !== 'run') U.show('run');
