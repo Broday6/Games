@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#101a48"/>
+      <stop offset="0.62" stop-color="#0b1026"/>
+      <stop offset="1" stop-color="#0d3a5c"/>
+    </linearGradient>
+    <linearGradient id="beamL" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0" stop-color="#ffe9a8" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#ffe9a8" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="beamR" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffe9a8" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#ffe9a8" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffd27a" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ffb347" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="tw"><path d="M226 400 L238 196 L274 196 L286 400 Z"/></clipPath>
+  </defs>
+  <rect width="512" height="512" fill="url(#sky)"/>
+  <circle cx="110" cy="96" r="3" fill="#cfd8ff"/><circle cx="410" cy="70" r="2.5" fill="#cfd8ff"/><circle cx="440" cy="150" r="2" fill="#cfd8ff"/><circle cx="70" cy="190" r="2" fill="#cfd8ff"/>
+  <path d="M256 168 L60 96 L60 236 Z" fill="url(#beamL)"/>
+  <path d="M256 168 L452 112 L452 222 Z" fill="url(#beamR)"/>
+  <circle cx="256" cy="168" r="70" fill="url(#glow)"/>
+  <!-- sea -->
+  <path d="M0 380 Q64 366 128 380 T256 380 T384 380 T512 380 V512 H0 Z" fill="#14567f"/>
+  <path d="M0 412 Q64 400 128 412 T256 412 T384 412 T512 412" fill="none" stroke="#5ce1e6" stroke-opacity="0.35" stroke-width="5"/>
+  <!-- island -->
+  <ellipse cx="256" cy="402" rx="190" ry="46" fill="#e8d29a"/>
+  <ellipse cx="256" cy="396" rx="160" ry="34" fill="#5d9a4c"/>
+  <!-- walls -->
+  <g>
+    <rect x="96" y="356" width="34" height="36" fill="#7a4c27"/><rect x="96" y="344" width="34" height="30" fill="#b07a45"/>
+    <rect x="130" y="356" width="34" height="36" fill="#6e778a"/><rect x="130" y="344" width="34" height="30" fill="#a9b2c4"/>
+    <rect x="348" y="356" width="34" height="36" fill="#6e778a"/><rect x="348" y="344" width="34" height="30" fill="#a9b2c4"/>
+    <rect x="382" y="356" width="34" height="36" fill="#7a4c27"/><rect x="382" y="344" width="34" height="30" fill="#b07a45"/>
+    <path d="M100 344 l4 -9 l4 9 M109 344 l4 -9 l4 9 M118 344 l4 -9 l4 9 M386 344 l4 -9 l4 9 M395 344 l4 -9 l4 9 M404 344 l4 -9 l4 9" fill="#d29a5c"/>
+  </g>
+  <!-- lighthouse -->
+  <rect x="206" y="382" width="100" height="26" rx="8" fill="#6f7888"/>
+  <rect x="206" y="382" width="100" height="9" rx="4" fill="#8c95a6"/>
+  <path d="M226 400 L238 196 L274 196 L286 400 Z" fill="#f4f1ea"/>
+  <g clip-path="url(#tw)" fill="#d8423a">
+    <rect x="200" y="356" width="110" height="24"/><rect x="200" y="300" width="110" height="24"/><rect x="200" y="244" width="110" height="24"/>
+    <rect x="258" y="190" width="40" height="220" fill="#000" fill-opacity="0.12"/>
+  </g>
+  <rect x="226" y="188" width="60" height="10" fill="#2b3242"/>
+  <rect x="238" y="150" width="36" height="38" rx="5" fill="#ffe08a"/>
+  <path d="M256 150 V188" stroke="#2b3242" stroke-width="4"/>
+  <path d="M230 152 L256 122 L282 152 Z" fill="#d8423a"/>
+  <rect x="249" y="374" width="14" height="20" rx="6" fill="#5b3a24"/>
+  <!-- shadows -->
+  <g fill="#6b5cff">
+    <path d="M92 420 q0 -34 22 -34 q22 0 22 34 q-6 8 -11 0 q-5 8 -11 0 q-6 8 -11 0 q-6 8 -11 0z"/>
+    <path d="M392 424 q0 -28 18 -28 q18 0 18 28 q-5 7 -9 0 q-4 7 -9 0 q-5 7 -9 0 q-4 7 -9 0z"/>
+  </g>
+  <circle cx="107" cy="402" r="4" fill="#ffe27a"/><circle cx="122" cy="402" r="4" fill="#ffe27a"/>
+  <circle cx="404" cy="408" r="3.4" fill="#ffe27a"/><circle cx="416" cy="408" r="3.4" fill="#ffe27a"/>
+</svg>

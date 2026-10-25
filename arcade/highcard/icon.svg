@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="felt" cx="0.5" cy="0.45" r="0.75">
+      <stop offset="0" stop-color="#16654a"/>
+      <stop offset="0.6" stop-color="#0c3a2c"/>
+      <stop offset="1" stop-color="#04140e"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff2b8"/>
+      <stop offset="0.5" stop-color="#f2c94c"/>
+      <stop offset="1" stop-color="#d9a020"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="9" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="512" height="512" fill="url(#felt)"/>
+  <g fill="none" stroke="#ff4fa8" stroke-width="7" opacity="0.9" filter="url(#glow)">
+    <circle cx="256" cy="262" r="190"/>
+  </g>
+  <g transform="rotate(-14 256 300)">
+    <rect x="128" y="132" width="168" height="236" rx="18" fill="#f7f3ea" stroke="#1b2033" stroke-opacity="0.35" stroke-width="5"/>
+    <text x="150" y="196" font-family="Arial Narrow, Arial, sans-serif" font-weight="900" font-size="62" fill="#1b2033">A</text>
+    <path transform="translate(212 268) scale(118)" fill="#1b2033" d="M0 -0.52C0.16 -0.32 0.52 -0.12 0.52 0.11C0.52 0.34 0.22 0.4 0.05 0.22Q0.08 0.42 0.22 0.52L-0.22 0.52Q-0.08 0.42 -0.05 0.22C-0.22 0.4 -0.52 0.34 -0.52 0.11C-0.52 -0.12 -0.16 -0.32 0 -0.52Z"/>
+  </g>
+  <g transform="rotate(12 256 300)">
+    <rect x="218" y="140" width="168" height="236" rx="18" fill="url(#gold)" stroke="#a87a10" stroke-width="5"/>
+    <text x="240" y="204" font-family="Arial Narrow, Arial, sans-serif" font-weight="900" font-size="62" fill="#b0102e">K</text>
+    <path transform="translate(302 276) scale(118)" fill="#e01e3c" d="M0 0.44C-0.18 0.28 -0.52 0.06 -0.52 -0.17C-0.52 -0.42 -0.2 -0.54 0 -0.27C0.2 -0.54 0.52 -0.42 0.52 -0.17C0.52 0.06 0.18 0.28 0 0.44Z"/>
+  </g>
+  <g filter="url(#glow)">
+    <path d="M150 412 L362 412" stroke="#ffd23f" stroke-width="10" stroke-linecap="round"/>
+  </g>
+</svg>

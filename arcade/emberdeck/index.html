@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Ember Deck</title>
+<meta name="description" content="A one-thumb deckbuilding roguelike. Three heroes, three acts, one ember against the drowned dark.">
+<meta name="theme-color" content="#0d0a12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ember Deck">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="bg" aria-hidden="true"></canvas>
+<div id="app">
+  <section id="s-title" class="screen title">
+    <div class="topbar"><a class="back" href="../index.html">‹ Arcade</a><button class="btn icon ghost" id="t-set" aria-label="Settings"></button></div>
+    <div class="hero">
+      <div class="emblem"><canvas id="t-emblem" width="10" height="10"></canvas></div>
+      <h1 class="logo"><span>EMBER</span><span>DECK</span></h1>
+      <p class="tagline">One ember against the drowned dark.</p>
+    </div>
+    <div class="menu">
+      <button class="btn primary big hidden" id="t-cont">Continue</button>
+      <button class="btn big" id="t-new">New Run</button>
+      <div class="row2"><button class="btn" id="t-comp">Compendium</button><button class="btn" id="t-rec">Records</button></div>
+      <button class="btn ghost" id="t-how">How to play</button>
+      <p class="best" id="t-best"></p>
+    </div>
+  </section>
+
+  <section id="s-chars" class="screen hidden">
+    <div class="head"><button class="btn icon backBtn" data-to="title" aria-label="Back">‹</button><h2>Choose your hero</h2><div></div></div>
+    <div id="charList" class="charlist"></div>
+    <div class="ascbox">
+      <div class="asc-row"><button class="btn icon" id="asc-dn" aria-label="Lower ascension">‹</button><div class="asc-mid"><b id="asc-n">Ascension 0</b><small id="asc-d"></small></div><button class="btn icon" id="asc-up" aria-label="Raise ascension">›</button></div>
+      <label class="seedrow"><span>Seed</span><input id="seedIn" maxlength="12" placeholder="random" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+    </div>
+    <button class="btn primary big" id="embark">Embark</button>
+  </section>
+
+  <section id="s-run" class="screen run hidden">
+    <header id="hud">
+      <div class="hrow">
+        <div class="chip hp" id="h-hp"></div>
+        <div class="chip gold" id="h-gold"></div>
+        <div class="pots" id="h-pots"></div>
+        <div class="sp"></div>
+        <button class="chip ib" id="h-map" aria-label="Map"></button>
+        <button class="chip ib" id="h-deck" aria-label="Deck"></button>
+        <button class="chip ib" id="h-menu" aria-label="Menu"></button>
+      </div>
+      <div class="relics" id="h-relics"></div>
+    </header>
+    <div id="view">
+      <div id="v-map" class="view"></div>
+      <div id="v-combat" class="view">
+        <div id="field">
+          <div id="foes"></div>
+          <div id="me"></div>
+          <div id="prompt" class="hidden"></div>
+        </div>
+        <div id="controls">
+          <button id="energy" class="orb" aria-label="Energy"><b>3</b><small>/3</small></button>
+          <button id="pile-draw" class="pile" aria-label="Draw pile"><span></span></button>
+          <div class="sp"></div>
+          <button id="pile-exh" class="pile exh hidden" aria-label="Exhaust pile"><span></span></button>
+          <button id="pile-disc" class="pile disc" aria-label="Discard pile"><span></span></button>
+          <button id="endturn" class="btn primary">End Turn</button>
+        </div>
+        <div id="hand"></div>
+        <svg id="aim" class="hidden" aria-hidden="true"><path d=""/><polygon points=""/></svg>
+      </div>
+      <div id="v-reward" class="view panelview"></div>
+      <div id="v-shop" class="view panelview"></div>
+      <div id="v-rest" class="view panelview"></div>
+      <div id="v-event" class="view panelview"></div>
+      <div id="v-treasure" class="view panelview"></div>
+      <div id="v-boss" class="view panelview"></div>
+    </div>
+  </section>
+
+  <section id="s-end" class="screen hidden"></section>
+  <section id="s-comp" class="screen hidden">
+    <div class="head"><button class="btn icon backBtn" data-to="title" aria-label="Back">‹</button><h2>Compendium</h2><div id="comp-n" class="pill"></div></div>
+    <div class="tabs" id="comp-tabs"></div>
+    <div id="comp-list"></div>
+  </section>
+  <section id="s-records" class="screen hidden">
+    <div class="head"><button class="btn icon backBtn" data-to="title" aria-label="Back">‹</button><h2>Records</h2><div></div></div>
+    <div id="rec-body"></div>
+  </section>
+  <section id="s-settings" class="screen hidden">
+    <div class="head"><button class="btn icon backBtn" data-to="title" aria-label="Back">‹</button><h2>Settings</h2><div></div></div>
+    <div class="list" id="setList"></div>
+    <button class="btn ghost" id="set-how">How to play</button>
+    <button class="btn danger" id="resetBtn">Reset progress</button>
+    <p class="fine">Ember Deck · progress is saved on this device.</p>
+  </section>
+</div>
+<canvas id="fx" aria-hidden="true"></canvas>
+<div id="fxl" aria-hidden="true"></div>
+<div id="overlay" class="hidden"></div>
+<div id="tip" class="hidden" role="tooltip"></div>
+<div id="banner" class="hidden"></div>
+<div id="toast" class="hidden" role="status"></div>
+<script src="js/core.js"></script>
+<script src="js/cards.js"></script>
+<script src="js/relics.js"></script>
+<script src="js/enemies.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/run.js"></script>
+<script src="js/events.js"></script>
+<script src="js/art.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/views.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

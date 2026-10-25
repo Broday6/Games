@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Tidewall</title>
+<meta name="description" content="A roguelite island defense. Wall the shore, build towers, keep the lighthouse burning through 20 nights.">
+<meta name="theme-color" content="#0b1026">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tidewall">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game" aria-label="Tidewall island"></canvas>
+<div id="safe" aria-hidden="true"></div>
+
+<!-- IN-GAME HUD -->
+<div id="hud" class="hud hidden">
+  <div class="hud-row">
+    <button id="menuBtn" class="hbtn" aria-label="Pause"><span></span><span></span></button>
+    <div class="night-badge"><small id="phaseLbl">DAY</small><b><span id="nightLbl">1</span><em>/20</em></b></div>
+    <div class="hpbar" aria-label="Lighthouse health"><i id="hpFill"></i><span id="hpTxt">30</span></div>
+  </div>
+  <div class="res-row" id="resRow"></div>
+</div>
+<div id="bossbar" class="bossbar hidden"><span id="bossName">Boss</span><div class="bb"><i id="bossFill"></i></div></div>
+<div id="routeTag" class="route-tag hidden"></div>
+
+<div id="bar" class="bar hidden">
+  <div id="dayBar" class="daybar">
+    <button id="gatherChip" class="chip" aria-label="Gather taps left"><span class="ic" id="gatherIc"></span><b id="gatherN">8</b></button>
+    <div id="threats" class="threats" aria-label="Tonight's threats"></div>
+    <button id="startBtn" class="btn primary start">Night 1 <span class="arrow">▶</span></button>
+  </div>
+  <div id="nightBar" class="nightbar hidden">
+    <button id="speedBtn" class="btn speed" aria-label="Game speed">1×</button>
+    <div class="wave"><div class="wavebar"><i id="waveFill"></i></div><span id="waveTxt">0 left</span></div>
+  </div>
+</div>
+
+<div id="radial" class="radial hidden" role="menu"></div>
+<div id="radialHint" class="radial-hint hidden"></div>
+<div id="confirm" class="confirm hidden">
+  <div class="cinfo"><b id="cName">Build</b><span id="cCost" class="costs"></span><small id="cNote"></small></div>
+  <button id="cNo" class="btn icon" aria-label="Cancel">✕</button>
+  <button id="cYes" class="btn primary">Build</button>
+</div>
+<div id="sheet" class="sheet hidden"></div>
+<div id="banner" class="banner hidden"><small id="banSmall"></small><b id="banBig"></b><span id="banSub"></span></div>
+
+<!-- TITLE -->
+<section id="title" class="screen title-screen">
+  <div class="topbar">
+    <a class="back" href="../index.html">‹ Arcade</a>
+    <div class="pill"><i class="pearl"></i><span id="titlePearls">0</span></div>
+  </div>
+  <div class="hero">
+    <canvas id="heroCv" width="260" height="210"></canvas>
+    <h1 class="logo"><span>TIDE</span><span>WALL</span></h1>
+    <p class="tagline">Wall the shore. Keep the light.</p>
+  </div>
+  <div class="menu">
+    <button id="contBtn" class="btn primary big hidden">Continue</button>
+    <button id="newBtn" class="btn primary big">New Expedition</button>
+    <div class="row2">
+      <button id="armBtn" class="btn">Armory</button>
+      <button id="setBtn" class="btn">Settings</button>
+    </div>
+    <p class="best" id="bestLine"></p>
+  </div>
+</section>
+
+<!-- EXPEDITION SETUP -->
+<section id="setup" class="screen hidden">
+  <div class="head"><button class="btn icon backBtn" data-to="title" aria-label="Back">‹</button><h2>Expedition</h2><div class="pill"><i class="pearl"></i><span class="pearlCount">0</span></div></div>
+  <div class="island">
+    <canvas id="islandCv"></canvas>
+    <div class="island-side">
+      <b id="islandName">Moon Bay</b>
+      <small id="islandSeed">Seed</small>
+      <button id="rerollBtn" class="btn">↻ New island</button>
+      <p class="sub left">Three landing beaches. More open as the nights go on.</p>
+    </div>
+  </div>
+  <h3>Commander</h3>
+  <div id="cmdList" class="list"></div>
+  <button id="goBtn" class="btn primary big go">Set sail</button>
+</section>
+
+<!-- ARMORY -->
+<section id="armory" class="screen hidden">
+  <div class="head"><button class="btn icon backBtn" data-to="title" aria-label="Back">‹</button><h2>Armory</h2><div class="pill"><i class="pearl"></i><span class="pearlCount">0</span></div></div>
+  <p class="sub">Spend Pearls earned each run on new towers, commanders and lasting upgrades.</p>
+  <h3>Towers</h3>
+  <div id="armTowers" class="list"></div>
+  <h3>Commanders</h3>
+  <div id="armCmds" class="list"></div>
+  <h3>Keeper's upgrades</h3>
+  <div id="armPerks" class="list grid"></div>
+</section>
+
+<!-- SETTINGS -->
+<section id="settings" class="screen hidden">
+  <div class="head"><button class="btn icon backBtn" data-to="title" aria-label="Back">‹</button><h2>Settings</h2><div></div></div>
+  <div class="list settings-list" id="setList"></div>
+  <div class="howto">
+    <h3>How to play</h3>
+    <p><b>Day:</b> tap an empty tile for the <b>build ring</b> — walls, harvesters and towers. <b>Drag</b> across tiles to paint a line of walls. Before you confirm, the dashed line shows the <b>new route</b> the shadows will take.</p>
+    <p>Walls shape the maze. If you seal every path, the shadows <b>smash through</b> the weakest wall (marked with a red ✕) — so leave a long, winding road instead, or reinforce the wall they will hit with stone.</p>
+    <p>Tap <b>trees, boulders and crystals</b> to gather wood, stone and crystal (limited taps per day). Harvesters next to them pay out every dawn.</p>
+    <p><b>Night:</b> the wave comes ashore. Change speed with the 1×/2×/3× button. Tap a tower to upgrade it or change its <b>target</b> (first, last, strong, close). Tier 3 offers a choice of two paths.</p>
+    <p>Flyers ignore walls. Burrowers tunnel under them. Wisps are invisible unless a <b>Lantern</b> lights them. A boss rises every 5th night. Survive 20 nights to win; after each night pick a <b>boon</b>.</p>
+    <p class="keys">Desktop: click to build · drag for walls · wheel to zoom · right-drag to pan · <b>Space</b> start night / speed · <b>1 2 3</b> speed or pick a boon · <b>Esc</b> close / pause</p>
+  </div>
+  <button id="resetBtn" class="btn danger">Reset all progress</button>
+</section>
+
+<!-- BOON / DAWN -->
+<section id="boon" class="screen modal hidden">
+  <div class="dawn-head"><div class="sunrise"></div><h2 class="dawn-title" id="dawnTitle">DAWN</h2><p class="sub" id="dawnSub">Night 1 survived</p></div>
+  <div class="dawn-gains" id="dawnGains"></div>
+  <p class="sub small">Choose a boon</p>
+  <div id="cards" class="cards"></div>
+</section>
+
+<!-- PAUSE -->
+<section id="pause" class="screen modal hidden">
+  <h2>Paused</h2>
+  <div class="pause-stats" id="pauseStats"></div>
+  <div class="boonlist" id="pauseBoons"></div>
+  <div class="list settings-list compact" id="pauseSet"></div>
+  <button id="resumeBtn" class="btn primary big">Resume</button>
+  <div class="row2 pause-row"><button id="helpBtn2" class="btn">How to play</button><button id="quitBtn" class="btn">Abandon run</button></div>
+</section>
+
+<!-- HELP OVERLAY (in-run) -->
+<section id="help" class="screen modal hidden">
+  <h2>How to play</h2>
+  <div class="howto" id="helpBody"></div>
+  <button id="helpClose" class="btn primary big">Got it</button>
+</section>
+
+<!-- SUMMARY -->
+<section id="summary" class="screen modal hidden">
+  <h2 id="sumTitle" class="sum-title">THE LIGHT WENT OUT</h2>
+  <p id="sumSub" class="sub"></p>
+  <div class="stats" id="sumStats"></div>
+  <div class="pearls-earned"><i class="pearl big"></i><span>+<b id="sumPearls">0</b> Pearls</span></div>
+  <h3>Damage by tower</h3>
+  <div id="sumTowers" class="dmg-list"></div>
+  <div class="row2">
+    <button id="againBtn" class="btn primary">New expedition</button>
+    <button id="homeBtn" class="btn">Title</button>
+  </div>
+</section>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="js/data.js"></script>
+<script src="js/core.js"></script>
+<script src="js/sim.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/art.js"></script>
+<script src="js/render.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
