@@ -239,7 +239,7 @@
     const seats = DB.seats.map(P).filter(Boolean);
     const offers = loanOffers();
     el.innerHTML = `
-      <div class="topbar wrap"><a class="back" href="../">‹ Arcade</a><div class="title"></div>
+      <div class="topbar wrap"><a class="back" href="../index.html">‹ Arcade</a><div class="title"></div>
         ${muteBtn('ghost')}
         <button class="btn icon-btn ghost" data-act="go" data-to="settings" aria-label="Settings">${ICON.gear}</button></div>
       <div class="scroll" style="flex:1"><div class="wrap">

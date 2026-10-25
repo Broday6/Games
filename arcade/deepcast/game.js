@@ -1322,7 +1322,7 @@
     const st = S.stats;
     body.appendChild(el('p', 'muted center', `Caught ${st.caught} fish · ${st.perfect} perfect · earned ${fmt(st.earned)} coins`));
     const row = el('div', 'row center gap');
-    const a = el('a', 'btn', '‹ Arcade'); a.href = '../'; row.appendChild(a);
+    const a = el('a', 'btn', '‹ Arcade'); a.href = '../index.html'; row.appendChild(a);
     let armed = false;
     const rb = btn('Reset save', 'danger', () => {
       if (!armed) { armed = true; rb.textContent = 'Tap again to erase'; setTimeout(() => { armed = false; rb.textContent = 'Reset save'; }, 3000); return; }
