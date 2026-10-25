@@ -3,7 +3,7 @@
 // keep lifting heavy so the body has a reason to hold muscle; walk a lot; sleep 7+ hours; take a week at
 // maintenance every 8–12 weeks. Calorie needs start from a formula and are re-learned from your own weigh-ins and
 // food log, then the coach suggests small adjustments (never below a safe floor).
-import { $, $$, esc, uid, num, sum, round2, avg, acts, chg, icon, toast, sheet, formSheet, field, input, numInput, select, today, addDays, parseDate, fmtDate, fmtShort, daysBetween, relDay, empty, pill, bus } from './util.js';
+import { $, $$, esc, uid, num, sum, round2, avg, extractJSON, acts, chg, icon, toast, sheet, formSheet, field, input, numInput, select, today, addDays, parseDate, fmtDate, fmtShort, daysBetween, relDay, empty, pill, bus } from './util.js';
 import { S, commit, save, undoable, set } from './store.js';
 import { lineChart } from './charts.js';
 
@@ -348,7 +348,7 @@ document.addEventListener('submit', async e => {
   const btn = mf.querySelector('button');
   btn.disabled = true; btn.textContent = 'Estimating…';
   try {
-    const out = await sample.json(`Estimate the nutrition of this meal as typically prepared in the US. Reply with only a JSON array, one object per food: {"name": string (short, with amount), "kcal": number, "p": protein grams, "c": carb grams, "f": fat grams}.\n\nMeal: ${text}`, { modelTier: 'quick' });
+    const out = extractJSON((await sample(`Estimate the nutrition of this meal as typically prepared in the US. Reply with only a JSON array, one object per food: {"name": string (short, with amount), "kcal": number, "p": protein grams, "c": carb grams, "f": fat grams}.\n\nMeal: ${text}`, { modelTier: 'quick' })).text);
     const list = (Array.isArray(out) ? out : [out]).filter(x => x && num(x.kcal) > 0).map(x => ({ ...x, est: true }));
     if (!list.length) throw { code: 'invalid_json' };
     addFood(list, day());

@@ -46,6 +46,17 @@ export const addMonthsISO = (s, n) => {
   d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
   return iso(d);
 };
+// The first JSON value in a model reply, tolerating code fences and stray prose around it.
+export function extractJSON(text) {
+  const t = String(text || '').replace(/```(?:json)?/gi, '').trim();
+  const starts = [t.indexOf('{'), t.indexOf('[')].filter(i => i >= 0);
+  if (!starts.length) return undefined;
+  const i = Math.min(...starts), close = t[i] === '{' ? '}' : ']';
+  for (let j = t.lastIndexOf(close); j > i; j = t.lastIndexOf(close, j - 1)) {
+    try { return JSON.parse(t.slice(i, j + 1)); } catch { /* try a shorter span */ }
+  }
+  return undefined;
+}
 export const avg = arr => { const v = arr.filter(x => Number.isFinite(x) && x > 0); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
 export const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];

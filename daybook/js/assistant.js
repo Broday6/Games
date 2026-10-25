@@ -1,7 +1,8 @@
-// Ask Claude: a chat inside Daybook (when it runs in Claude) that can read your day and change it with
-// page tools: add or move to-dos, schedule items and habits, update goals, and reflect on your check-ins.
-// Every answer that changed something can be undone in one tap.
-import { $, esc, uid, num, avg, round2, acts, icon, toast, sheet, today, addDays, parseDate, fmtTime, hmOf, daysLabel, DOW, bus } from './util.js';
+// Ask Claude: a chat inside Daybook (when it runs in Claude) that can read your day and change it: add or move
+// to-dos, schedule items and habits, log food, pay bills, update goals, and reflect on your check-ins.
+// Each message is one call: Claude gets your current data plus the list of actions below, answers with a reply and
+// the actions to take, and the page applies them. Every answer that changed something can be undone in one tap.
+import { $, esc, uid, num, avg, round2, extractJSON, acts, icon, toast, sheet, today, addDays, parseDate, fmtTime, hmOf, daysLabel, DOW, bus } from './util.js';
 import { S, commit, replaceState, set } from './store.js';
 import { eventsOn } from './work.js';
 import { completeTask, cats, catLabel, addCat, slug, firstOn, repeatText } from './tasks.js';
@@ -18,8 +19,6 @@ export async function startAssistant() {
   if (!window.claude?.use) return;
   const s = await window.claude.use('sample').catch(() => null);
   if (!s) return;
-  const lim = await s.limits().catch(() => null);
-  if (!lim?.tools) return;
   sample = s;
   bus.render();
 }
@@ -77,7 +76,7 @@ const TOOLS = [
       repeat_days: { type: 'array', items: { type: 'string' }, description: 'for repeat "days": e.g. ["mon","thu"]' }, notes: { type: 'string' }, focus_today: { type: 'boolean' }, done: { type: 'boolean' }, delete: { type: 'boolean' } } },
     execute: input => {
       let t = input.id ? S.tasks.find(x => x.id === String(input.id)) : null;
-      if (input.id && !t) throw new Error('No to-do with that id. Call list_todos.');
+      if (input.id && !t) throw new Error('No to-do with that id.');
       if (t && input.delete) { S.tasks = S.tasks.filter(x => x !== t); touch(); return 'deleted'; }
       if (!t) { if (!input.title) throw new Error('A new to-do needs a title.'); t = { id: uid(), title: '', due: '', time: '', cat: 'personal', jobId: '', done: false, focus: '', repeat: '', repeatDays: [], notes: '' }; S.tasks.push(t); }
       if (input.title !== undefined) t.title = String(input.title).trim() || t.title;
@@ -112,7 +111,7 @@ const TOOLS = [
       repeat_days: { type: 'array', items: { type: 'string' } }, until: { type: 'string' }, workout: { type: 'boolean' }, notes: { type: 'string' }, skip_date: { type: 'string' }, delete: { type: 'boolean' } } },
     execute: input => {
       let e = input.id ? S.events.find(x => x.id === String(input.id)) : null;
-      if (input.id && !e) throw new Error('No schedule item with that id. Call list_schedule.');
+      if (input.id && !e) throw new Error('No schedule item with that id.');
       if (e && input.delete) { S.events = S.events.filter(x => x !== e); touch(); return 'deleted'; }
       if (e && input.skip_date) { e.skip = [...(e.skip || []), String(input.skip_date)]; touch(); return eventOut(e); }
       if (!e) { if (!input.title) throw new Error('A new item needs a title.'); e = { id: uid(), title: '', date: today(), start: '', end: '', jobId: '', notes: '', days: [], until: '', gym: false, done: false, doneDates: [], skip: [] }; S.events.push(e); }
@@ -141,7 +140,7 @@ const TOOLS = [
       target: { type: 'number' }, unit: { type: 'string' }, mark_today: { type: 'boolean' }, paused: { type: 'boolean' }, delete: { type: 'boolean' } } },
     execute: input => {
       let h = input.id ? S.habits.find(x => x.id === String(input.id)) : null;
-      if (input.id && !h) throw new Error('No habit with that id. Call list_habits.');
+      if (input.id && !h) throw new Error('No habit with that id.');
       if (h && input.delete) { S.habits = S.habits.filter(x => x !== h); touch(); return 'deleted'; }
       if (!h) { if (!input.name) throw new Error('A new habit needs a name.'); h = { id: uid(), name: '', created: today(), when: 'anytime', days: [], target: 1 }; S.habits.push(h); }
       if (input.name) h.name = String(input.name).trim();
@@ -186,7 +185,7 @@ const TOOLS = [
     execute: input => {
       S.people = S.people || [];
       let p = input.id ? S.people.find(x => x.id === String(input.id)) : null;
-      if (input.id && !p) throw new Error('No person with that id. Call list_people.');
+      if (input.id && !p) throw new Error('No person with that id.');
       if (p && input.delete) { S.people = S.people.filter(x => x !== p); touch(); return 'deleted'; }
       if (!p) { if (!input.name) throw new Error('A new person needs a name.'); p = { id: uid(), name: '', created: today(), log: [], last: '', next: '', every: '', days: [], tag: 'work', notes: '' }; S.people.push(p); }
       if (input.name) p.name = String(input.name).trim();
@@ -206,7 +205,7 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: { id: { type: 'string' }, kind: { type: 'string', enum: ['call', 'text', 'meet', 'email'] }, note: { type: 'string' } }, required: ['id'] },
     execute: ({ id, kind = 'call', note = '' }) => {
       const p = (S.people || []).find(x => x.id === String(id));
-      if (!p) throw new Error('No person with that id. Call list_people.');
+      if (!p) throw new Error('No person with that id.');
       people.logContact(p, kind, String(note));
       touch();
       return { name: p.name, next: p.next || null };
@@ -285,7 +284,7 @@ const TOOLS = [
     execute: input => {
       const list = billsMod.bills();
       let b = input.id ? list.find(x => x.id === String(input.id)) : null;
-      if (input.id && !b) throw new Error('No bill with that id. Call list_bills.');
+      if (input.id && !b) throw new Error('No bill with that id.');
       if (b && input.delete) { S.bills = list.filter(x => x !== b); touch(); return 'deleted'; }
       if (!b) { if (!input.name || !isDate(input.due)) throw new Error('A new bill needs a name and a due date.'); b = { id: uid(), created: today(), history: [], repeat: 'monthly', cat: 'other', remind: '3' }; list.push(b); }
       if (input.name) b.name = String(input.name).trim();
@@ -305,7 +304,7 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: { id: { type: 'string' }, amount: { type: 'number' } }, required: ['id'] },
     execute: ({ id, amount }) => {
       const b = billsMod.bills().find(x => x.id === String(id));
-      if (!b) throw new Error('No bill with that id. Call list_bills.');
+      if (!b) throw new Error('No bill with that id.');
       billsMod.pay(b, amount ?? b.amount);
       touch();
       return { name: b.name, next_due: b.done ? null : b.due };
@@ -313,7 +312,7 @@ const TOOLS = [
   },
   {
     name: 'update_goal',
-    description: 'Log a new current value for a goal that is updated by hand (from get_reflection goals).',
+    description: 'Log a new current value for a goal that is updated by hand (goal ids are in the data).',
     inputSchema: { type: 'object', properties: { id: { type: 'string' }, value: { type: 'number' }, note: { type: 'string' } }, required: ['id', 'value'] },
     execute: ({ id, value, note }) => {
       const g = S.goals.find(x => x.id === String(id));
@@ -326,14 +325,48 @@ const TOOLS = [
   },
 ];
 
-const instructions = () => {
+// Lookups run before the call and go into the prompt; the rest are actions Claude can ask for.
+const READS = ['get_day', 'list_todos', 'list_schedule', 'list_habits', 'list_people', 'list_bills', 'get_fitness', 'get_reflection'];
+const ACTIONS = TOOLS.filter(t => !READS.includes(t.name));
+const tool = name => TOOLS.find(t => t.name === name);
+const fieldText = (k, v) => `${k}${v.enum ? ` (${v.enum.filter(Boolean).join('|')})` : v.type === 'array' ? (v.items?.properties ? ` (list of {${Object.keys(v.items.properties).join(', ')}})` : ' (list)') : v.type && v.type !== 'string' ? ` (${v.type})` : ''}${v.description ? `: ${v.description}` : ''}`;
+const catalog = () => ACTIONS.map(t => `- ${t.name}: ${t.description}${t.inputSchema?.properties ? ` Fields: ${Object.entries(t.inputSchema.properties).map(([k, v]) => fieldText(k, v)).join('; ')}.` : ' No fields.'}`).join('\n');
+function snapshot(deep) {
+  const run = (name, input = {}) => { try { return tool(name).execute(input, {}); } catch { return undefined; } };
+  return {
+    today: run('get_day'),
+    tomorrow: run('get_day', { date: addDays(today(), 1) }),
+    todos: run('list_todos'),
+    schedule: run('list_schedule'),
+    habits: run('list_habits'),
+    people: run('list_people'),
+    bills: run('list_bills'),
+    templates: S.templates.map(t => t.name),
+    fitness: fit.cut()?.on ? run('get_fitness') : undefined,
+    last_two_weeks: deep ? run('get_reflection') : undefined,
+    goals: deep ? undefined : S.goals.filter(g => !g.done).map(g => ({ id: g.id, title: g.title })),
+  };
+}
+
+const instructions = deep => {
   const now = new Date();
-  return `You are the assistant inside Daybook, ${S.settings.name ? S.settings.name + '\'s' : 'the user\'s'} personal planner on their phone: contracting work, gym, to-dos, habits, check-ins and goals.
+  return `You are the assistant inside Daybook, ${S.settings.name ? S.settings.name + '\'s' : 'the user\'s'} personal planner on their phone: contracting work, gym and fitness, to-dos, bills, people to follow up with, habits, check-ins and goals.
 It is ${DOW[now.getDay()]} ${today()}, ${fmtTime(hmOf(now.getTime()))}. Dates are YYYY-MM-DD, times HH:MM (24h). To-do categories: ${cats().map(c => c[1]).join(', ')}.
-Use the tools to look things up and to make changes. When they mention a task, routine, appointment or habit, add or change it right away, then confirm in one or two short sentences with the day and time. If a needed detail is missing, choose a sensible default and say what you picked; ask a question only when guessing would likely be wrong. Ask before deleting more than one item.
-For fitness, call get_fitness first. They are cutting to a lean body-fat level while keeping muscle: favor high protein, heavy lifting, steps and sleep; never suggest crash diets, eating below the plan's floor, or losing more than about 1% of body weight a week.
-People they follow up with live in the People list (save_person, log_follow_up), not as to-dos. "Plan my day" means plan_my_day.
-For advice on habits, schedules or their week, read their data first (get_day, get_reflection) and use what works: three priorities a day at most, time-block the important work, tie habits to a cue and a time of day, start small, never miss twice, protect sleep, and do a weekly review. Be warm, direct and brief: short paragraphs, at most five bullets, no headings.`;
+
+When they mention a task, routine, appointment, bill, meal or habit, make the change right away with an action, then confirm in one or two short sentences with the day and time. If a needed detail is missing, choose a sensible default and say what you picked; ask a question only when guessing would likely be wrong. Never delete more than one item without asking first. Use ids exactly as they appear in the data.
+For fitness: they are cutting to a lean body-fat level while keeping muscle. Favor high protein, heavy lifting, steps and sleep; never suggest crash diets, eating below the plan's floor, or losing more than about 1% of body weight a week. When they describe a meal, estimate each item from typical US portions, log it with log_food, and say the totals.
+People they follow up with live in the People list (save_person, log_follow_up), not as to-dos. "Plan my day" means the plan_my_day action.
+For advice on habits, schedules or their week, use their data and what works: three priorities a day at most, time-block the important work, tie habits to a cue and a time of day, start small, never miss twice, protect sleep, and do a weekly review. Be warm, direct and brief: short paragraphs, at most five bullets, no headings, no markdown.
+
+ACTIONS you can take:
+${catalog()}
+
+THEIR DATA RIGHT NOW (JSON):
+${JSON.stringify(snapshot(deep))}
+
+Answer every message with ONLY one JSON object and nothing else:
+{"reply": "what you say to them, plain text", "actions": [{"tool": "<action name>", "input": {<fields>}}]}
+Use "actions": [] when nothing should change. Actions run in the order listed, right after you answer, so write the reply as if they are done.`;
 };
 
 // ---------- chat sheet ----------
@@ -359,6 +392,27 @@ export function openChat(first = '') {
   return s;
 }
 
+// The reply streams in as Claude writes the "reply" field.
+function partialReply(raw) {
+  const m = raw.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)/);
+  if (!m) return '';
+  try { return JSON.parse(`"${m[1].replace(/\\u?[0-9a-fA-F]{0,3}$|\\$/, '')}"`); } catch { return ''; }
+}
+
+async function apply(actions) {
+  const done = [], failed = [], notes = [];
+  for (const a of (Array.isArray(actions) ? actions : []).slice(0, 20)) {
+    const t = ACTIONS.find(x => x.name === a?.tool);
+    if (!t) continue;
+    try {
+      const r = await t.execute(a.input && typeof a.input === 'object' ? a.input : {}, {});
+      done.push(t.name);
+      if (t.name === 'plan_my_day' && r) notes.push(r.placed.length ? `Planned: ${r.placed.join(', ')}.${r.did_not_fit.length ? ` Didn't fit: ${r.did_not_fit.join(', ')}.` : ''}` : 'Nothing needed a time slot today.');
+    } catch (err) { failed.push(`${t.name.replace(/_/g, ' ')}: ${err?.message || err}`); }
+  }
+  return { done, failed, notes };
+}
+
 async function send(el, text) {
   if (!sample || ctl) return;
   const log = el.querySelector('#chat-log');
@@ -375,22 +429,34 @@ async function send(el, text) {
   stop.hidden = false;
   // Edits answer fast on the quick tier; questions and planning get the thinking tier.
   const deep = /\?|plan|advice|suggest|review|how (did|was|am|is)|why|improve|routine|week/i.test(text);
+  const history = turns.slice(-11, -1);
+  while (history.length && history[0].role !== 'user') history.shift();
   try {
-    const { text: answer } = await sample([{ role: 'user', content: instructions() }, ...turns.slice(-12)], {
-      tools: TOOLS.map(t => ({ ...t, execute: (input, ctx) => { status.textContent = `Working: ${t.name.replace(/_/g, ' ')}…`; return t.execute(input || {}, ctx); } })),
-      modelTier: deep ? 'default' : 'quick', signal: ctl.signal,
-      onText: ({ text: tx }) => { out.classList.remove('thinking'); out.textContent = tx; log.scrollTop = log.scrollHeight; },
+    const { text: raw } = await sample([{ role: 'user', content: instructions(deep) }, ...history, { role: 'user', content: `${text}\n\n(Answer with the JSON object only.)` }], {
+      modelTier: deep ? 'default' : 'quick', signal: ctl.signal, cache: false,
+      onText: ({ text: tx }) => { const r = partialReply(tx); if (r) { out.classList.remove('thinking'); out.textContent = r; log.scrollTop = log.scrollHeight; } },
     });
+    const parsed = extractJSON(raw);
+    const isObj = parsed && typeof parsed === 'object' && !Array.isArray(parsed);
+    let answer = isObj ? String(parsed.reply || '').trim() : raw.trim();
+    if (isObj && parsed.actions?.length) {
+      status.textContent = 'Saving…';
+      const r = await apply(parsed.actions);
+      if (r.notes.length) answer += `\n\n${r.notes.join('\n')}`;
+      if (r.failed.length) answer += `\n\nCouldn't finish: ${r.failed.join('; ')}`;
+    }
     out.classList.remove('thinking');
-    out.textContent = answer;
-    turns.push({ role: 'assistant', content: answer });
+    out.textContent = answer || 'Done.';
+    turns.push({ role: 'assistant', content: answer || 'Done.' });
   } catch (e) {
+    if (!e?.code) console.warn('Ask Claude failed', e);
     out.classList.remove('thinking');
-    out.textContent = e?.text || '';
-    const msg = { cancelled: 'Stopped.', not_granted: 'Claude is not allowed for this page. You can allow it from the page’s permissions.', rate_limited: 'Too many requests right now. Try again in a minute.', refused: 'Claude could not help with that one.', session_expired: 'Sign in to Claude again, then retry.' }[e?.code] || 'Something went wrong. Try again.';
-    if (!e?.text) out.textContent = msg; else out.insertAdjacentHTML('beforeend', `<br><small class="muted">${esc(msg)}</small>`);
-    if (e?.text) turns.push({ role: 'assistant', content: e.text });
-    if (['not_granted', 'sampling_disabled', 'not_declared', 'capability_disabled', 'capability_removed', 'tools_unavailable'].includes(e?.code)) { sample = null; bus.render(); }
+    const partial = e?.text ? partialReply(e.text) : '';
+    const msg = { cancelled: 'Stopped.', not_granted: 'Claude isn’t allowed for this page yet. Open the page’s menu (top right) → Permissions and allow Claude, then try again.', sampling_disabled: 'Claude isn’t available on this account right now.', rate_limited: 'You’ve hit a usage limit or sent a lot at once. Try again in a few minutes.', refused: 'Claude couldn’t help with that one. Try rewording it.', session_expired: 'Sign in to Claude again, then retry.', empty_completion: 'Claude didn’t answer. Try asking a shorter way.' }[e?.code] || `That didn’t go through (${e?.code || 'error'}). Try again.`;
+    out.textContent = partial || msg;
+    if (partial) out.insertAdjacentHTML('beforeend', `<br><small class="muted">${esc(msg)}</small>`);
+    turns.pop();
+    if (['not_granted', 'sampling_disabled', 'not_declared', 'capability_disabled', 'capability_removed'].includes(e?.code)) { sample = null; bus.render(); }
   }
   ctl = null;
   stop.hidden = true;
