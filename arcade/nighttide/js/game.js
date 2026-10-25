@@ -24,11 +24,11 @@
   const ET = NT.ET = [
     { key: 'shade', r: 12, hp: 11, spd: 50, dmg: 6, xp: 1, body: '#2c2050', rim: '#9a7bea', shape: 'ghost', kb: 0 },
     { key: 'skitter', r: 9, hp: 5, spd: 96, dmg: 4, xp: 1, body: '#103a42', rim: '#4fd8cf', shape: 'crab', kb: 0 },
-    { key: 'brute', r: 22, hp: 95, spd: 36, dmg: 18, xp: 6, body: '#44172a', rim: '#ff5d78', shape: 'brute', kb: 0.75 },
+    { key: 'brute', r: 22, hp: 95, spd: 36, dmg: 18, xp: 4, body: '#44172a', rim: '#ff5d78', shape: 'brute', kb: 0.75 },
     { key: 'spitter', r: 13, hp: 20, spd: 46, dmg: 7, xp: 2, body: '#22381a', rim: '#a8ec68', shape: 'urchin', kb: 0.1 },
     { key: 'splitter', r: 16, hp: 36, spd: 44, dmg: 10, xp: 2, body: '#3c1646', rim: '#ee7cf0', shape: 'bubble', kb: 0.2 },
     { key: 'mini', r: 8, hp: 8, spd: 80, dmg: 5, xp: 1, body: '#3c1646', rim: '#ee7cf0', shape: 'mini', kb: 0 },
-    { key: 'jelly', r: 14, hp: 30, spd: 50, dmg: 14, xp: 3, body: '#16285a', rim: '#78b4ff', shape: 'jelly', kb: 0.2 },
+    { key: 'jelly', r: 14, hp: 30, spd: 50, dmg: 14, xp: 2, body: '#16285a', rim: '#78b4ff', shape: 'jelly', kb: 0.2 },
     { key: 'boss1', name: 'OLD PINCER', r: 44, hp: 1900, spd: 58, dmg: 18, xp: 0, body: '#55200f', rim: '#ff9a5a', shape: 'bosscrab', kb: 1, boss: 1 },
     { key: 'boss2', name: 'THE MAWLIGHT', r: 46, hp: 12000, spd: 52, dmg: 22, xp: 0, body: '#0f2c3c', rim: '#5ce1e6', shape: 'angler', kb: 1, boss: 2 },
     { key: 'boss3', name: 'THE TIDE KING', r: 60, hp: 40000, spd: 56, dmg: 30, xp: 0, body: '#22104a', rim: '#ffcf4a', shape: 'king', kb: 1, boss: 3 },
@@ -225,13 +225,13 @@
     mode: 'title', modal: null, t: 0, time: 0, kills: 0, level: 1, xp: 0, xpNext: 5, pendingLv: 0,
     weapons: [], passives: {}, passiveOrder: [], boss: null, bossesKilled: 0, shake: 0, hurtFlash: 0,
     banner: null, ending: null, timeScale: 1, evI: 0, eliteT: 50, spawnAcc: 0, rerolls: 1, revives: 0,
-    char: null, bonusShards: 0, lvlFx: 0, pulseId: 0, healed: 0, chestsOpened: 0, dmgTaken: 0,
+    char: null, bonusShards: 0, dmgBy: {}, lvlFx: 0, pulseId: 0, healed: 0, chestsOpened: 0, dmgTaken: 0,
   };
   NT.P = P;
 
-  function hpMul() { const t = G.t, l = t > 240 ? (t - 240) / 60 : 0; return 1 + t / 60 * 0.38 + l * l * 0.3; }
+  function hpMul() { const t = G.t, l = t > 240 ? (t - 240) / 60 : 0; return 1 + t / 60 * 0.38 + l * l * 0.5; }
   function dmgMul() { return 1 + G.t / 60 * 0.15; }
-  function xpForLevel(l) { return 4 + (l - 1) * 4 + max(0, l - 12) * 5 + max(0, l - 28) * 10 + max(0, l - 40) * 20; }
+  function xpForLevel(l) { return 4 + (l - 1) * 4 + max(0, l - 10) * 8 + max(0, l - 20) * 24 + max(0, l - 30) * 70; }
 
   function meta(id) { const s = NT.save; return (s && s.up && s.up[id]) || 0; }
   function recalc() {
@@ -378,7 +378,7 @@
             w.t = s.cd * cdm;
             for (let k = 0; k < s.pulses; k++) { const pu = w.pulses[k]; pu.on = true; pu.t = -k * 0.28; pu.id = ++G.pulseId; pu.r = 0; }
           }
-          const R = s.radius * area;
+          const R = s.radius * (1 + (area - 1) * 0.5);
           for (let k = 0; k < 3; k++) {
             const pu = w.pulses[k];
             if (!pu.on) continue;
@@ -704,8 +704,8 @@
           e.st -= dt;
           if (d < 140) { mx = -nx * 0.7; my = -ny * 0.7; } else if (d < 230) { mx = -ny * 0.55 * e.dir; my = nx * 0.55 * e.dir; } else { mx = nx; my = ny; }
           if (e.st <= 0 && d < 330) {
-            e.st = 3.4 + rnd() * 1.6;
-            fireBullet(e.x, e.y, nx, ny, 135, e.dmg * 0.8, e.elite ? 7 : 5);
+            e.st = 3.8 + rnd() * 1.8;
+            fireBullet(e.x, e.y, nx, ny, 135, e.dmg * 0.65, e.elite ? 7 : 5.5);
             if (e.elite) { fireBullet(e.x, e.y, cos(atan2(ny, nx) + 0.25), sin(atan2(ny, nx) + 0.25), 150, e.dmg, 6); fireBullet(e.x, e.y, cos(atan2(ny, nx) - 0.25), sin(atan2(ny, nx) - 0.25), 150, e.dmg, 6); }
             NT.Audio.play('spit');
           }
@@ -762,12 +762,13 @@
 
   function touchPlayer(e, nx, ny) {
     if (P.iT > 0) return;
-    hurt(e.dmg);
+    hurt(e.dmg, e.def.key);
     e.kx -= nx * 160 * (1 - e.def.kb); e.ky -= ny * 160 * (1 - e.def.kb);
   }
-  function hurt(raw) {
+  function hurt(raw, src) {
     if (P.iT > 0 || P.dead || G.ending) return;
     const dmg = max(1, raw - P.st.armor);
+    if (DBG.on) { const k = src || '?'; G.dmgBy[k] = (G.dmgBy[k] || 0) + dmg; }
     P.iT = 0.6;
     G.hurtFlash = 1;
     G.dmgTaken += dmg;
@@ -802,7 +803,7 @@
       b.x += b.vx * dt; b.y += b.vy * dt;
       if (b.life <= 0 || G.ending) { b.alive = false; continue; }
       const dx = b.x - P.x, dy = b.y - P.y, rr = b.r + P.r - 2;
-      if (dx * dx + dy * dy < rr * rr) { b.alive = false; hurt(b.dmg); }
+      if (dx * dx + dy * dy < rr * rr) { b.alive = false; hurt(b.dmg, 'bullet'); }
     }
   }
 
@@ -1117,7 +1118,7 @@
     G.shake = 0; G.hurtFlash = 0; G.banner = null; G.ending = null; G.timeScale = 1; G.slowT = 0;
     G.evI = 0; while (G.evI < EVENTS.length && EVENTS[G.evI][0] < G.t) G.evI++;
     G.eliteT = max(50, G.t + 20); G.spawnAcc = 0; G.bonusShards = 0; G.lvlFx = 0; G.healed = 0; G.chestsOpened = 0; G.dmgTaken = 0;
-    G.rerolls = 1 + meta('reroll'); G.revives = meta('revive');
+    G.dmgBy = {}; G.rerolls = 1 + meta('reroll'); G.revives = meta('revive');
     recalc(); P.hp = P.maxHp;
     addWeapon(G.char.weapon, 1);
     for (let i = 0; i < DBG.spawn; i++) { const a = rnd() * TAU, r = 120 + rnd() * spawnR; spawnEnemy(pickType(max(300, G.t)), cos(a) * r, sin(a) * r, false); }
@@ -1558,6 +1559,7 @@
   function rr(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
   function fmtTime(t) { t = max(0, t | 0); const m = (t / 60) | 0, s = t % 60; return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s; }
   NT.fmtTime = fmtTime;
+  let hudBottom = 100;
   let timeStr = '', timeSec = -1, killStr = '', killN = -1, lvStr = '', lvN = -1;
 
   function drawHUD() {
@@ -1623,8 +1625,10 @@
       x += 26;
     }
     // offscreen indicators
+    hudBottom = py + (G.passiveOrder.length ? 34 : 4);
     const KL = KP.list;
-    for (let i = 0; i < KP.n; i++) { const k = KL[i]; if (k.alive && k.kind === PICK_CHEST) edgeArrow(k.x, k.y, '#ffcf4a'); }
+    let na = 0;
+    for (let i = 0; i < KP.n && na < 3; i++) { const k = KL[i]; if (k.alive && k.kind === PICK_CHEST) { edgeArrow(k.x, k.y, '#ffcf4a'); na++; } }
     if (boss) edgeArrow(boss.x, boss.y, '#ff4a6a');
     // banner
     const b = G.banner;
@@ -1658,10 +1662,11 @@
   function edgeArrow(x, y, col) {
     const sx = (x - camX) * SCALE + W / 2, sy = (y - camY) * SCALE + H / 2;
     const m = 26;
-    if (sx > m && sx < W - m && sy > SAFE.t + 90 && sy < H - SAFE.b - m) return;
+    const topY = max(SAFE.t + 60, hudBottom + 14);
+    if (sx > m && sx < W - m && sy > topY && sy < H - SAFE.b - m) return;
     const cx = W / 2, cy = H / 2, dx = sx - cx, dy = sy - cy;
     const a = atan2(dy, dx);
-    const hx = (W / 2 - m - SAFE.l), hy0 = (H / 2 - SAFE.b - m), hy1 = (H / 2 - SAFE.t - 100);
+    const hx = (W / 2 - m - SAFE.l), hy0 = (H / 2 - SAFE.b - m), hy1 = (H / 2 - topY);
     const tx = abs(dx) > 0.001 ? hx / abs(dx) : 1e9, ty = abs(dy) > 0.001 ? (dy > 0 ? hy0 : hy1) / abs(dy) : 1e9;
     const t = min(tx, ty);
     const ax = cx + dx * t, ay = cy + dy * t;
@@ -1723,7 +1728,7 @@
       chest(boss) { dropPick(PICK_CHEST, P.x + 30, P.y, !!boss); },
       kill() { die(); },
       win() { endRun(true, 'dawn'); },
-      maxAll() { for (const id of NT.WEAPON_IDS) { const w = getW(id) || addWeapon(id, 1); w.level = 5; computeStats(w); } for (const id of NT.PASSIVE_IDS.slice(0, 6)) { if (!G.passives[id]) G.passiveOrder.push(id); G.passives[id] = 5; } recalc(); },
+      maxAll(evo) { for (const id of NT.WEAPON_IDS) { const w = getW(id) || addWeapon(id, 1); w.level = 5; w.evo = !!evo; computeStats(w); } for (const id of NT.PASSIVE_IDS.slice(0, 6)) { if (!G.passives[id]) G.passiveOrder.push(id); G.passives[id] = 5; } recalc(); },
       counts() { return { e: EP.n, p: PP.n, b: BP.n, g: GP.n, fx: FX.n }; },
     };
   }

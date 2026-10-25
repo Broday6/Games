@@ -56,7 +56,7 @@ window.NT = window.NT || {};
         '+4 damage, +15% radius', '-15% cooldown', '+8 damage, stronger shove', '+20% radius, double wave'],
       lv: [{ dmg: 16, cd: 3.6, radius: 150, kb: 240, pulses: 1, expand: 0.55 }, { dmg: 20, radius: 172 },
         { cd: 3.05 }, { dmg: 28, kb: 330 }, { radius: 205, pulses: 2 }],
-      evoStats: { dmg: 46, cd: 2.8, radius: 270, kb: 430, pulses: 3, expand: 0.6, stun: 0.6 },
+      evoStats: { dmg: 40, cd: 3.0, radius: 235, kb: 380, pulses: 3, expand: 0.6, stun: 0.4 },
     },
     gull: {
       name: 'Gull Summon', short: 'Gulls', evo: 'albatross', needs: 'luck',

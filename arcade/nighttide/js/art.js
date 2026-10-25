@@ -306,7 +306,11 @@
     g.fillStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); g.ellipse(0, 13, 15, 4, 0, 0, TAU); g.fill();
     g.fillStyle = '#7a4a22'; g.strokeStyle = '#2a160a'; g.lineWidth = 1.6;
     g.beginPath(); g.rect(-14, -2, 28, 15); g.fill(); g.stroke();
-    g.save(); g.translate(0, -2); g.rotate(-open * 1.2);
+    if (open > 0) {
+      g.fillStyle = 'rgba(255,230,140,' + (0.9 * open) + ')';
+      g.beginPath(); g.ellipse(0, -2, 13, 3.5, 0, 0, Math.PI * 2); g.fill();
+    }
+    g.save(); g.translate(0, -2 - open * 9); g.scale(1, 1 - open * 1.6);
     g.fillStyle = '#9a5e2c'; g.beginPath(); g.moveTo(-14, 0); g.lineTo(-14, -6); g.quadraticCurveTo(0, -14, 14, -6); g.lineTo(14, 0); g.closePath(); g.fill(); g.stroke();
     g.fillStyle = '#ffcf4a'; g.fillRect(-2.5, -10, 5, 10);
     g.restore();
