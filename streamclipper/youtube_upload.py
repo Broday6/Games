@@ -8,7 +8,9 @@ Each upload costs 1600 of the default 10,000 daily quota units, so about 6 uploa
 """
 import os
 
-SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+# readonly lets `autopilot.py connect` show which channel a token belongs to.
+SCOPES = ["https://www.googleapis.com/auth/youtube.upload",
+          "https://www.googleapis.com/auth/youtube.readonly"]
 
 
 def _service(client_secret="client_secret.json", token="token.json"):
@@ -29,11 +31,12 @@ def _service(client_secret="client_secret.json", token="token.json"):
 
 
 def upload(path, title, description="", tags=(), privacy="private", category="20", language="en",
-           thumbnail=None, client_secret="client_secret.json", token="token.json"):
+           thumbnail=None, publish_at=None, client_secret="client_secret.json", token="token.json"):
     """Upload one video and return its YouTube id. Category 20 is Gaming.
 
     Setting the language helps YouTube rank the video for searches in that language. A custom
     thumbnail needs a phone-verified channel; if YouTube refuses it the upload still stands.
+    `publish_at` (an RFC 3339 time) uploads the video private and YouTube makes it public then.
     """
     from googleapiclient.errors import HttpError
     from googleapiclient.http import MediaFileUpload
@@ -43,8 +46,10 @@ def upload(path, title, description="", tags=(), privacy="private", category="20
         "snippet": {"title": title[:100], "description": description, "tags": list(tags),
                     "categoryId": category, "defaultLanguage": language,
                     "defaultAudioLanguage": language},
-        "status": {"privacyStatus": privacy, "selfDeclaredMadeForKids": False},
+        "status": {"privacyStatus": "private" if publish_at else privacy, "selfDeclaredMadeForKids": False},
     }
+    if publish_at:
+        body["status"]["publishAt"] = publish_at
     req = yt.videos().insert(part="snippet,status", body=body,
                              media_body=MediaFileUpload(path, chunksize=-1, resumable=True))
     resp = None
@@ -56,3 +61,10 @@ def upload(path, title, description="", tags=(), privacy="private", category="20
         except HttpError as e:
             print(f"  thumbnail not set ({e.reason}); verify the channel to allow custom thumbnails")
     return resp["id"]
+
+
+def channel_title(client_secret="client_secret.json", token="token.json"):
+    """Sign in (if needed) and return the title of the channel the token uploads to."""
+    resp = _service(client_secret, token).channels().list(part="snippet", mine=True).execute()
+    items = resp.get("items") or []
+    return items[0]["snippet"]["title"] if items else None

@@ -1,4 +1,7 @@
 client_secret.json
 token.json
 clips/
+autopilot/
+autopilot.json
+candidates.csv
 __pycache__/

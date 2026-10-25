@@ -84,14 +84,16 @@ def video_motion(path):
 def chat_rate(chat_path, seconds):
     """Messages per second from a chat log.
 
-    Accepts the JSON list written by `chat_downloader URL --output chat.json` (uses
-    `time_in_seconds`), JSON lines with the same key, or a plain text file with one
-    timestamp in seconds per line.
+    Accepts TwitchDownloader's chat JSON (`comments[].content_offset_seconds`), the JSON list
+    written by chat_downloader (`time_in_seconds`), JSON lines with that key, or a plain text
+    file with one timestamp in seconds per line.
     """
     with open(chat_path, encoding="utf-8") as f:
         text = f.read().strip()
     times = []
-    if text.startswith("["):
+    if text.startswith("{") and '"comments"' in text[:2000]:
+        times = [m["content_offset_seconds"] for m in json.loads(text)["comments"]]
+    elif text.startswith("["):
         times = [m["time_in_seconds"] for m in json.loads(text) if "time_in_seconds" in m]
     else:
         for line in text.splitlines():

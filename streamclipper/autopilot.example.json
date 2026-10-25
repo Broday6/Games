@@ -1,0 +1,16 @@
+{
+  "_readme": "Copy to autopilot.json. Times are in 'timezone'. Each channel posts at most once per slot, and all channels together post at most 'daily_upload_limit' a day (the YouTube API allows about 6 uploads a day until Google raises your quota). vertical_style: 'blur' keeps the whole 16:9 picture over a blurred background, 'crop' fills the screen with the middle of it.",
+  "timezone": "America/New_York",
+  "slots": ["12:00", "17:00", "20:00"],
+  "daily_upload_limit": 6,
+  "queue_days": 7,
+  "clips_per_vod": 6,
+  "vods_per_run": 1,
+  "vertical": true,
+  "vertical_style": "blur",
+  "privacy": "public",
+  "language": "en",
+  "work_dir": "autopilot",
+  "chat_command": null,
+  "delete_after_upload": true
+}

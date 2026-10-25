@@ -38,7 +38,9 @@ def parse_args(argv):
                    help="minimum combined score for a peak; lower finds more clips (default 2.0)")
     p.add_argument("--weights", default="audio=1,motion=0.6,chat=1.5",
                    help="signal weights, e.g. audio=1,motion=0.6,chat=1.5")
-    p.add_argument("--vertical", action="store_true", help="centre-crop to 9:16 for YouTube Shorts")
+    p.add_argument("--vertical", action="store_true", help="make 9:16 clips for YouTube Shorts")
+    p.add_argument("--vertical-style", default="blur", choices=sorted(cutter.VERTICAL),
+                   help="blur: whole picture over a blurred background (default); crop: fill, keep the middle")
     p.add_argument("--dry-run", action="store_true", help="only list the moments, do not cut")
 
     credit = p.add_argument_group("credit (filled in from the VOD when it was downloaded with yt-dlp)")
@@ -144,7 +146,8 @@ def main(argv=None):
     os.makedirs(a.out, exist_ok=True)
     for n, c in enumerate(clips, 1):
         base = os.path.join(a.out, f"{name}_{n:02d}_{int(c['peak'])}s")
-        c["file"] = cutter.cut_clip(src, c["start"], c["end"], base + ".mp4", vertical=a.vertical)
+        c["file"] = cutter.cut_clip(src, c["start"], c["end"], base + ".mp4", vertical=a.vertical,
+                                    style=a.vertical_style)
         if not a.vertical:  # YouTube does not take custom thumbnails for Shorts
             c["thumbnail"] = cutter.thumbnail(src, c["peak"], base + ".jpg")
         print(f"cut {c['file']}")
