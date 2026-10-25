@@ -338,6 +338,7 @@
     this.recalc();
     this.wave = C.genWave(this.night, this.seed);
     this.wave.spawned = 0;
+    this.wave.sps = this.spawnsActive();
     this.wave.gs = this.wave.groups.map(() => ({ n: 0, t: 0 }));
     this.wave.bossDone = !this.wave.boss;
     this.nt = 0; this.phase = 'night'; this.lostWalls = [];
@@ -381,7 +382,7 @@
     if (this.phase !== 'night') return;
     this.recalc();
     this.nt += dt;
-    const wv = this.wave, sps = this.spawnsActive();
+    const wv = this.wave, sps = wv.sps;
     // spawning
     for (let g = 0; g < wv.groups.length; g++) {
       const G = wv.groups[g], S = wv.gs[g];

@@ -524,8 +524,10 @@
   let spriteTs = 0;
   Art.sprite = function (id, ts, frame, white) {
     if (ts !== spriteTs) { for (const k in spriteCache) delete spriteCache[k]; spriteTs = ts; }
-    const key = id + frame + (white ? 'w' : '');
-    let c = spriteCache[key];
+    let set = spriteCache[id];
+    if (!set) set = spriteCache[id] = [null, null, null, null];
+    const slot = frame + (white ? 2 : 0);
+    let c = set[slot];
     if (!c) {
       const def = TW.ENEMIES[id] || TW.BOSSES[id];
       const R = def.r * ts;
@@ -534,8 +536,7 @@
       const g = c.getContext('2d');
       g.translate(size / 2, size / 2);
       Art.enemy(g, id, R, frame, white);
-      c.half = size / 2;
-      spriteCache[key] = c;
+      set[slot] = c;
     }
     return c;
   };

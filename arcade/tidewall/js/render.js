@@ -234,13 +234,14 @@
     }
     g.stroke(); g.lineCap = 'butt';
   }
+  const dashA = [0, 0], dashB = [0, 0], dashC = [0, 0], NODASH = [];
   function pathLine(p, col, w, dash, speed) {
     if (!p || p.length < 2) return;
     g.strokeStyle = col; g.lineWidth = w;
     g.setLineDash(dash); g.lineDashOffset = -time * speed;
     g.beginPath();
     for (let k = 0; k < p.length; k++) { const c = p[k], x = (c % W + 0.5) * ts, y = (((c / W) | 0) + 0.5) * ts; if (k === 0) g.moveTo(x, y); else g.lineTo(x, y); }
-    g.stroke(); g.setLineDash([]);
+    g.stroke(); g.setLineDash(NODASH);
   }
   function drawRoutes(ui) {
     const night = run.phase === 'night';
@@ -248,10 +249,11 @@
     if (!cur) return;
     const pv = ui.preview && ui.preview.routes;
     g.lineJoin = 'round'; g.lineCap = 'round';
-    for (const p of cur.paths) pathLine(p, night ? 'rgba(255,93,115,0.22)' : (pv ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.6)'), Math.max(2, ts * (pv ? 0.06 : 0.09)), [ts * 0.18, ts * 0.22], ts * 0.8);
+    dashA[0] = ts * 0.18; dashA[1] = ts * 0.22; dashB[0] = ts * 0.22; dashB[1] = ts * 0.16;
+    for (const p of cur.paths) pathLine(p, night ? 'rgba(255,93,115,0.22)' : (pv ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.6)'), Math.max(2, ts * (pv ? 0.06 : 0.09)), dashA, ts * 0.8);
     if (pv) {
       const col = pv.sealed || pv.breach.length ? '#ff7a5a' : '#5ce1e6';
-      for (const p of pv.paths) pathLine(p, col, Math.max(2.5, ts * 0.11), [ts * 0.22, ts * 0.16], ts * 1.2);
+      for (const p of pv.paths) pathLine(p, col, Math.max(2.5, ts * 0.11), dashB, ts * 1.2);
       drawBreach(pv.breach, true);
     } else if (!night) drawBreach(cur.breach, false);
     g.lineCap = 'butt';
@@ -290,6 +292,13 @@
   function drawWorld(ui) {
     const occ = run.occ, st = run.structs, E = run.enemies, head = run.head;
     const night = run.phase === 'night';
+    // tar pools
+    for (const t of run.tars) {
+      if (!t.active) continue;
+      g.fillStyle = 'rgba(60,32,14,' + Math.min(0.22, t.t * 0.15).toFixed(3) + ')';
+      g.beginPath(); g.ellipse(t.x * ts, t.y * ts, t.r * ts, t.r * ts * 0.6, 0, 0, TAU); g.fill();
+      if (Math.random() < 0.3) addP(2, t.x + (Math.random() - 0.5) * t.r, t.y + (Math.random() - 0.5) * t.r * 0.5, 0, -0.6, 0.4, 0.08, '#ff9a3a');
+    }
     // burrowed movers (under everything)
     for (let k = 0; k < E.length; k++) {
       const e = E[k];
@@ -323,13 +332,6 @@
     }
     // flyers above everything
     for (let k = 0; k < E.length; k++) { const e = E[k]; if (e.active && e.fly && !e.burrowed) drawEnemy(e); }
-    // tar pools
-    for (const t of run.tars) {
-      if (!t.active) continue;
-      g.fillStyle = 'rgba(60,32,14,' + Math.min(0.32, t.t * 0.2).toFixed(3) + ')';
-      g.beginPath(); g.ellipse(t.x * ts, t.y * ts, t.r * ts, t.r * ts * 0.6, 0, 0, TAU); g.fill();
-      if (Math.random() < 0.3) addP(2, t.x + (Math.random() - 0.5) * t.r, t.y + (Math.random() - 0.5) * t.r * 0.5, 0, -0.6, 0.4, 0.08, '#ff9a3a');
-    }
   }
   function drawEnemy(e) {
     if (spriteTs !== Math.round(ts * dpr) && zoomSettle <= 0) spriteTs = Math.round(ts * dpr);
@@ -510,8 +512,9 @@
   }
   function rangeCircle(cx, cy, r, col, fill) {
     g.fillStyle = fill; g.strokeStyle = col; g.lineWidth = Math.max(1.5, ts * 0.05);
-    g.setLineDash([ts * 0.2, ts * 0.12]); g.lineDashOffset = -time * ts * 0.4;
-    g.beginPath(); g.arc(cx * ts, cy * ts, r * ts, 0, TAU); g.fill(); g.stroke(); g.setLineDash([]);
+    dashC[0] = ts * 0.2; dashC[1] = ts * 0.12;
+    g.setLineDash(dashC); g.lineDashOffset = -time * ts * 0.4;
+    g.beginPath(); g.arc(cx * ts, cy * ts, r * ts, 0, TAU); g.fill(); g.stroke(); g.setLineDash(NODASH);
   }
   function drawOverlay(ui) {
     // hover (desktop)
