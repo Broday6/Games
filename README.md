@@ -56,6 +56,17 @@ On iPhone: Safari → Share → *Add to Home Screen*. On Android: Chrome menu �
 phone and computer and Claude can read and update it from a chat. An **Ask Claude** button lets you change things by
 talking ("move Bible study to 6:30", "plan my day", "how did this week go?"); every change it makes can be undone.
 
+**Your day at a glance**: three rings at the top of Today (Plan, Habits, Body) with a run of "full days", and the
+schedule as a timeline with free gaps you can tap to fill. **Plan my day** fits your focus and due to-dos into the free
+time around fixed commitments (each to-do has a length), with one-tap undo.
+
+**People and follow-ups**: the people you keep up with, each with a rhythm (every N days, or set weekdays). Log a
+call, text or visit and the next follow-up is scheduled; overdue ones show on Today.
+
+**Weekly training plan**: pick a template for each training weekday, or match your scheduled workout days in one tap
+(alternating Upper and Lower), so Start opens the right session. A workout left open from an earlier day gets a prompt
+to save it to that day or discard it.
+
 **Themes**: six complete looks, each with its own typefaces, colors, shapes and card style, in light and dark:
 Chalk Line, Field Notes (kraft paper and typewriter type), Blueprint, Iron (gym-floor graphite and poster type), Sunday
 (sage and a soft serif) and Job Site (maximum contrast and big type for full sun). Text size, spacing and a floating or
@@ -72,7 +83,7 @@ regularly and to move to a new phone (*Restore from file*). First launch offers 
 
 Source: [`daybook/`](daybook/) — vanilla JS modules, no build step, no dependencies. `js/work.js` (contracting),
 `js/gym.js` (training), `js/life.js` + `js/tasks.js` (to-dos, habits), `js/checkin.js` (check-ins, patterns, journal),
-`js/goals.js`, `js/habits.js`, `js/parse.js` (quick-add language), `js/sync.js` + `js/assistant.js` (Claude),
+`js/goals.js`, `js/habits.js`, `js/parse.js` (quick-add language), `js/sync.js` + `js/assistant.js` (Claude), `js/plan.js` (timeline, plan my day), `js/people.js`,
 `js/today.js`, `js/more.js` (settings, backup), `js/store.js` (state),
 `sw.js` (offline cache).
 

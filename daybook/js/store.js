@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS = {
   units: 'lb', bar: '45', plates: '45, 35, 25, 10, 5, 2.5', rest: '120', setTarget: '12', age: '',
   checkins: 'on', amTime: '07:00', pmTime: '20:30', reviewDay: '0',
   skin: 'chalk', mode: 'auto', text: 'auto', density: 'comfortable', nav: 'auto',
+  dayStart: '05:00', dayEnd: '22:00', schedView: 'timeline', program: {},
   cats: 'Work, Personal, Home, Errand, Health', ciScales: 'sleep,energy,mood,stress', ciMorningQ: '', ciEveningQ: '', ciWeeklyQ: '', todayLayout: '',
 };
 
@@ -21,7 +22,7 @@ export function fresh() {
     v: 1, created: Date.now(), welcomed: false, sample: false,
     settings: { ...DEFAULT_SETTINGS },
     clients: [], jobs: [], events: [], time: [], timer: null, expenses: [], invoices: [],
-    tasks: [], checkins: [], goals: [], habits: HABITS.map(h => ({ id: uid() + h.name.length, ...h })), habitLog: {}, habitCount: {},
+    tasks: [], people: [], checkins: [], goals: [], habits: HABITS.map(h => ({ id: uid() + h.name.length, ...h })), habitLog: {}, habitCount: {},
     exercises: EXERCISES.map(e => ({ ...e })), templates: TEMPLATES.map(t => ({ ...t, items: t.items.map(i => ({ ...i })) })),
     workouts: [], active: null, body: [], ui: {},
   };

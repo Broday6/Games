@@ -1,5 +1,5 @@
 // Today: the day at a glance across work, gym and life.
-import { esc, acts, icon, sheet, today, addDays, fmtDate, money, fmtHrs, hours } from './util.js';
+import { esc, acts, icon, sheet, today, addDays, fmtDate, fmtTime, money, fmtHrs, hours, parseDate } from './util.js';
 import { S, commit, replaceState, fresh } from './store.js';
 import { sampleData } from './seed.js';
 import { timerCard, eventRow, todaysEvents, weekStats, openWork, eventsOn } from './work.js';
@@ -8,6 +8,10 @@ import { taskRow, dueTasks, habitChips, quickAdd, timedToday } from './life.js';
 import { askBar } from './assistant.js';
 import { promptCard } from './checkin.js';
 import { focusTasks, isFocus } from './tasks.js';
+import { timeline, unplannedCount } from './plan.js';
+import { followupsCard } from './people.js';
+import * as habits from './habits.js';
+import { workoutPlannedOn } from './gym.js';
 
 function welcome() {
   return `<section class="welcome">
@@ -30,13 +34,52 @@ acts['go-life'] = el => { S.ui.lifeTab = el.dataset.v; location.hash = 'life'; }
 acts['go-work'] = el => { openWork(el.dataset.v); location.hash = 'work'; };
 
 // Today is yours to arrange: More → Customize Today, or the button at the bottom.
-export const SECTIONS = [['checkin', 'Check-in prompt'], ['ask', 'Ask Claude'], ['timer', 'Time clock'], ['schedule', 'Schedule'], ['focus', "Today's focus"], ['todo', 'To-do'], ['habits', 'Habits'], ['gym', 'Gym'], ['week', 'This week (work numbers)'], ['quick', 'Quick buttons']];
+export const SECTIONS = [['rings', 'Your day (rings)'], ['checkin', 'Check-in prompt'], ['ask', 'Ask Claude'], ['timer', 'Time clock'], ['schedule', 'Schedule'], ['people', 'Follow-ups'], ['focus', "Today's focus"], ['todo', 'To-do'], ['habits', 'Habits'], ['gym', 'Gym'], ['week', 'This week (work numbers)'], ['quick', 'Quick buttons']];
 export function layout() {
   const saved = String(S.settings.todayLayout || '').split(',').filter(Boolean).map(x => x.split(':')).filter(([k]) => SECTIONS.some(s => s[0] === k));
   const missing = SECTIONS.filter(([k]) => !saved.some(([x]) => x === k)).map(([k]) => [k, '1']);
   return [...saved, ...missing].map(([k, on]) => ({ k, on: on !== '0' }));
 }
 const saveLayout = l => { S.settings.todayLayout = l.map(x => `${x.k}:${x.on ? 1 : 0}`).join(','); };
+
+// ---------- daily rings: plan, habits, body ----------
+const isoOf = ts => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+export function dayRings(d) {
+  const focus = S.tasks.filter(x => x.focus === d);
+  let plan = null, planLabel = '';
+  if (focus.length) { const n = focus.filter(x => x.done).length; plan = n / focus.length; planLabel = `${n} of ${focus.length} focus`; }
+  else if (d === today()) {
+    const dueD = S.tasks.filter(x => (!x.done && x.due && x.due <= d) || (x.done && x.doneAt && isoOf(x.doneAt) === d && x.due && x.due <= d));
+    if (dueD.length) { const n = dueD.filter(x => x.done).length; plan = n / dueD.length; planLabel = `${n} of ${dueD.length} due`; }
+  }
+  const hs = habits.active().filter(h => habits.scheduledOn(h, d));
+  const hn = hs.filter(h => habits.isDone(h, d)).length;
+  const hab = hs.length ? hn / hs.length : null;
+  const trained = S.workouts.some(w => w.date === d);
+  const due = workoutPlannedOn(d);
+  const body = trained ? 1 : due ? 0 : null;
+  return { plan, planLabel, hab, habLabel: hs.length ? `${hn} of ${hs.length}` : 'none today', body, bodyLabel: trained ? 'Trained' : due ? (due.start ? `Workout ${fmtTime(due.start)}` : 'Workout day') : 'Rest day' };
+}
+const full = r => [r.plan, r.hab, r.body].filter(v => v !== null).length > 0 && [r.plan, r.hab, r.body].every(v => v === null || v >= 1);
+export function fullStreak() {
+  let d = full(dayRings(today())) ? today() : addDays(today(), -1), n = 0;
+  for (let i = 0; i < 365 && full(dayRings(d)); i++, d = addDays(d, -1)) n++;
+  return n;
+}
+function ringsCard() {
+  const r = dayRings(today());
+  const ring = (v, rad, cls) => { const c = 2 * Math.PI * rad; const p = v === null ? 1 : Math.max(0, Math.min(1, v)); return `<circle class="ring-bg ${cls}" r="${rad}" cx="44" cy="44"/><circle class="ring ${cls}${v === null ? ' rest' : ''}${p === 0 ? ' zero' : ''}" r="${rad}" cx="44" cy="44" stroke-dasharray="${(c * p).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 44 44)"/>`; };
+  const week = Array.from({ length: 7 }, (_, i) => addDays(today(), i - 6));
+  const st = fullStreak();
+  return `<section class="rings-card">
+    <svg class="rings" viewBox="0 0 88 88" role="img" aria-label="Plan ${Math.round((r.plan ?? 0) * 100)}%, habits ${Math.round((r.hab ?? 0) * 100)}%, body ${r.body === null ? 'rest day' : Math.round(r.body * 100) + '%'}">${ring(r.plan ?? 0, 38, 'r-plan')}${ring(r.hab ?? 0, 28, 'r-hab')}${ring(r.body, 18, 'r-body')}</svg>
+    <div class="ring-legend">
+      <div><i class="dot r-plan"></i><b>Plan</b><span>${esc(r.planLabel || 'Star up to 3 focus items')}</span></div>
+      <div><i class="dot r-hab"></i><b>Habits</b><span>${esc(r.habLabel)}</span></div>
+      <div><i class="dot r-body"></i><b>Body</b><span>${esc(r.bodyLabel)}</span></div>
+      <div class="ring-week" aria-label="Full days this week">${week.map(d => `<span class="${full(dayRings(d)) ? 'on' : ''}${d === today() ? ' is-today' : ''}" title="${esc(fmtDate(d))}">${fmtDate(d, { weekday: 'narrow' })}</span>`).join('')}<small>${st ? `${st}-day run of full days` : 'Close all three rings for a full day'}</small></div>
+    </div></section>`;
+}
 
 export function view() {
   const t = today();
@@ -50,8 +93,18 @@ export function view() {
     checkin: () => (S.welcomed ? promptCard() : ''),
     ask: () => askBar(),
     timer: () => (S.jobs.length || S.timer ? timerCard() : ''),
-    schedule: () => `<section class="group"><header class="group-head"><h3>Schedule</h3><button type="button" class="btn ghost sm" data-act="ev-new" data-date="${t}">${icon('plus')} Add</button></header>
-      ${items.length ? `<div class="list panel">${items.map(i => i[1]).join('')}</div>` : `<p class="muted small">Nothing scheduled today.${tomorrow.length ? ` Tomorrow: ${esc(tomorrow.map(e => e.title || 'visit').slice(0, 3).join(', '))}.` : ''}</p>`}</section>`,
+    rings: () => ringsCard(),
+    people: () => followupsCard(),
+    schedule: () => {
+      const tl = S.settings.schedView !== 'list';
+      const want = unplannedCount();
+      const planned = S.tasks.some(x => x.planned === t && !x.done);
+      return `<section class="group"><header class="group-head"><h3>Schedule</h3><span class="head-tools">
+        <span class="segs mini" role="tablist"><button type="button" class="seg${tl ? ' on' : ''}" data-act="sched-view" data-v="timeline" aria-selected="${tl}">Timeline</button><button type="button" class="seg${tl ? '' : ' on'}" data-act="sched-view" data-v="list" aria-selected="${!tl}">List</button></span>
+        <button type="button" class="icon-btn sm" data-act="ev-new" data-date="${t}" aria-label="Add to schedule">${icon('plus')}</button></span></header>
+      ${want || planned ? `<div class="plan-bar">${want ? `<span>${want} to-do${want > 1 ? 's' : ''} without a time today</span><button type="button" class="btn sm primary" data-act="plan-day">${icon('bolt')} Plan my day</button>` : '<span>Your free time is planned.</span>'}${planned ? '<button type="button" class="btn ghost sm" data-act="plan-clear">Clear plan</button>' : ''}</div>` : ''}
+      ${tl ? timeline(t) : items.length ? `<div class="list panel">${items.map(i => i[1]).join('')}</div>` : `<p class="muted small">Nothing scheduled today.${tomorrow.length ? ` Tomorrow: ${esc(tomorrow.map(e => e.title || 'visit').slice(0, 3).join(', '))}.` : ''}</p>`}</section>`;
+    },
     focus: () => (focus.length ? `<section class="group"><header class="group-head"><h3>Today's focus</h3><span class="muted">${focus.length} of 3</span></header><div class="list panel focus-list">${focus.map(x => taskRow(x)).join('')}</div></section>` : ''),
     todo: () => `<section class="group"><header class="group-head"><h3>To-do</h3><button type="button" class="btn ghost sm" data-act="go-life" data-v="todo">All</button></header>
       ${due.length ? `<div class="list panel">${due.map(x => taskRow(x)).join('')}</div>` : ''}${quickAdd('qa-today')}</section>`,

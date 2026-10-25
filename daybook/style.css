@@ -617,3 +617,62 @@ body.has-sheet #toasts { bottom: auto; top: calc(env(safe-area-inset-top, 0px) +
 .opt-row { display: flex; flex-direction: column; gap: 6px; }
 
 .install-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+
+/* ---------- round 6: rings, timeline, people, weekly plan ---------- */
+.rings-card { display: flex; align-items: center; gap: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; }
+.rings { width: 104px; height: 104px; flex: none; }
+.ring-bg, .ring { fill: none; stroke-width: 8; }
+.ring { stroke-linecap: round; transition: stroke-dasharray .6s ease; }
+.ring-bg { opacity: .16; }
+.r-plan { stroke: var(--accent); background: var(--accent); }
+.r-hab { stroke: var(--good); background: var(--good); }
+.r-body { stroke: var(--warn); background: var(--warn); }
+.ring.rest { stroke-dasharray: 3 7 !important; opacity: .5; }
+.ring-legend { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.ring-legend > div:not(.ring-week) { display: grid; grid-template-columns: 10px auto 1fr; align-items: baseline; gap: 6px; font-size: 13.5px; }
+.ring-legend b { font-weight: 700; }
+.ring-legend span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ring-legend .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.ring-week { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 4px; }
+.ring-week span { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; font-weight: 700; border: 1.5px solid var(--line); color: var(--muted); }
+.ring-week span.on { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.ring-week span.is-today { box-shadow: 0 0 0 2px var(--accent-soft); }
+.ring-week small { flex-basis: 100%; color: var(--muted); font-size: 12px; }
+.head-tools { display: flex; align-items: center; gap: 6px; }
+.segs.mini { padding: 2px; border-radius: 9px; margin: 0; }
+.segs.mini .seg { padding: 4px 9px; font-size: 12.5px; border-radius: 7px; }
+.plan-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13.5px; color: var(--muted); }
+.plan-bar span { flex: 1 1 160px; }
+.timeline { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; --tl-l: 52px; }
+.tl-hour { position: absolute; left: 0; right: 0; border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
+.tl-hour span { position: absolute; left: 8px; top: 2px; font-size: 10.5px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.tl-gap { position: absolute; left: calc(var(--tl-l) + 2px); right: 8px; border: 1.5px dashed color-mix(in srgb, var(--line) 90%, transparent); border-radius: var(--r-sm); background: transparent; color: var(--muted); display: flex; align-items: flex-start; justify-content: space-between; padding: 4px 8px; font-size: 11.5px; font-weight: 600; cursor: pointer; }
+.tl-gap .i { width: 14px; height: 14px; opacity: 0; transition: opacity .15s; }
+.tl-gap:hover, .tl-gap:focus-visible { border-color: var(--accent); color: var(--accent); }
+.tl-gap:hover .i { opacity: 1; }
+.tl-block { position: absolute; left: calc(var(--tl-l) + (100% - var(--tl-l) - 8px) * var(--lane) / var(--lanes)); width: calc((100% - var(--tl-l) - 8px) / var(--lanes) - 4px); border-radius: var(--r-sm); padding: 4px 8px; display: flex; align-items: flex-start; gap: 6px; overflow: hidden; cursor: pointer; background: var(--accent-soft); border-left: 4px solid var(--accent); color: var(--fg); }
+.tl-block.task { background: var(--surface-2); border-left-color: var(--muted); }
+.tl-block.task.planned { border-left-color: var(--accent); border-left-style: dashed; }
+.tl-block.gym { background: var(--good-soft); border-left-color: var(--good); }
+.tl-block.done { opacity: .55; }
+.tl-block.done strong { text-decoration: line-through; }
+.tl-text { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.2; }
+.tl-text strong { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-text small { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tl-block .btn.sm { min-height: 26px; padding: 0 9px; flex: none; }
+.tl-tick { flex: none; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--muted); background: var(--surface); display: grid; place-items: center; color: transparent; padding: 0; cursor: pointer; margin-top: 1px; }
+.tl-tick .i { width: 12px; height: 12px; stroke-width: 3; }
+.tl-tick.on { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.tl-now { position: absolute; left: calc(var(--tl-l) - 6px); right: 0; border-top: 2px solid var(--bad); z-index: 2; pointer-events: none; }
+.tl-now::before { content: ""; position: absolute; left: -4px; top: -6px; width: 10px; height: 10px; border-radius: 50%; background: var(--bad); }
+.tl-now span { position: absolute; left: calc(-1 * var(--tl-l) + 10px); top: -9px; font-size: 10px; font-weight: 800; color: var(--bad); background: var(--surface); padding: 0 2px; }
+.avatar { width: 34px; height: 34px; border-radius: 50%; flex: none; display: grid; place-items: center; font: var(--dw, 700) 16px/1 var(--display); background: var(--accent-soft); color: var(--accent); }
+.row.person .tick { margin-left: 2px; }
+.log-kinds { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; }
+.log-kinds .btn { min-height: 52px; font-size: 16px; }
+.week-plan { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; }
+.wp-day { display: flex; flex-direction: column; gap: 3px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.wp-day.gym span::after { content: " ●"; color: var(--good); }
+.wp-day.is-today span { color: var(--accent); }
+.wp-day select { min-height: 36px !important; padding: 4px 6px !important; font-size: 14px !important; }
+.ring.zero { opacity: 0; }

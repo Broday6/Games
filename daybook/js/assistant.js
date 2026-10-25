@@ -8,6 +8,8 @@ import { completeTask, cats, catLabel, addCat, slug, firstOn, repeatText } from 
 import * as habits from './habits.js';
 import { current, progress } from './goals.js';
 import { logGoal } from './goals.js';
+import * as people from './people.js';
+import { planDay } from './plan.js';
 
 let sample = null;
 export async function startAssistant() {
@@ -53,6 +55,7 @@ const TOOLS = [
         todos_due: S.tasks.filter(t => !t.done && t.due && t.due <= d).map(taskOut),
         habits: habits.active().filter(h => habits.scheduledOn(h, d)).map(h => ({ id: h.id, name: h.name, done: habits.isDone(h, d), count: habits.countOn(h, d), target: habits.target(h), streak: habits.streak(h) })),
         checkins_done: S.checkins.filter(c => c.date === d).map(c => c.kind),
+        follow_ups_due: d === today() ? people.dueToday().map(p => ({ id: p.id, name: p.name, due: p.next })) : undefined,
         workout_in_progress: S.active ? S.active.name : null,
       };
     },
@@ -170,6 +173,66 @@ const TOOLS = [
     },
   },
   {
+    name: 'list_people',
+    description: 'People they follow up with: id, phone, group, rhythm, next follow-up date, last contact.',
+    execute: () => (S.people || []).map(p => ({ id: p.id, name: p.name, phone: p.phone || null, group: p.tag, rhythm: people.rhythm(p), next: p.next || null, last: p.last || null, notes: p.notes || undefined })),
+  },
+  {
+    name: 'save_person',
+    description: 'Add (no id) or change (with id) a person. every_days sets a follow-up rhythm; or weekdays like ["mon","thu"]. next sets the next follow-up date. delete:true removes them.',
+    inputSchema: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, phone: { type: 'string' }, email: { type: 'string' }, group: { type: 'string' }, every_days: { type: 'number' }, weekdays: { type: 'array', items: { type: 'string' } }, next: { type: 'string' }, notes: { type: 'string' }, delete: { type: 'boolean' } } },
+    execute: input => {
+      S.people = S.people || [];
+      let p = input.id ? S.people.find(x => x.id === String(input.id)) : null;
+      if (input.id && !p) throw new Error('No person with that id. Call list_people.');
+      if (p && input.delete) { S.people = S.people.filter(x => x !== p); touch(); return 'deleted'; }
+      if (!p) { if (!input.name) throw new Error('A new person needs a name.'); p = { id: uid(), name: '', created: today(), log: [], last: '', next: '', every: '', days: [], tag: 'work', notes: '' }; S.people.push(p); }
+      if (input.name) p.name = String(input.name).trim();
+      for (const k of ['phone', 'email', 'notes']) if (input[k] !== undefined) p[k] = String(input[k]);
+      if (input.group) p.tag = slug(input.group);
+      if (input.weekdays !== undefined) { p.days = toDays(input.weekdays); if (p.days.length) p.every = ''; }
+      if (input.every_days !== undefined) { p.every = String(Math.max(0, Math.round(num(input.every_days))) || ''); if (p.every) p.days = []; }
+      if (isDate(input.next)) p.next = input.next;
+      else if (!p.next && (p.every || p.days.length)) p.next = p.days.length && !p.days.includes(parseDate(today()).getDay()) ? people.nextFrom(p, today()) : today();
+      touch();
+      return { id: p.id, name: p.name, rhythm: people.rhythm(p), next: p.next || null };
+    },
+  },
+  {
+    name: 'log_follow_up',
+    description: 'Record that they followed up with someone (kind: call, text, meet, email) and schedule the next follow-up from that person\'s rhythm.',
+    inputSchema: { type: 'object', properties: { id: { type: 'string' }, kind: { type: 'string', enum: ['call', 'text', 'meet', 'email'] }, note: { type: 'string' } }, required: ['id'] },
+    execute: ({ id, kind = 'call', note = '' }) => {
+      const p = (S.people || []).find(x => x.id === String(id));
+      if (!p) throw new Error('No person with that id. Call list_people.');
+      people.logContact(p, kind, String(note));
+      touch();
+      return { name: p.name, next: p.next || null };
+    },
+  },
+  {
+    name: 'plan_my_day',
+    description: 'Fit today\'s focus and due to-dos without a time into the free gaps of today\'s schedule (time blocking). Returns what was placed and what did not fit.',
+    execute: () => { const r = planDay(); touch(); return { placed: r.placed.map(t => `${t.time} ${t.title}`), did_not_fit: r.left.map(t => t.title) }; },
+  },
+  {
+    name: 'set_training_plan',
+    description: 'Set which workout template is done on each weekday, e.g. {"mon":"Upper","tue":"Lower"}. Use template names; "rest" clears a day.',
+    inputSchema: { type: 'object', properties: { plan: { type: 'object' } }, required: ['plan'] },
+    execute: ({ plan }) => {
+      const next = { ...(S.settings.program || {}) };
+      for (const [day, name] of Object.entries(plan || {})) {
+        const d = toDays([day])[0];
+        if (d === undefined) continue;
+        const t = S.templates.find(x => x.name.toLowerCase() === String(name).toLowerCase());
+        next[d] = /^rest$/i.test(String(name)) || !t ? '' : t.id;
+      }
+      S.settings.program = next;
+      touch();
+      return Object.fromEntries(Object.entries(next).filter(([, v]) => v).map(([d, v]) => [DOW[d], S.templates.find(t => t.id === v)?.name]));
+    },
+  },
+  {
     name: 'update_goal',
     description: 'Log a new current value for a goal that is updated by hand (from get_reflection goals).',
     inputSchema: { type: 'object', properties: { id: { type: 'string' }, value: { type: 'number' }, note: { type: 'string' } }, required: ['id', 'value'] },
@@ -189,6 +252,7 @@ const instructions = () => {
   return `You are the assistant inside Daybook, ${S.settings.name ? S.settings.name + '\'s' : 'the user\'s'} personal planner on their phone: contracting work, gym, to-dos, habits, check-ins and goals.
 It is ${DOW[now.getDay()]} ${today()}, ${fmtTime(hmOf(now.getTime()))}. Dates are YYYY-MM-DD, times HH:MM (24h). To-do categories: ${cats().map(c => c[1]).join(', ')}.
 Use the tools to look things up and to make changes. When they mention a task, routine, appointment or habit, add or change it right away, then confirm in one or two short sentences with the day and time. If a needed detail is missing, choose a sensible default and say what you picked; ask a question only when guessing would likely be wrong. Ask before deleting more than one item.
+People they follow up with live in the People list (save_person, log_follow_up), not as to-dos. "Plan my day" means plan_my_day.
 For advice on habits, schedules or their week, read their data first (get_day, get_reflection) and use what works: three priorities a day at most, time-block the important work, tie habits to a cue and a time of day, start small, never miss twice, protect sleep, and do a weekly review. Be warm, direct and brief: short paragraphs, at most five bullets, no headings.`;
 };
 
@@ -201,7 +265,7 @@ export function openChat(first = '') {
     title: 'Ask Claude',
     cls: 'chat',
     body: `<div class="chat-log" id="chat-log">${turns.length ? turns.map(t => bubble(t.role, t.content)).join('') : `<p class="muted small">Tell me what to add or change, or ask how your week is going. I can see your schedule, to-dos, habits, check-ins and goals.</p>
-        <div class="chips">${['Plan my day', 'How did this week go?', 'Move Bible study to 6:30pm', 'Suggest a morning routine that fits my 5:40 workouts', 'What should I focus on today?'].map(x => `<button type="button" class="chip" data-suggest="${esc(x)}">${esc(x)}</button>`).join('')}</div>`}</div>
+        <div class="chips">${['Plan my day', 'Who do I need to follow up with?', 'How did this week go?', 'Move Bible study to 6:30pm', 'Suggest a morning routine that fits my 5:40 workouts', 'What should I focus on today?'].map(x => `<button type="button" class="chip" data-suggest="${esc(x)}">${esc(x)}</button>`).join('')}</div>`}</div>
       <form class="chat-form" data-chat-form><label class="sr-only" for="chat-in">Message</label><textarea id="chat-in" rows="2" placeholder="Message Claude"></textarea>
         <div class="row-actions"><span class="muted small grow" data-chat-status></span><button type="button" class="btn ghost sm" data-stop hidden>Stop</button><button type="submit" class="btn primary sm">Send</button></div></form>`,
     onMount: el => {

@@ -6,6 +6,7 @@ import { parseTask, describe } from './parse.js';
 import * as checkin from './checkin.js';
 import * as goals from './goals.js';
 import * as habits from './habits.js';
+import * as people from './people.js';
 
 export { habitChips } from './habits.js';
 
@@ -41,6 +42,7 @@ acts['task-focus'] = el => {
   commit();
 };
 acts['task-edit'] = el => taskForm(S.tasks.find(x => x.id === el.dataset.id));
+acts['slot-add'] = el => taskForm({ due: today(), time: el.dataset.time, cat: 'personal' });
 acts['task-new'] = el => taskForm({ due: el.dataset.due ?? today(), cat: el.dataset.cat || 'personal' });
 
 function taskForm(t = {}) {
@@ -48,7 +50,8 @@ function taskForm(t = {}) {
   formSheet({
     title: isNew ? 'New to-do' : 'Edit to-do',
     fields: `${field('To-do', input('title', t.title || '', 'text', 'required autofocus'))}
-      <div class="grid3">${field('Due', input('due', t.due || '', 'date'))}${field('Time', input('time', t.time || '', 'time'), 'Optional')}${field('Category', select('cat', cats(), t.cat || 'personal'))}</div>
+      <div class="grid3">${field('Due', input('due', t.due || '', 'date'))}${field('Time', input('time', t.time || '', 'time'), 'Optional')}${field('Takes', select('mins', [['15', '15 min'], ['30', '30 min'], ['45', '45 min'], ['60', '1 hour'], ['90', '1½ hours'], ['120', '2 hours'], ['180', '3 hours'], ['240', 'Half day']], String(t.mins || 30)))}</div>
+      ${field('Category', select('cat', cats(), t.cat || 'personal'))}
       <div class="chips due-chips">${[['Today', 0], ['Tomorrow', 1], ['In 3 days', 3], ['Next week', 7], ['Someday', '']].map(([l, n]) => `<button type="button" class="chip" data-due="${n === '' ? '' : addDays(today(), n)}">${l}</button>`).join('')}</div>
       <div class="grid2">${field('Repeat', select('repeat', REPEATS, t.repeat || ''))}<div data-days hidden class="field"><span class="lbl">On</span>${dayPicker('rday', t.repeatDays || [])}</div></div>
       ${S.jobs.length ? field('Job', select('jobId', [['', 'None'], ...S.jobs.filter(j => j.status !== 'archived').map(j => [j.id, j.title])], t.jobId)) : ''}
@@ -67,7 +70,7 @@ function taskForm(t = {}) {
       if (d.repeat === 'days' && !repeatDays.length) { toast('Pick the days it repeats on.'); return false; }
       if (d.repeat === 'days' && (!d.due || !repeatDays.includes(parseDate(d.due).getDay()))) d.due = firstOn(repeatDays, d.due || today());
       if ((d.repeat || d.time) && !d.due) d.due = today();
-      const data = { title: d.title.trim(), due: d.due, time: d.time, cat: d.jobId && d.cat === 'personal' ? 'work' : d.cat, jobId: d.jobId || '', repeat: d.repeat, repeatDays, notes: d.notes.trim() };
+      const data = { title: d.title.trim(), due: d.due, time: d.time, mins: +d.mins || 30, planned: d.time && d.time === t.time ? t.planned || '' : '', cat: d.jobId && d.cat === 'personal' ? 'work' : d.cat, jobId: d.jobId || '', repeat: d.repeat, repeatDays, notes: d.notes.trim() };
       if (d.focus !== undefined) data.focus = d.focus ? today() : (t.focus === today() ? '' : t.focus || '');
       if (!isNew && (data.due !== t.due || data.repeat !== t.repeat || String(repeatDays) !== String(t.repeatDays || []))) data.repeatFrom = ''; // a manual date change resets the repeat anchor
       if (isNew) S.tasks.push({ id: uid(), done: false, ...data }); else Object.assign(t, data);
@@ -115,7 +118,7 @@ document.addEventListener('submit', e => {
 });
 
 let showDone = false;
-const TABS = [['checkin', 'Check-in'], ['todo', 'To-do'], ['habits', 'Habits'], ['goals', 'Goals'], ['journal', 'Journal']];
+const TABS = [['checkin', 'Check-in'], ['todo', 'To-do'], ['people', 'People'], ['habits', 'Habits'], ['goals', 'Goals'], ['journal', 'Journal']];
 export function view() {
   const lifeTab = TABS.some(x => x[0] === S.ui.lifeTab) ? S.ui.lifeTab : 'checkin';
   const t = today();
@@ -136,9 +139,9 @@ export function view() {
     ${quickAdd('qa-life', { defaultDue: '' })}
     ${groups.length ? groups.map(([l, list]) => `<section class="group"><header class="group-head"><h3>${l}</h3><span class="muted">${list.length}</span></header><div class="list panel">${list.map(x => taskRow(x)).join('')}</div></section>`).join('') : empty('All clear', 'Nothing on your list. Add a to-do above.')}
     ${doneList.length ? `<button type="button" class="btn ghost block" data-act="toggle-done">${showDone ? 'Hide' : 'Show'} completed (${doneList.length})</button>${showDone ? `<div class="list panel">${doneList.slice(0, 30).map(x => taskRow(x)).join('')}</div>` : ''}` : ''}`;
-  const body = { checkin: checkin.view, todo: () => todo, habits: habits.view, goals: goals.view, journal: checkin.journalView }[lifeTab]();
+  const body = { checkin: checkin.view, todo: () => todo, people: people.view, habits: habits.view, goals: goals.view, journal: checkin.journalView }[lifeTab]();
   const due = checkin.dueCheckins().length;
-  return `${segs('life-tab', TABS.map(([v, l]) => [v, v === 'todo' && open.length ? `${l} ${open.length}` : v === 'checkin' && due ? `${l} •` : l]), lifeTab)}<div class="tab-body">${body}</div>`;
+  return `${segs('life-tab', TABS.map(([v, l]) => [v, v === 'todo' && open.length ? `${l} ${open.length}` : v === 'people' && people.dueToday().length ? `${l} ${people.dueToday().length}` : v === 'checkin' && due ? `${l} •` : l]), lifeTab)}<div class="tab-body">${body}</div>`;
 }
 acts['life-tab'] = el => { S.ui.lifeTab = el.dataset.v; commit(); window.scrollTo(0, 0); };
 acts['task-cat'] = el => { S.ui.taskCat = el.dataset.v; commit(); };

@@ -108,7 +108,7 @@ export function eventRow(e, { showDate = false } = {}) {
   const when = e.start ? `${fmtTime(e.start)}${e.end ? '–' + fmtTime(e.end) : ''}` : 'Any time';
   const addr = j?.address || c?.address;
   const gymBtn = e.gym && !e.done && e.date === today()
-    ? (S.active ? `<a class="btn sm primary" href="#gym">Resume</a>` : `<button type="button" class="btn sm primary" data-act="wo-next">${icon('play')} Start</button>`) : '';
+    ? (S.active?.date === today() ? `<a class="btn sm primary" href="#gym">Resume</a>` : `<button type="button" class="btn sm primary" data-act="wo-next">${icon('play')} Start</button>`) : '';
   return `<div class="row ev${e.done ? ' is-done' : ''}${e.gym ? ' gym' : ''}">
     <button type="button" class="tick${e.done ? ' on' : ''}" data-act="ev-done" data-id="${e.id}" data-date="${e.date}" aria-label="${e.done ? 'Mark not done' : 'Mark done'}">${icon('check')}</button>
     <div class="row-main" data-act="ev-edit" data-id="${e.id}" data-date="${e.date}" role="button" tabindex="0">

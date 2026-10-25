@@ -167,6 +167,13 @@ export function sampleData(S) {
     { id: uid() + 'g3', title: 'Train 36 times before New Year', kind: 'workouts', start: '0', target: '36', unit: 'workouts', due: d(68), created: d(-21), done: false, log: [] },
     { id: uid() + 'g4', title: 'Read 6 books', kind: 'manual', start: '0', target: '6', unit: 'books', due: d(160), created: d(-50), done: false, log: [{ date: d(-20), value: '1', note: 'Atomic Habits' }] },
   ];
+  S.people = [
+    { id: uid() + 'p1', name: 'Marisol Ortega', phone: '(555) 201-4417', email: '', tag: 'work', every: '3', days: [], next: t, last: d(-3), log: [{ date: d(-3), kind: 'call', note: 'Confirmed grout color' }], notes: 'Kitchen job. Prefers texts before 8am.' },
+    { id: uid() + 'p2', name: 'Dan (Dunmore PM)', phone: '(555) 388-0142', email: '', tag: 'work', every: '', days: [1, 4], next: d(-1), last: d(-5), log: [{ date: d(-5), kind: 'text', note: '' }], notes: '' },
+    { id: uid() + 'p3', name: 'Dad', phone: '', email: '', tag: 'personal', every: '7', days: [], next: d(3), last: d(-4), log: [{ date: d(-4), kind: 'call', note: 'Truck is running fine' }], notes: '' },
+  ];
+  S.tasks.find(x => x.title.startsWith('Call Dunmore')).mins = 15;
+  S.settings.program = { 1: 't_push', 3: 't_pull', 5: 't_legs' };
   S.sample = true;
   S.welcomed = true;
 }

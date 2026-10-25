@@ -2,8 +2,9 @@
 // voice logging (speech recognition), screen wake lock, history, progress charts and plate/1RM/warm-up tools.
 import {
   $, $$, esc, uid, num, sum, round2, acts, chg, icon, toast, sheet, formSheet, confirmSheet, field, input, select, checkbox,
-  today, addDays, weekStart, fmtDate, fmtShort, relDay, daysBetween, clock, fmtDur, empty, pill, segs, bus,
+  today, addDays, weekStart, fmtDate, fmtShort, relDay, daysBetween, clock, fmtDur, empty, pill, segs, bus, parseDate, DOW, WEEK_ORDER,
 } from './util.js';
+import { eventsOn } from './work.js';
 import { S, commit, save, undoable, exercise, set } from './store.js';
 import { GROUPS } from './seed.js';
 import { lineChart } from './charts.js';
@@ -285,7 +286,10 @@ acts['wo-finish'] = async () => {
     if (await confirmSheet('No sets are checked off yet. Discard this workout?', { ok: 'Discard', danger: true })) { S.active = null; commit(); syncWakeLock(); }
     return;
   }
-  const w = { id: a.id, name: a.name, templateId: a.templateId, date: a.date, start: a.start, end: Date.now(), items, hr: a.hr?.n ? a.hr : null, notes: '' };
+  // A workout left open from an earlier day ends a few minutes after its last set, not now.
+  const lastSet = Math.max(a.start, ...items.flatMap(it => it.sets.map(s => s.ts || 0)));
+  const end = a.date < today() ? Math.max(lastSet + 5 * 60000, a.start + 20 * 60000) : Date.now();
+  const w = { id: a.id, name: a.name, templateId: a.templateId, date: a.date, start: a.start, end, items, hr: a.hr?.n ? a.hr : null, notes: '' };
   S.workouts.push(w);
   S.active = null;
   commit();
@@ -310,13 +314,18 @@ acts['tpl-from'] = el => {
 };
 
 const RPE = [['', 'RPE'], ...[6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10].map(v => [String(v), String(v)])];
+export const staleActive = () => !!S.active && S.active.date < today();
 function activeView() {
   const a = S.active;
+  const stale = staleActive();
+  const doneSets = setCount(a.items);
   const hrChip = hrSupported() || hr.on
     ? `<button type="button" class="chip${hr.on ? ' on' : ''}" data-act="hr-connect" title="${hr.on ? 'Disconnect ' + esc(hr.name) : 'Connect a Bluetooth heart-rate strap'}">${icon('heart')} <span data-hr>${hr.on ? hr.bpm || '··' : 'HR'}</span>${hr.on ? ' bpm <span data-hrzone></span>' : ''}</button>` : '';
-  return `<section class="wo-head">
+  return `${stale ? `<div class="callout"><b>${esc(a.name)} from ${esc(fmtDate(a.date, { weekday: 'long' }))} was never finished.</b> ${doneSets ? `It has ${doneSets} logged set${doneSets > 1 ? 's' : ''}.` : 'No sets were logged.'}
+      <div class="row-actions wrap">${doneSets ? `<button type="button" class="btn primary sm" data-act="wo-finish">Save it to ${esc(fmtDate(a.date, { weekday: 'long' }))}</button>` : ''}<button type="button" class="btn ghost sm danger-text" data-act="wo-discard">Discard it</button></div></div>` : ''}
+    <section class="wo-head">
       <div class="wo-title"><label class="sr-only" for="wo-name">Workout name</label><input id="wo-name" class="wo-name" data-chg="wo-name" value="${esc(a.name)}">
-        <span class="muted"><span data-since="${a.start}">0:00</span> · ${setCount(a.items)} sets · ${fmtW(volume(a.items))}</span></div>
+        <span class="muted">${stale ? esc(fmtDate(a.date)) : `<span data-since="${a.start}">0:00</span>`} · ${setCount(a.items)} sets · ${fmtW(volume(a.items))}</span></div>
       <div class="wo-tools">${hrChip}<button type="button" class="icon-btn mic" data-act="voice" aria-label="Log a set by voice" title="Log a set by voice: say “225 for 8”">${icon('mic')}</button></div>
     </section>
     ${a.items.map((it, i) => exBlock(it, i, a.items.length)).join('') || empty('No exercises yet', 'Add your first exercise to start logging.')}
@@ -354,8 +363,18 @@ function exBlock(it, i, n) {
 }
 
 // ---------- start screen ----------
+// Weekly plan: a template for each training weekday (settings.program = { weekday: templateId }).
+const program = () => S.settings.program || {};
+const programFor = d => S.templates.find(t => t.id === program()[parseDate(d).getDay()]);
+export function workoutPlannedOn(d) {
+  const ev = eventsOn(d).find(e => e.gym);
+  if (ev) return ev;
+  return programFor(d) ? { start: '' } : null;
+}
 function nextTemplate() {
   if (!S.templates.length) return null;
+  const planned = programFor(today());
+  if (planned && !S.workouts.some(w => w.date === today() && w.templateId === planned.id)) return planned;
   const lastDone = t => Math.max(0, ...S.workouts.filter(w => w.templateId === t.id).map(w => w.start));
   // Continue the rotation: the template after the most recent one, falling back to the least recently done.
   const recent = desc().find(w => S.templates.some(t => t.id === w.templateId));
@@ -369,6 +388,7 @@ function nextTemplate() {
 export function weekSessions() { const ws = weekStart(today()); return S.workouts.filter(w => w.date >= ws).length; }
 export function lastWorkout() { return desc()[0]; }
 export function todayCard() {
+  if (staleActive()) return `<section class="card-row"><div class="row-main"><span class="eyebrow">Unfinished workout</span><strong>${esc(S.active.name)} from ${esc(fmtDate(S.active.date, { weekday: 'long' }))}</strong><span class="muted">Save it or discard it to start today's.</span></div><a class="btn" href="#gym">Review</a></section>`;
   if (S.active) return `<section class="card-row"><div class="row-main"><span class="eyebrow">Workout in progress</span><strong>${esc(S.active.name)}</strong><span class="muted"><span data-since="${S.active.start}">0:00</span> · ${setCount(S.active.items)} sets</span></div><a class="btn primary" href="#gym">Resume</a></section>`;
   const t = nextTemplate();
   const last = lastWorkout();
@@ -380,7 +400,12 @@ export function todayCard() {
 function startView() {
   const t = nextTemplate();
   const lastOf = tp => { const w = desc().find(x => x.templateId === tp.id); return w ? 'last ' + relDay(w.date).toLowerCase() : 'not done yet'; };
-  return `${t ? `<section class="hero-card"><span class="eyebrow">Up next in your rotation</span><h2>${esc(t.name)}</h2>
+  const gymDays = [...new Set(S.events.filter(e => e.gym && e.days?.length).flatMap(e => e.days))];
+  const plan = `<section class="group"><header class="group-head"><h3>Weekly plan</h3>${gymDays.length ? `<button type="button" class="btn ghost sm" data-act="program-auto">${icon('bolt')} Match my workout days</button>` : ''}</header>
+      <div class="week-plan">${WEEK_ORDER.map(d => `<label class="wp-day${d === parseDate(today()).getDay() ? ' is-today' : ''}${gymDays.includes(d) ? ' gym' : ''}"><span>${DOW[d]}</span>
+        <select data-chg="program-day" data-d="${d}" aria-label="${DOW[d]} workout"><option value="">Rest</option>${S.templates.map(tp => `<option value="${tp.id}"${program()[d] === tp.id ? ' selected' : ''}>${esc(tp.name)}</option>`).join('')}</select></label>`).join('')}</div>
+      <p class="muted small">${Object.values(program()).some(Boolean) ? 'Start opens the planned workout for the day. Days left on Rest follow your rotation.' : 'Pick a workout for each training day, or leave it empty to rotate through your templates.'}</p></section>`;
+  return `${t ? `<section class="hero-card"><span class="eyebrow">${programFor(today()) === t ? `Planned for ${DOW[parseDate(today()).getDay()]}` : 'Up next in your rotation'}</span><h2>${esc(t.name)}</h2>
       <p class="muted">${t.items.map(i => esc(exName(i.exId))).join(' · ')}</p>
       <button type="button" class="btn primary lg" data-act="wo-start" data-id="${t.id}">${icon('play')} Start ${esc(t.name)}</button></section>` : ''}
     <section class="group"><header class="group-head"><h3>Templates</h3><button type="button" class="btn ghost sm" data-act="tpl-new">${icon('plus')} Template</button></header>
@@ -388,6 +413,7 @@ function startView() {
         <div class="row-sub">${tp.items.length} exercises · ${sum(tp.items, i => num(i.sets))} sets · ${esc(lastOf(tp))}</div></div>
         <button type="button" class="btn sm" data-act="wo-start" data-id="${tp.id}">${icon('play')} Start</button></div>`).join('')}</div>
       <div class="row-actions"><button type="button" class="btn ghost" data-act="wo-start" data-id="">${icon('plus')} Empty workout</button></div></section>
+    ${plan}
     ${muscleBars()}`;
 }
 function muscleBars() {
@@ -400,6 +426,17 @@ function muscleBars() {
 }
 
 // ---------- templates ----------
+chg['program-day'] = el => { S.settings.program = { ...program(), [el.dataset.d]: el.value }; commit(); };
+// Alternate Upper and Lower (or the first two templates) across the weekdays your schedule has workouts on.
+acts['program-auto'] = () => {
+  const days = WEEK_ORDER.filter(d => S.events.some(e => e.gym && e.days?.includes(d)));
+  const a = S.templates.find(t => /upper/i.test(t.name)) || S.templates[0];
+  const b = S.templates.find(t => /lower/i.test(t.name)) || S.templates[1] || a;
+  if (!days.length || !a) return toast('Add a repeating workout to your schedule first.');
+  S.settings.program = Object.fromEntries(days.map((d, i) => [d, (i % 2 ? b : a).id]));
+  commit();
+  toast(`${days.map((d, i) => `${DOW[d]} ${(i % 2 ? b : a).name}`).join(', ')}`);
+};
 acts['tpl-new'] = () => templateEditor(null);
 acts['tpl-edit'] = el => templateEditor(S.templates.find(t => t.id === el.dataset.id));
 function templateEditor(tpl) {
