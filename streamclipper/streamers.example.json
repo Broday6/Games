@@ -1,0 +1,13 @@
+{
+  "_readme": "Copy to streamers.json. Keys are the streamer's login or display name (any case). Links are credited in every description; only add channels you have checked are theirs. 'game' is used when the VOD does not say, 'tags' are added to every upload.",
+  "examplestreamer": {
+    "name": "ExampleStreamer",
+    "links": {
+      "Twitch": "https://www.twitch.tv/examplestreamer",
+      "YouTube": "https://www.youtube.com/@examplestreamer",
+      "X": "https://x.com/examplestreamer"
+    },
+    "game": "Valorant",
+    "tags": ["example streamer valorant"]
+  }
+}

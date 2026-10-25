@@ -28,15 +28,21 @@ def _service(client_secret="client_secret.json", token="token.json"):
     return build("youtube", "v3", credentials=creds)
 
 
-def upload(path, title, description="", tags=(), privacy="private", category="20",
-           client_secret="client_secret.json", token="token.json"):
-    """Upload one video and return its YouTube id. Category 20 is Gaming."""
+def upload(path, title, description="", tags=(), privacy="private", category="20", language="en",
+           thumbnail=None, client_secret="client_secret.json", token="token.json"):
+    """Upload one video and return its YouTube id. Category 20 is Gaming.
+
+    Setting the language helps YouTube rank the video for searches in that language. A custom
+    thumbnail needs a phone-verified channel; if YouTube refuses it the upload still stands.
+    """
+    from googleapiclient.errors import HttpError
     from googleapiclient.http import MediaFileUpload
 
     yt = _service(client_secret, token)
     body = {
         "snippet": {"title": title[:100], "description": description, "tags": list(tags),
-                    "categoryId": category},
+                    "categoryId": category, "defaultLanguage": language,
+                    "defaultAudioLanguage": language},
         "status": {"privacyStatus": privacy, "selfDeclaredMadeForKids": False},
     }
     req = yt.videos().insert(part="snippet,status", body=body,
@@ -44,4 +50,9 @@ def upload(path, title, description="", tags=(), privacy="private", category="20
     resp = None
     while resp is None:
         _, resp = req.next_chunk()
+    if thumbnail:
+        try:
+            yt.thumbnails().set(videoId=resp["id"], media_body=MediaFileUpload(thumbnail)).execute()
+        except HttpError as e:
+            print(f"  thumbnail not set ({e.reason}); verify the channel to allow custom thumbnails")
     return resp["id"]
