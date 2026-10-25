@@ -59,7 +59,7 @@
     for (const s of SCREENS) $(s).classList.toggle('hidden', s !== id);
     $('table').classList.toggle('hidden', id !== 'table');
     hideTip();
-    if (id !== 'table') { clearCards(); }
+    if (id !== 'table') { clearCards(); clearFx(); }
     if (id === 'title') refreshTitle();
     if (id === 'newrun') buildNewRun();
     if (id === 'collection') buildCollection();
@@ -558,7 +558,7 @@
     $('hudBlind').style.setProperty('--bcol', info.boss ? info.boss.color : info.idx === 1 ? '#e8902f' : '#2f7fe8');
     $('hHands').textContent = hands; $('hDisc').textContent = discs;
     $('hMoney').textContent = '$' + run.money;
-    $('hAnte').textContent = run.ante + '/8';
+    $('hAnte').textContent = run.ante <= 8 ? run.ante + '/8' : String(run.ante);
     $('deckCount').textContent = (run.phase === 'play' ? run.draw.length + '/' : '') + run.cards.length;
     $('deckMini').src = A.backURL(run.deck);
   }
@@ -1444,6 +1444,7 @@
     tweens.push({ el: elm, from, to, t0: performance.now(), ms: Math.max(1, ms), done: false });
     startFx();
   }
+  function clearFx() { for (const p of parts) p.on = false; emitters.length = 0; }
   let lastT = 0;
   function startFx() { if (!fxOn) { fxOn = true; lastT = performance.now(); requestAnimationFrame(fxLoop); } }
   function fxLoop(now) {
