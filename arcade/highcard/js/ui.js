@@ -170,6 +170,7 @@
   });
   function startNewRun(opt) {
     run = E.newRun(opt);
+    meta.runs++;
     if (DEBUG) {
       if (Q.get('money')) run.money = +Q.get('money') || run.money;
       if (Q.get('ante')) { run.ante = Math.max(1, Math.min(40, +Q.get('ante') || 1)); run.bosses[run.ante] = run.bosses[run.ante] || null; delete run.bosses[run.ante]; }
@@ -336,16 +337,16 @@
     const root = document.documentElement.style;
     const hud = $('hud');
     const w = hud.clientWidth || Math.min(560, innerWidth - 20);
-    const tw = Math.floor(Math.max(42, Math.min(72, (w - 24) / 5, innerHeight * 0.08)));
+    const tw = Math.floor(Math.max(42, Math.min(72, (w - 24) / 5, innerHeight * 0.074)));
     root.setProperty('--tw', tw + 'px'); root.setProperty('--th', Math.round(tw * 1.4) + 'px');
     let cw = Math.min(98, w * 0.2);
     const stage = $('stage');
     if (stage && stage.clientHeight && !$('playView').classList.contains('hidden')) {
       const fixed = $('scorePanel').offsetHeight + ($('bossNote').classList.contains('hidden') ? 0 : $('bossNote').offsetHeight + 4) + $('infoLine').offsetHeight + $('controls').offsetHeight;
-      const ch = (stage.clientHeight - fixed - 16 - 30 - 8) / 2;
+      const ch = (stage.clientHeight - fixed - 24 - 6) / 1.72;
       cw = Math.min(cw, ch / 1.4);
     }
-    cw = Math.floor(Math.max(44, cw));
+    cw = Math.floor(Math.max(40, cw));
     root.setProperty('--cw', cw + 'px'); root.setProperty('--ch', Math.round(cw * 1.4) + 'px');
     sz.cw = cw; sz.ch = Math.round(cw * 1.4); sz.tw = tw; sz.th = Math.round(tw * 1.4);
   }
@@ -695,7 +696,7 @@
     if (!run) return;
     const row = $('consRow');
     row.innerHTML = '';
-    const tw = Math.round(sz.tw * 0.72);
+    const tw = Math.round(sz.tw * 0.64);
     for (let i = 0; i < run.consSlots; i++) {
       const x = i * (tw + 6);
       const it = run.cons[i];
@@ -935,10 +936,7 @@
       AU.play('cash'); buzz(15); bumpStat('hMoney');
       meta.bestAnte = Math.max(meta.bestAnte, run.endless ? run.ante : Math.min(8, run.ante));
       checkUnlocks();
-      if (r.won) {
-        if (!run.winCounted) { run.winCounted = true; meta.wins++; meta.maxStakeWon = Math.max(meta.maxStakeWon, run.stake); checkUnlocks(); }
-        save(); renderAll(); showWin(); return;
-      }
+      if (r.won) { save(); renderAll(); showWin(); return; }
       save(); renderAll();
     });
     v.appendChild(b);
@@ -1264,7 +1262,6 @@
 
   // ================= game over / win =================
   function recordRun(won) {
-    meta.runs++;
     const r = run;
     const ante = r.phase === 'won' ? r.ante - 1 : r.ante;
     meta.history.unshift({ date: Date.now(), seed: r.seed, deck: r.deck, stake: r.stake, ante, won: !!(won || r.winCounted), best: r.stats.best, bestType: r.stats.bestType,
@@ -1296,6 +1293,7 @@
   }
   function showWin() {
     const r = run;
+    if (!r.winCounted) { r.winCounted = true; meta.wins++; meta.maxStakeWon = Math.max(meta.maxStakeWon, r.stake); meta.bestAnte = Math.max(meta.bestAnte, 8); checkUnlocks(); save(); }
     confetti();
     openSheet('<div class="bigtitle win">YOU BEAT<br>THE HOUSE</div><p class="sub" style="margin:0 auto 6px">All 8 antes cleared. Keep riding the streak in endless mode, or cash in.</p>' + runSummary(r) +
       '<button class="btn primary" id="winEndless">Keep playing (endless)</button><button class="btn" id="winEnd">Cash in &amp; finish</button>', true);

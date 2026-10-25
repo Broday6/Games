@@ -219,8 +219,8 @@ body:not(.reduced) .logo .l1 { animation: neon 5s infinite; }
 .tile.wig { animation: wig calc(0.32s / var(--spd)) ease-out; }
 @keyframes wig { 25% { transform: var(--tx) rotate(-9deg) scale(1.12); } 60% { transform: var(--tx) rotate(7deg) scale(1.1); } }
 .subrow { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-top: 4px; }
-.slots.cons { flex: 1; height: calc(var(--th) * 0.72 + 6px); --tw2: calc(var(--tw) * 0.72); }
-.slots.cons .tile, .slots.cons .slot-empty { width: calc(var(--tw) * 0.72); height: calc(var(--th) * 0.72); }
+.slots.cons { flex: 1; height: calc(var(--th) * 0.64 + 6px); --tw2: calc(var(--tw) * 0.64); }
+.slots.cons .tile, .slots.cons .slot-empty { width: calc(var(--tw) * 0.64); height: calc(var(--th) * 0.64); }
 .subbtns { display: flex; gap: 6px; align-items: center; padding-top: 6px; }
 .deckbtn { display: flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; }
 .deckbtn img { width: 22px; height: 31px; border-radius: 3px; }
@@ -253,8 +253,8 @@ body:not(.reduced) .ed-aurora::after { animation: hue 4s linear infinite; }
 .handtotal.flame { color: #ffe08a; text-shadow: 0 0 10px #ff8a1a, 0 0 26px #ff5a00; }
 .bossnote { margin-top: 4px; padding: 4px 10px; border-radius: 10px; font-size: 13px; color: #ffd0d8; background: rgba(80, 10, 30, 0.6); border: 1px solid rgba(255, 90, 120, 0.3); text-align: center; }
 .zone { position: relative; flex-shrink: 0; }
-#playZone { flex: 1 1 auto; min-height: calc(var(--ch) + 16px); }
-#handZone { height: calc(var(--ch) + 30px); }
+#playZone { flex: 1 1 auto; min-height: calc(var(--ch) * 0.72); }
+#handZone { height: calc(var(--ch) + 24px); }
 .infoline { min-height: 20px; font-size: 13px; color: var(--dim); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #controls { padding-top: 4px; }
 .ctl-main { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: stretch; }
@@ -386,6 +386,16 @@ body.reduced .pop { animation-name: popfade; }
 @media (min-width: 700px) {
   #table > * { max-width: 600px; }
   .hn { font-size: 17px; }
+}
+@media (max-height: 620px) {
+  .bb-r { display: none; }
+  .hud-top .scorebox b { font-size: 18px; }
+  .blindbox img { width: 28px !important; height: 28px !important; }
+  .rowlbl .hint { display: none; }
+  .btn.big { min-height: 44px !important; font-size: 17px !important; }
+  .sorts .btn { min-height: 26px; }
+  #scorePanel { padding: 4px 8px; }
+  .hn { font-size: 13px; min-height: 16px; }
 }
 @media (max-height: 700px) {
   .stat { min-height: 36px; }
