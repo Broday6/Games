@@ -27,7 +27,7 @@
   // ---------------- layout ----------------
   function measure() {
     const W = vc.clientWidth || innerWidth;
-    const cw = Math.round(ED.clamp(W * 0.245, 84, W >= 700 ? 132 : 122));
+    const cw = Math.round(ED.clamp(W * 0.236, 82, W >= 700 ? 132 : 122));
     const ch = Math.round(cw * 1.42);
     vc.style.setProperty('--cw', cw + 'px'); vc.style.setProperty('--chh', ch + 'px');
     dims.cw = cw; dims.ch = ch; dims.W = W;
@@ -39,7 +39,7 @@
     const d = ED.ENEMIES[e.k];
     const per = (dims.W - 16) / Math.max(1, n);
     const room = Math.max(60, dims.zoneH - 96);
-    const base = Math.min(per * 0.9, room * 0.74);
+    const base = Math.min(per * 0.9, room * 0.84);
     return Math.round(ED.clamp(Math.min(base * d.size, room, per * 0.97), 44, 240));
   }
 
@@ -243,7 +243,7 @@
     const n = vhand.length;
     const W = handEl.clientWidth || dims.W;
     const cw = dims.cw, ch = dims.ch;
-    const maxSpread = W - cw - 10;
+    const maxSpread = W - cw - 4;
     const step = n > 1 ? Math.min(cw * 0.8, maxSpread / (n - 1)) : 0;
     const x0 = (W - cw) / 2 - step * (n - 1) / 2;
     const rot = Math.min(4, 22 / Math.max(1, n));
