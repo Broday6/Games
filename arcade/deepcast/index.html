@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Deep Cast</title>
+<meta name="description" content="A cozy-but-skillful fishing collection game. Cast, reel, collect 46 species across five waters.">
+<link rel="manifest" href="manifest.webmanifest">
+<meta id="themeColor" name="theme-color" content="#2f7fa6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Deep Cast">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-phase="day" class="at-title">
+<canvas id="scene" aria-label="Fishing scene. Hold to cast, tap on a bite, hold to reel."></canvas>
+
+<div id="hud">
+  <div class="chips">
+    <div class="chip" id="c-coins"><i id="i-coin"></i><b id="coins">0</b></div>
+    <div class="chip"><i id="timeIcon"></i><b id="clock">07:00</b></div>
+    <div class="chip"><i id="wIcon"></i><b id="wName">Clear</b></div>
+    <button class="chip icon" id="btnSettings" aria-label="Settings"></button>
+  </div>
+  <div id="locline"><span id="locname">Old Harbour</span> · Day <span id="dayn">1</span></div>
+</div>
+
+<div id="toasts"></div>
+<div id="banner"></div>
+<div id="hint" class="hidden"></div>
+<div id="actions">
+  <button id="baitChip" class="pill" aria-label="Change bait"><i></i><span id="baitName">Worms</span></button>
+  <button id="btnReelIn" class="pill hidden">Reel in</button>
+</div>
+
+<nav id="nav">
+  <button data-sheet="dex" data-icon="book"><i></i><span>Fishdex</span></button>
+  <button data-sheet="cooler" data-icon="cooler"><i></i><span>Cooler</span><em id="coolerBadge" class="badge soft">0/8</em></button>
+  <button data-sheet="shop" data-icon="shop"><i></i><span>Shop</span></button>
+  <button data-sheet="map" data-icon="map"><i></i><span>Map</span></button>
+  <button data-sheet="bounty" data-icon="bounty"><i></i><span>Bounties</span><em id="bountyBadge" class="badge hidden">0</em></button>
+</nav>
+
+<div id="sheet" class="hidden">
+  <div class="sheet-card">
+    <header><h2 id="sheetTitle">Fishdex</h2><button id="sheetClose" aria-label="Close">&times;</button></header>
+    <div id="sheetTabs" class="tabs hidden"></div>
+    <div id="sheetBody" class="scroll"></div>
+  </div>
+</div>
+
+<div id="reveal" class="hidden">
+  <div id="revCard">
+    <div id="revNew" class="stamp new">NEW!</div>
+    <div id="revRecord" class="stamp rec">RECORD!</div>
+    <div id="revRarity" class="rar">Common</div>
+    <canvas id="revCanvas"></canvas>
+    <h2 id="revName">Fish</h2>
+    <div class="rev-stats">
+      <div><span>Weight</span><b><em id="revWeight">0</em> kg</b></div>
+      <div><span>Value</span><b><span class="coin-i"></span><em id="revPrice">0</em></b></div>
+    </div>
+    <div id="revPerfect" class="perfect hidden">Perfect catch! +20% value</div>
+    <div id="revFull" class="muted hidden">Cooler full — sell or release.</div>
+    <div class="row gap rev-btns"><button id="revSell" class="btn gold big">Sell</button><button id="revKeep" class="btn big" data-act="keep">Keep</button></div>
+    <div id="revDex" class="muted"></div>
+  </div>
+</div>
+
+<div id="title">
+  <a class="back" href="../">&lsaquo; Arcade</a>
+  <div class="logo">
+    <div class="l1">DEEP</div>
+    <div class="l2">CAST</div>
+    <div class="hook"></div>
+  </div>
+  <p id="titleInfo">A cozy fishing collection</p>
+  <button id="btnStart" class="btn gold big">Cast Off</button>
+  <p class="tiny">Hold to cast · tap on the bite · hold to reel<br>Space / mouse on desktop</p>
+</div>
+
+<div id="fade"></div>
+<div id="safe"></div>
+
+<script src="data.js"></script>
+<script src="fishart.js"></script>
+<script src="audio.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
