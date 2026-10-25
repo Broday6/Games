@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="0.5" cy="0.35" r="0.8">
+      <stop offset="0" stop-color="#5a1a72"/>
+      <stop offset="0.6" stop-color="#2a0e44"/>
+      <stop offset="1" stop-color="#140a24"/>
+    </radialGradient>
+    <linearGradient id="cab" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7a2490"/>
+      <stop offset="1" stop-color="#3d0f52"/>
+    </linearGradient>
+    <linearGradient id="win" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#d9cfe6"/>
+      <stop offset="0.5" stop-color="#fbf7ff"/>
+      <stop offset="1" stop-color="#d4c8e2"/>
+    </linearGradient>
+    <linearGradient id="shade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#140628" stop-opacity="0.55"/>
+      <stop offset="0.25" stop-color="#140628" stop-opacity="0"/>
+      <stop offset="0.75" stop-color="#140628" stop-opacity="0"/>
+      <stop offset="1" stop-color="#140628" stop-opacity="0.55"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect x="78" y="128" width="356" height="256" rx="40" fill="url(#cab)" stroke="#ffc83d" stroke-width="8"/>
+  <g fill="#ffd046">
+    <circle cx="118" cy="146" r="7"/><circle cx="178" cy="146" r="7"/><circle cx="238" cy="146" r="7"/><circle cx="298" cy="146" r="7"/><circle cx="358" cy="146" r="7"/><circle cx="414" cy="146" r="7"/>
+    <circle cx="118" cy="366" r="7"/><circle cx="178" cy="366" r="7"/><circle cx="238" cy="366" r="7"/><circle cx="298" cy="366" r="7"/><circle cx="358" cy="366" r="7"/><circle cx="414" cy="366" r="7"/>
+  </g>
+  <rect x="104" y="168" width="304" height="176" rx="16" fill="#0b0416"/>
+  <g>
+    <rect x="112" y="176" width="92" height="160" rx="8" fill="url(#win)"/>
+    <rect x="210" y="176" width="92" height="160" rx="8" fill="url(#win)"/>
+    <rect x="308" y="176" width="92" height="160" rx="8" fill="url(#win)"/>
+  </g>
+  <!-- cherry -->
+  <g stroke="#1a0e24" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M144 258 Q148 226 160 214 M170 254 Q168 230 160 214" fill="none"/>
+    <path d="M160 214 Q176 204 184 218 Q170 224 160 214Z" fill="#3fbf5f"/>
+    <circle cx="142" cy="262" r="16" fill="#ff2d55"/><circle cx="172" cy="258" r="16" fill="#ff2d55"/>
+    <!-- seven -->
+    <path d="M226 218 L286 218 L286 230 L262 296 L242 296 L264 238 L240 238 L238 244 L226 244Z" fill="#ff2d55" stroke-width="6"/>
+    <!-- diamond -->
+    <path d="M330 232 L378 232 L392 250 L354 296 L316 250Z" fill="#9ff0ff"/>
+    <path d="M316 250 L392 250" fill="none" stroke-width="3"/>
+  </g>
+  <rect x="112" y="176" width="288" height="160" fill="url(#shade)"/>
+  <rect x="96" y="252" width="10" height="8" fill="#ff3d9a"/><rect x="406" y="252" width="10" height="8" fill="#ff3d9a"/>
+  <g fill="#fff7c2"><path d="M410 96 l6 16 16 6 -16 6 -6 16 -6 -16 -16 -6 16 -6z"/><path d="M96 400 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4z"/></g>
+</svg>

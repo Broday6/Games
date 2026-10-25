@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Lucky Reels</title>
+<meta name="description" content="A slot machine roguelike. Build a machine of interacting symbols and pay the landlord's rising rent. Play money only.">
+<meta name="theme-color" content="#140a24">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Lucky Reels">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="cv" aria-label="Slot machine"></canvas>
+<div id="safe" aria-hidden="true"></div>
+
+<!-- PLAY HUD -->
+<div id="hud" class="hidden">
+  <div class="hud-top">
+    <button id="menuBtn" class="btn icon" aria-label="Menu"><span class="burger"><i></i><i></i><i></i></span></button>
+    <div class="floor-chip"><small>Floor</small><b id="floorNum">1</b><span id="floorOf">/13</span></div>
+    <div class="tokens">
+      <button id="remTok" class="tok" aria-label="Removal tokens"><i class="tk tk-rem"></i><b id="remN">0</b></button>
+      <button id="rrTok" class="tok" aria-label="Reroll tokens"><i class="tk tk-rr"></i><b id="rrN">0</b></button>
+    </div>
+  </div>
+  <div class="coin-row"><i class="coin-ico" id="coinIco"></i><b id="coins">0</b><span id="gainTag" class="gain-tag"></span></div>
+  <div class="rent-row" id="rentRow">
+    <div class="rent-bar"><div id="rentFill"></div></div>
+    <div class="rent-txt"><span>Rent <b id="rentAmt">25</b></span><span id="rentWhen">due in 5 spins</span></div>
+  </div>
+</div>
+<div id="itemsBar" class="hidden" aria-label="Items"></div>
+<div id="controls" class="hidden">
+  <button id="bagBtn" class="btn side" aria-label="Your symbols"><span class="bag-ico"></span><small id="bagN">5</small></button>
+  <button id="spinBtn" class="btn spin">SPIN</button>
+  <button id="ffBtn" class="btn side" aria-label="Fast forward" aria-pressed="false"><span class="ff-ico"><i></i><i></i></span><small>Fast</small></button>
+</div>
+
+<!-- TITLE -->
+<section id="title" class="screen title-screen">
+  <div class="topbar">
+    <a class="back" href="../index.html">‹ Arcade</a>
+    <span class="pill play-money">Play money only</span>
+  </div>
+  <div class="hero">
+    <canvas id="titleReels" width="300" height="120"></canvas>
+    <h1 class="logo"><span>LUCKY</span><span>REELS</span></h1>
+    <p class="tagline">Spin. Combo. Pay the rent.</p>
+  </div>
+  <div class="menu">
+    <button id="contBtn" class="btn primary big hidden">Continue</button>
+    <button id="newBtn" class="btn primary big">New Run</button>
+    <div class="row2">
+      <button id="codexBtn" class="btn">Codex</button>
+      <button id="setBtn" class="btn">Settings</button>
+    </div>
+    <p class="best" id="bestLine"></p>
+  </div>
+</section>
+
+<!-- RUN SETUP -->
+<section id="setup" class="screen hidden">
+  <div class="head"><button class="btn icon backBtn" data-to="title" aria-label="Back">‹</button><h2>New Run</h2><div></div></div>
+  <h3>Landlord</h3>
+  <div id="llList" class="hlist"></div>
+  <h3>Starting symbols</h3>
+  <div id="startList" class="list"></div>
+  <h3>Stake</h3>
+  <div class="stake-row">
+    <button id="stakeDn" class="btn icon" aria-label="Lower stake">−</button>
+    <div class="stake-box"><b id="stakeName">Stake 0</b><small id="stakeDesc"></small></div>
+    <button id="stakeUp" class="btn icon" aria-label="Raise stake">+</button>
+  </div>
+  <button id="goBtn" class="btn primary big">Start Spinning</button>
+</section>
+
+<!-- SYMBOL PICK -->
+<section id="pick" class="sheet hidden">
+  <div class="sheet-head" id="pickHead"><h2>Add a symbol</h2><span class="sub" id="pickSub">Tap one to add it to your machine</span><span class="peek" id="peekLbl">Peek</span></div>
+  <div id="pickCards" class="cards"></div>
+  <div class="row2">
+    <button id="skipBtn" class="btn">Skip</button>
+    <button id="rerollBtn" class="btn"><i class="tk tk-rr"></i> Reroll <b id="rerollN">0</b></button>
+  </div>
+</section>
+
+<!-- ITEM PICK -->
+<section id="itemPick" class="screen modal hidden">
+  <div class="sheet-head"><h2 class="gold">Rent paid!</h2><span class="sub" id="itemSub">Choose an item — it works every spin</span></div>
+  <div id="itemCards" class="cards"></div>
+  <button id="itemSkip" class="btn">Skip</button>
+</section>
+
+<!-- RENT -->
+<section id="rent" class="screen modal hidden">
+  <div class="rent-card">
+    <canvas id="llCv" width="160" height="160"></canvas>
+    <div class="ll-name" id="llName">Mr. Grimsby</div>
+    <div class="ll-say" id="llSay">"Rent's due."</div>
+    <div class="rent-due"><small>Rent due</small><b id="rentDue">25</b></div>
+    <div class="rent-have" id="rentHave">You have <b>0</b></div>
+    <button id="payBtn" class="btn primary big">Pay rent</button>
+  </div>
+</section>
+
+<!-- INVENTORY -->
+<section id="inv" class="screen modal hidden">
+  <div class="head"><button class="btn icon" id="invClose" aria-label="Close">×</button><h2>Your Machine</h2><div class="pill"><i class="tk tk-rem"></i><span id="invRem">0</span></div></div>
+  <p class="sub" id="invSub"></p>
+  <div id="invGrid" class="icon-grid"></div>
+  <h3 id="invItemsH">Items</h3>
+  <div id="invItems" class="icon-grid small"></div>
+</section>
+
+<!-- TOOLTIP -->
+<div id="tip" class="tip hidden" role="dialog">
+  <div class="tip-top"><div id="tipIc" class="tip-ic"></div><div class="tip-hd"><b id="tipName"></b><span id="tipMeta"></span></div><button id="tipX" class="btn icon small" aria-label="Close">×</button></div>
+  <p id="tipDesc"></p>
+  <p id="tipStatus" class="tip-status"></p>
+  <button id="tipAct" class="btn danger hidden"></button>
+</div>
+
+<!-- MENU (pause) -->
+<section id="menu" class="screen modal hidden">
+  <h2>Paused</h2>
+  <div class="pause-stats" id="pauseStats"></div>
+  <button id="resumeBtn" class="btn primary big">Resume</button>
+  <div class="row2"><button id="mCodex" class="btn">Codex</button><button id="mHow" class="btn">How to play</button></div>
+  <div class="list settings-list compact" id="pauseSet"></div>
+  <button id="quitBtn" class="btn danger">Abandon run</button>
+  <button id="titleBtn" class="btn">Save &amp; quit to title</button>
+</section>
+
+<!-- SETTINGS -->
+<section id="settings" class="screen hidden">
+  <div class="head"><button class="btn icon backBtn" data-to="back" aria-label="Back">‹</button><h2>Settings</h2><div></div></div>
+  <div class="list settings-list" id="setList"></div>
+  <div class="howto" id="howto">
+    <h3>How to play</h3>
+    <p>You own a <b>5 × 4 slot machine</b>. Every <b>spin</b>, the symbols you own land in random slots and <b>pay coins</b>. If you own fewer than 20 symbols, some slots stay empty; if you own more, only 20 random ones show up.</p>
+    <p>Symbols <b>interact with their neighbours</b> — the 8 slots around them, diagonals included. A Cat drinks adjacent Milk, a Miner digs Ore, Bees double Flowers, the Moon triples Owls… Watch the arrows during a spin to see who helped whom.</p>
+    <p>After each spin, <b>pick 1 of 3 new symbols</b> to add (or skip). Tap any symbol or item to read exactly what it does.</p>
+    <p>Every few spins the <b>Landlord wants rent</b>, and it keeps rising. Can't pay? The run is over. Pay, and you climb a floor and choose an <b>item</b> — a permanent bonus.</p>
+    <p><b>Removal tokens</b> delete a symbol from your machine (open your symbols with the bag button). <b>Reroll tokens</b> refresh the symbol choices. You earn one of each with every rent paid.</p>
+    <p>Pay all <b>13 rents</b> to beat the Landlord. Winning unlocks higher <b>Stakes</b>, new landlords and starting sets, and an endless mode.</p>
+    <p><b>Hold</b> anywhere during a spin to skip ahead, or turn on <b>Fast</b>.</p>
+    <p class="keys">Keys: <b>Space</b> spin/confirm · <b>1–4</b> pick · <b>S</b> skip · <b>R</b> reroll · <b>B</b> symbols · <b>F</b> fast · <b>Esc</b> menu</p>
+    <p class="keys">All coins are pretend. There are no purchases or real-money features.</p>
+  </div>
+  <button id="resetBtn" class="btn danger">Reset all progress</button>
+</section>
+
+<!-- CODEX -->
+<section id="codex" class="screen hidden">
+  <div class="head"><button class="btn icon backBtn" data-to="back" aria-label="Back">‹</button><h2>Codex</h2><div class="pill" id="codexCount">0</div></div>
+  <div class="tabs"><button id="tabS" class="tab on">Symbols</button><button id="tabI" class="tab">Items</button></div>
+  <div id="codexGrid" class="icon-grid"></div>
+</section>
+
+<!-- SUMMARY -->
+<section id="summary" class="screen modal hidden">
+  <canvas id="sumCv" width="160" height="160"></canvas>
+  <h2 id="sumTitle" class="sum-title">EVICTED</h2>
+  <p id="sumSub" class="sub"></p>
+  <div class="stats" id="sumStats"></div>
+  <div id="unlocks" class="unlocks"></div>
+  <button id="endlessBtn" class="btn primary hidden">Keep spinning (Endless)</button>
+  <div class="row2">
+    <button id="againBtn" class="btn primary">New run</button>
+    <button id="homeBtn" class="btn">Title</button>
+  </div>
+</section>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="js/data.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/art.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
