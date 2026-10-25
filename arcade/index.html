@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pocket Arcade</title>
+<meta name="description" content="Phone games you can install to your home screen and play offline.">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#120f22">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Arcade">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon.svg">
+<style>
+  :root {
+    --bg: #120f22;
+    --bg2: #1b1733;
+    --card: #221d3d;
+    --line: #342d5a;
+    --text: #efeaff;
+    --muted: #a59ec4;
+    --gold: #ffd24a;
+    --teal: #3fe0c5;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    padding: calc(env(safe-area-inset-top) + 24px) calc(env(safe-area-inset-right) + 16px)
+             calc(env(safe-area-inset-bottom) + 32px) calc(env(safe-area-inset-left) + 16px);
+    background:
+      radial-gradient(120% 60% at 50% -10%, #2c2160 0%, transparent 60%),
+      var(--bg);
+    -webkit-tap-highlight-color: transparent;
+  }
+  main { max-width: 560px; margin: 0 auto; }
+  header h1 {
+    margin: 0;
+    font-size: 34px;
+    letter-spacing: .5px;
+    font-weight: 800;
+  }
+  header h1 span { color: var(--gold); }
+  header p { margin: 6px 0 0; color: var(--muted); }
+
+  .install {
+    display: none;
+    margin: 20px 0 0;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--bg2);
+    align-items: center;
+    gap: 12px;
+  }
+  .install.show { display: flex; }
+  .install p { margin: 0; flex: 1; font-size: 14px; color: var(--muted); }
+  .install b { color: var(--text); }
+
+  .games { list-style: none; margin: 24px 0 0; padding: 0; display: grid; gap: 14px; }
+  .game {
+    display: grid;
+    grid-template-columns: 76px 1fr;
+    gap: 14px;
+    align-items: center;
+    padding: 14px;
+    border-radius: 18px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    text-decoration: none;
+    color: inherit;
+    transition: transform .12s ease, border-color .12s ease;
+  }
+  .game:active { transform: scale(.98); }
+  .game:hover { border-color: #4b4280; }
+  .game img { width: 76px; height: 76px; border-radius: 18px; display: block; background: var(--bg2); }
+  .game h2 { margin: 0; font-size: 19px; }
+  .game p { margin: 3px 0 8px; font-size: 14px; color: var(--muted); }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tags span {
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #2e2752;
+    color: #d6cff5;
+  }
+  .tags .go { background: var(--gold); color: #24190a; font-weight: 700; }
+
+  h3 { margin: 32px 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); }
+  .help { font-size: 14px; color: var(--muted); }
+  .help ol { padding-left: 20px; margin: 6px 0 0; }
+  .help li { margin: 4px 0; }
+  .help b { color: var(--text); }
+
+  button {
+    font: inherit;
+    font-weight: 700;
+    min-height: 44px;
+    padding: 0 18px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--gold);
+    color: #24190a;
+    cursor: pointer;
+  }
+  footer { margin-top: 36px; font-size: 13px; color: var(--muted); text-align: center; }
+  footer a { color: var(--teal); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Pocket <span>Arcade</span></h1>
+    <p>Phone games that install to your home screen and play offline.</p>
+  </header>
+
+  <div class="install" id="install">
+    <p id="installText"><b>Install the arcade</b> to get it on your home screen.</p>
+    <button id="installBtn" hidden>Install</button>
+  </div>
+
+  <ul class="games">
+    <li>
+      <a class="game" href="nighttide/">
+        <img src="nighttide/icon-192.png" alt="" width="76" height="76">
+        <div>
+          <h2>Night Tide</h2>
+          <p>Survive ten minutes of shadow waves on a moonlit beach. Pick boons, evolve weapons, beat the dawn.</p>
+          <div class="tags"><span class="go">Play</span><span>Roguelite</span><span>One thumb</span><span>10 min runs</span></div>
+        </div>
+      </a>
+    </li>
+    <li>
+      <a class="game" href="deepcast/">
+        <img src="deepcast/icon-192.png" alt="" width="76" height="76">
+        <div>
+          <h2>Deep Cast</h2>
+          <p>Cast, hook and reel 40+ species across five waters. Fill the Fishdex, chase records and legendaries.</p>
+          <div class="tags"><span class="go">Play</span><span>Fishing</span><span>Collection</span><span>Chill</span></div>
+        </div>
+      </a>
+    </li>
+    <li>
+      <a class="game" href="diceden/">
+        <img src="diceden/icon-192.png" alt="" width="76" height="76">
+        <div>
+          <h2>Dice Den</h2>
+          <p>Liar's Dice, Farkle and more for one phone passed around the table, or against bluffing bots.</p>
+          <div class="tags"><span class="go">Play</span><span>Party</span><span>Pass &amp; play</span><span>Play chips</span></div>
+        </div>
+      </a>
+    </li>
+    <li>
+      <a class="game" href="../driftwood/">
+        <img src="driftwood.svg" alt="" width="76" height="76">
+        <div>
+          <h2>Driftwood</h2>
+          <p>The co-op survival roguelike. Best on a computer with mouse and keyboard, up to 4 players.</p>
+          <div class="tags"><span>Desktop</span><span>Co-op</span><span>Survival</span></div>
+        </div>
+      </a>
+    </li>
+  </ul>
+
+  <h3>Put a game on your home screen</h3>
+  <div class="help">
+    Each game installs as its own app. Open the game first, then:
+    <ol>
+      <li><b>iPhone / iPad (Safari):</b> tap Share, then <b>Add to Home Screen</b>.</li>
+      <li><b>Android (Chrome):</b> tap ⋮, then <b>Install app</b> or <b>Add to Home screen</b>.</li>
+    </ol>
+    After the first open, the games run offline.
+  </div>
+
+  <footer>Made in <a href="https://github.com/broday6/Games">broday6/Games</a></footer>
+</main>
+<script>
+  (function () {
+    var box = document.getElementById('install');
+    var btn = document.getElementById('installBtn');
+    var text = document.getElementById('installText');
+    var standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    var ios = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var deferred = null;
+
+    if (!standalone && ios) {
+      text.innerHTML = '<b>Install the arcade:</b> tap Share, then Add to Home Screen.';
+      box.classList.add('show');
+    }
+    addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      deferred = e;
+      btn.hidden = false;
+      box.classList.add('show');
+    });
+    btn.addEventListener('click', function () {
+      if (!deferred) return;
+      deferred.prompt();
+      deferred.userChoice.finally(function () { deferred = null; box.classList.remove('show'); });
+    });
+    addEventListener('appinstalled', function () { box.classList.remove('show'); });
+
+    var secure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    if ('serviceWorker' in navigator && secure) {
+      try { navigator.serviceWorker.register('sw.js'); } catch (e) {}
+    }
+  })();
+</script>
+</body>
+</html>
