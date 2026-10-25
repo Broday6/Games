@@ -281,6 +281,8 @@
         g.fillStyle = 'rgba(180,210,255,0.35)'; g.beginPath(); g.ellipse(-14, -7, 12, 2.5, 0, 0, TAU); g.ellipse(18, 6, 7, 1.6, 0, 0, TAU); g.fill();
       }),
     ];
+    // digit atlases for damage numbers (drawImage is much cheaper than fillText)
+    Art.digits = [digitAtlas(11, '#ffffff', 800), digitAtlas(15, '#ffd23f', 900)];
     // sand tile 256 world units
     Art.sand = sprite(256, 256, res, (g) => {
       g.translate(-128, -128);
@@ -301,6 +303,22 @@
       }
     });
   };
+
+  function digitAtlas(fs, col, wt) {
+    const cw = fs * 0.66, chh = fs * 1.25, res = Art.res;
+    const c = document.createElement('canvas');
+    c.width = Math.ceil(cw * 10 * res); c.height = Math.ceil(chh * res);
+    const g = c.getContext('2d');
+    g.scale(res, res);
+    g.font = wt + ' ' + fs + 'px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineJoin = 'round';
+    for (let d = 0; d < 10; d++) {
+      const x = cw * d + cw / 2, y = chh / 2;
+      g.strokeStyle = 'rgba(0,0,0,0.75)'; g.lineWidth = fs * 0.22; g.strokeText(String(d), x, y);
+      g.fillStyle = col; g.fillText(String(d), x, y);
+    }
+    return { img: c, cw, ch: chh, pw: c.width / 10, ph: c.height };
+  }
 
   function drawChest(g, open) {
     g.fillStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); g.ellipse(0, 13, 15, 4, 0, 0, TAU); g.fill();

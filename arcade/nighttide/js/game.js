@@ -134,7 +134,7 @@
   const ctx = cv.getContext('2d', { alpha: false });
   let W = 1, H = 1, DPR = 1, SCALE = 1, K = 1, viewW = 1, viewH = 1, spawnR = 500;
   const SAFE = { t: 0, r: 0, b: 0, l: 0 };
-  let vignette = null, redVig = null;
+  let vignette = null, redVig = null, dprCap = 2, slowFrames = 0;
   let camX = 0, camY = 0, wOX = 0, wOY = 0;
 
   function readSafe() {
@@ -159,7 +159,7 @@
   }
   function resize() {
     W = Math.max(1, window.innerWidth); H = Math.max(1, window.innerHeight);
-    DPR = Math.min(2, window.devicePixelRatio || 1);
+    DPR = Math.min(dprCap, window.devicePixelRatio || 1);
     cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
     SCALE = clamp(Math.min(W, H) / 380, 0.75, 1.7);
     K = DPR * SCALE;
@@ -231,7 +231,7 @@
 
   function hpMul() { const t = G.t, l = t > 240 ? (t - 240) / 60 : 0; return 1 + t / 60 * 0.38 + l * l * 0.5; }
   function dmgMul() { return 1 + G.t / 60 * 0.15; }
-  function xpForLevel(l) { return 4 + (l - 1) * 4 + max(0, l - 10) * 8 + max(0, l - 20) * 24 + max(0, l - 30) * 70; }
+  function xpForLevel(l) { return 4 + (l - 1) * 4 + max(0, l - 12) * 8 + max(0, l - 20) * 24 + max(0, l - 30) * 70; }
 
   function meta(id) { const s = NT.save; return (s && s.up && s.up[id]) || 0; }
   function recalc() {
@@ -278,7 +278,7 @@
     const crit = rnd() < P.st.crit + (critBonus || 0);
     let d = dmg * P.st.might * (crit ? 2 : 1) * (0.9 + rnd() * 0.2);
     const before = e.hp;
-    e.hp -= d; e.flash = 0.09;
+    e.hp -= d; e.flash = 0.07;
     if (w) w.dmg += min(d, max(0, before));
     if (kb) { const res = 1 - e.def.kb; e.kx += kx * kb * res; e.ky += ky * kb * res; }
     if (NT.save.set.nums) spawnNum(e.x + (rnd() - 0.5) * 8, e.y - e.r, d, crit);
@@ -513,8 +513,8 @@
   }
   const EDGE = { x: 0, y: 0, a: 0 };
   function pickType(t) {
-    const w0 = 10, w1 = t > 35 ? 5 : 0, w3 = t > 105 ? 1.2 + t / 300 : 0, w4 = t > 190 ? 2.5 + t / 200 : 0,
-      w2 = t > 235 ? 1.5 + t / 160 : 0, w6 = t > 275 ? 2.5 + t / 220 : 0;
+    const w0 = 10, w1 = t > 35 ? 4 : 0, w3 = t > 105 ? 1.2 + t / 300 : 0, w4 = t > 190 ? 2.5 + t / 200 : 0,
+      w2 = t > 260 ? 1 + t / 200 : 0, w6 = t > 275 ? 2.5 + t / 220 : 0;
     let r = rnd() * (w0 + w1 + w2 + w3 + w4 + w6);
     if ((r -= w0) < 0) return T_SHADE;
     if ((r -= w1) < 0) return T_SKIT;
@@ -604,7 +604,7 @@
       G.spawnAcc -= 1;
       if (EP.n >= target) { G.spawnAcc = 0; break; }
       const type = pickType(t);
-      if (type === T_SKIT) spawnPack(T_SKIT, 3 + ((rnd() * 3) | 0));
+      if (type === T_SKIT) spawnPack(T_SKIT, 3 + ((rnd() * 2) | 0) + (t > 300 ? 1 : 0));
       else { const p = edgePoint(); spawnEnemy(type, p.x, p.y, false); }
     }
   }
@@ -1382,7 +1382,7 @@
       const sc = e.r / e.def.r;
       const wb = sin(G.time * 8 + e.phase) * 0.06;
       const w = spr.ww * sc * (1 + wb), h = spr.wh * sc * (1 - wb);
-      if (e.stun > 0) ctx.globalAlpha = 0.65;
+      if (e.stun > 0) ctx.globalAlpha = 0.8;
       ctx.drawImage(spr, e.x - w / 2, e.y - h / 2, w, h);
       if (e.stun > 0) ctx.globalAlpha = 1;
     }
@@ -1522,22 +1522,24 @@
       }
     }
     ctx.globalAlpha = 1;
-    // damage numbers
+    // damage numbers (digit atlas)
     const NL = NP.list;
-    if (NP.n) {
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      for (let pass = 0; pass < 2; pass++) {
-        ctx.font = pass ? '900 15px system-ui, sans-serif' : '800 11px system-ui, sans-serif';
-        for (let i = 0; i < NP.n; i++) {
-          const p = NL[i];
-          if (!p.alive || p.crit !== (pass === 1)) continue;
-          ctx.globalAlpha = min(1, p.life * 4);
-          ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillText(p.s, p.x + 1, p.y + 1);
-          ctx.fillStyle = pass ? '#ffd23f' : '#ffffff'; ctx.fillText(p.s, p.x, p.y);
-        }
+    for (let i = 0; i < NP.n; i++) {
+      const p = NL[i];
+      if (!p.alive) continue;
+      const at = A.digits[p.crit ? 1 : 0], str = p.s, len = str.length;
+      const sc = p.crit ? 1 + max(0, p.life - 0.6) * 2 : 1;
+      const adv = at.cw * 0.82 * sc, h = at.ch * sc;
+      let x = p.x - adv * len / 2 - (at.cw * sc - adv) / 2;
+      const y = p.y - h / 2;
+      ctx.globalAlpha = min(1, p.life * 4);
+      for (let c = 0; c < len; c++) {
+        const d = str.charCodeAt(c) - 48;
+        ctx.drawImage(at.img, d * at.pw, 0, at.pw, at.ph, x, y, at.cw * sc, h);
+        x += adv;
       }
-      ctx.globalAlpha = 1;
     }
+    ctx.globalAlpha = 1;
     // ---- screen space ----
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     let dawn = 0;
@@ -1551,7 +1553,7 @@
     if (red > 0.01) { ctx.globalAlpha = red; ctx.drawImage(redVig, 0, 0); }
     ctx.globalAlpha = 1;
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    if (G.mode === 'play') drawHUD();
+    if (G.mode === 'play') { drawJoystick(); drawHUD(); }
   }
 
   const iconCache = Object.create(null);
@@ -1562,8 +1564,27 @@
   let hudBottom = 100;
   let timeStr = '', timeSec = -1, killStr = '', killN = -1, lvStr = '', lvN = -1;
 
+  let HW = 1, HH = 1, HS = 1;
+  const SF = { t: 0, r: 0, b: 0, l: 0 };
+  function drawJoystick() {
+    // joystick
+    if (IN.id !== -1) {
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(IN.ox, IN.oy, JR, 0, TAU); ctx.fill(); ctx.stroke();
+      const dx = IN.cx - IN.ox, dy = IN.cy - IN.oy, d = sqrt(dx * dx + dy * dy), m = min(d, JR);
+      const kx = d > 0 ? IN.ox + dx / d * m : IN.ox, ky = d > 0 ? IN.oy + dy / d * m : IN.oy;
+      ctx.fillStyle = 'rgba(255,179,71,0.45)'; ctx.strokeStyle = 'rgba(255,220,160,0.7)';
+      ctx.beginPath(); ctx.arc(kx, ky, 24, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
   function drawHUD() {
-    const top = SAFE.t + 10, left = SAFE.l + 12, right = W - SAFE.r - 12;
+    HS = clamp(Math.min(W, H) / 430, 1, 1.5);
+    HW = W / HS; HH = H / HS;
+    SF.t = SAFE.t / HS; SF.r = SAFE.r / HS; SF.b = SAFE.b / HS; SF.l = SAFE.l / HS;
+    ctx.setTransform(DPR * HS, 0, 0, DPR * HS, 0, 0);
+    const top = SF.t + 10, left = SF.l + 12, right = HW - SF.r - 12;
     // XP bar
     const bx = left, bw = right - left - 56, bh = 12;
     rr(bx, top, bw, bh, 6); ctx.fillStyle = 'rgba(4,8,22,0.75)'; ctx.fill();
@@ -1579,8 +1600,8 @@
     if (ts !== timeSec) { timeSec = ts; timeStr = fmtTime(ts); }
     ctx.textAlign = 'center';
     ctx.font = '900 26px system-ui, sans-serif';
-    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(timeStr, W / 2 + 1, top + bh + 22);
-    ctx.fillStyle = G.t >= 540 ? '#ffcf4a' : '#ffffff'; ctx.fillText(timeStr, W / 2, top + bh + 21);
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(timeStr, HW / 2 + 1, top + bh + 22);
+    ctx.fillStyle = G.t >= 540 ? '#ffcf4a' : '#ffffff'; ctx.fillText(timeStr, HW / 2, top + bh + 21);
     // kills
     if (killN !== G.kills) { killN = G.kills; killStr = nstr(G.kills); }
     ctx.textAlign = 'right'; ctx.font = '800 13px system-ui, sans-serif';
@@ -1595,9 +1616,9 @@
     let iy = top + bh + 34;
     const boss = G.boss && G.boss.alive ? G.boss : null;
     if (boss) {
-      const bbw = min(320, W * 0.72), bbx = (W - bbw) / 2, bby = top + bh + 40;
+      const bbw = min(320, HW * 0.72), bbx = (HW - bbw) / 2, bby = top + bh + 40;
       ctx.font = '900 12px system-ui, sans-serif'; ctx.textAlign = 'center';
-      ctx.fillStyle = boss.def.rim; ctx.fillText(boss.def.name, W / 2, bby);
+      ctx.fillStyle = boss.def.rim; ctx.fillText(boss.def.name, HW / 2, bby);
       rr(bbx, bby + 8, bbw, 10, 5); ctx.fillStyle = 'rgba(4,8,22,0.8)'; ctx.fill();
       ctx.strokeStyle = boss.def.rim; ctx.stroke();
       const bf = clamp(boss.hp / boss.maxHp, 0, 1);
@@ -1634,39 +1655,28 @@
     const b = G.banner;
     if (b) {
       const a = b.t < 0.25 ? b.t / 0.25 : b.t > b.dur - 0.4 ? max(0, (b.dur - b.t) / 0.4) : 1;
-      const y = H * 0.3, sc = 1 + max(0, 0.25 - b.t) * 1.2;
+      const y = HH * 0.3, sc = 1 + max(0, 0.25 - b.t) * 1.2;
       ctx.globalAlpha = a; ctx.textAlign = 'center';
-      const fs = min(34, (W - 30) / (b.text.length * 0.62));
+      const fs = min(34, (HW - 30) / (b.text.length * 0.62));
       ctx.font = '900 ' + (fs * sc).toFixed(1) + 'px system-ui, sans-serif';
-      ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillText(b.text, W / 2 + 2, y + 2);
-      ctx.fillStyle = b.col; ctx.fillText(b.text, W / 2, y);
-      if (b.sub) { ctx.font = '700 15px system-ui, sans-serif'; ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(b.sub, W / 2 + 1, y + fs * 0.9 + 1); ctx.fillStyle = '#e9eeff'; ctx.fillText(b.sub, W / 2, y + fs * 0.9); }
-      ctx.globalAlpha = 1;
-    }
-    // joystick
-    if (IN.id !== -1) {
-      ctx.globalAlpha = 0.9;
-      ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(IN.ox, IN.oy, JR, 0, TAU); ctx.fill(); ctx.stroke();
-      const dx = IN.cx - IN.ox, dy = IN.cy - IN.oy, d = sqrt(dx * dx + dy * dy), m = min(d, JR);
-      const kx = d > 0 ? IN.ox + dx / d * m : IN.ox, ky = d > 0 ? IN.oy + dy / d * m : IN.oy;
-      ctx.fillStyle = 'rgba(255,179,71,0.45)'; ctx.strokeStyle = 'rgba(255,220,160,0.7)';
-      ctx.beginPath(); ctx.arc(kx, ky, 24, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillText(b.text, HW / 2 + 2, y + 2);
+      ctx.fillStyle = b.col; ctx.fillText(b.text, HW / 2, y);
+      if (b.sub) { ctx.font = '700 15px system-ui, sans-serif'; ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(b.sub, HW / 2 + 1, y + fs * 0.9 + 1); ctx.fillStyle = '#e9eeff'; ctx.fillText(b.sub, HW / 2, y + fs * 0.9); }
       ctx.globalAlpha = 1;
     }
     if (DBG.on) {
       ctx.textAlign = 'left'; ctx.font = '700 11px ui-monospace, monospace'; ctx.fillStyle = '#9fffb0';
-      ctx.fillText('fps ' + PERF.fps.toFixed(0) + '  upd ' + PERF.upd.toFixed(2) + 'ms  draw ' + PERF.draw.toFixed(2) + 'ms  e ' + EP.n + ' g ' + GP.n + ' fx ' + FX.n, left, H - SAFE.b - 12);
+      ctx.fillText('fps ' + PERF.fps.toFixed(0) + '  upd ' + PERF.upd.toFixed(2) + 'ms  draw ' + PERF.draw.toFixed(2) + 'ms  e ' + EP.n + ' g ' + GP.n + ' fx ' + FX.n, left, HH - SF.b - 12);
     }
   }
   function edgeArrow(x, y, col) {
-    const sx = (x - camX) * SCALE + W / 2, sy = (y - camY) * SCALE + H / 2;
+    const sx = (x - camX) * SCALE / HS + HW / 2, sy = (y - camY) * SCALE / HS + HH / 2;
     const m = 26;
-    const topY = max(SAFE.t + 60, hudBottom + 14);
-    if (sx > m && sx < W - m && sy > topY && sy < H - SAFE.b - m) return;
-    const cx = W / 2, cy = H / 2, dx = sx - cx, dy = sy - cy;
+    const topY = max(SF.t + 60, hudBottom + 14);
+    if (sx > m && sx < HW - m && sy > topY && sy < HH - SF.b - m) return;
+    const cx = HW / 2, cy = HH / 2, dx = sx - cx, dy = sy - cy;
     const a = atan2(dy, dx);
-    const hx = (W / 2 - m - SAFE.l), hy0 = (H / 2 - SAFE.b - m), hy1 = (H / 2 - topY);
+    const hx = (HW / 2 - m - SF.l), hy0 = (HH / 2 - SF.b - m), hy1 = (HH / 2 - topY);
     const tx = abs(dx) > 0.001 ? hx / abs(dx) : 1e9, ty = abs(dy) > 0.001 ? (dy > 0 ? hy0 : hy1) / abs(dy) : 1e9;
     const t = min(tx, ty);
     const ax = cx + dx * t, ay = cy + dy * t;
@@ -1688,8 +1698,11 @@
     if (dt > 0.1) dt = 0.1;
     const t0 = performance.now();
     if (G.mode === 'play' && !G.modal) {
+      // adaptive resolution: if frames stay slow, render fewer pixels (never below 1x)
+      if (dt > 0.024 && !document.hidden) slowFrames++; else if (slowFrames > 0) slowFrames--;
+      if (slowFrames > 150 && dprCap > 1 && (window.devicePixelRatio || 1) > 1) { dprCap = Math.max(1, dprCap - 0.5); slowFrames = 0; resize(); }
       const sdt = dt * DBG.speed * G.timeScale;
-      const steps = Math.max(1, Math.ceil(sdt / (1 / 45)));
+      const steps = Math.min(DBG.speed > 1 ? 12 : 3, Math.max(1, Math.ceil(sdt / (1 / 40))));
       const h = sdt / steps;
       for (let i = 0; i < steps; i++) { update(h); if (G.modal || G.mode !== 'play') break; }
     } else if (G.mode === 'title') updateTitle(dt);
@@ -1720,7 +1733,7 @@
   };
   if (DEBUG) {
     NT.debug = {
-      G, P, PERF, EP, GP, BP,
+      G, P, PERF, EP, GP, BP, get dpr() { return DPR; },
       spawn(n, type) { for (let i = 0; i < n; i++) { const a = rnd() * TAU, r = 100 + rnd() * spawnR; spawnEnemy(type === undefined ? pickType(400) : type, P.x + cos(a) * r, P.y + sin(a) * r, false); } },
       xp(v) { gainXp(v); },
       setTime(t) { G.t = t; while (G.evI < EVENTS.length && EVENTS[G.evI][0] < t) G.evI++; },

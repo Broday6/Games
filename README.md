@@ -1,5 +1,20 @@
 # Games
 
+## Pocket Arcade — phone games (install to your home screen, play offline)
+
+**Open on your phone:** <https://broday6.github.io/Games/arcade/>, then open a game and use Share → *Add to Home Screen*
+(iPhone) or ⋮ → *Install app* (Android). Each game installs as its own app icon and works offline after the first open.
+Vanilla JS, no libraries, no assets beyond the icons; everything is drawn and synthesised in code. Progress saves on the device.
+
+| Game | What it is | How to play |
+|---|---|---|
+| [**Night Tide**](arcade/nighttide/) | Vampire-Survivors-style roguelite: survive 10 minutes of shadow waves on a moonlit beach. 6 weapons with evolutions, 8 passives, Hades-style pick-1-of-3 level-ups, elite chests, bosses at 3:00 / 6:00 / 9:00, Shards → permanent upgrades and 6 unlockable castaways. | Drag anywhere to move (floating joystick); weapons fire on their own. Desktop: WASD, Esc pause, 1/2/3 pick. |
+| [**Deep Cast**](arcade/deepcast/) | Cozy-but-skillful fishing collection: 46 species across 5 waters (Old Harbour → Volcanic Vent), day/night and weather that change what bites, 5 legendaries, Fishdex, shop (rods, lines, bait, boats, coolers), bounty board. | Hold and release to cast, tap on the **!** to hook, hold to lift the green bar over the fish. Desktop: mouse or Space. |
+| [**Dice Den**](arcade/diceden/) | Neon dice lounge for one phone passed around the table, or vs bots (cautious / bluffer / calculator): **Liar's Dice** (2–6 players, privacy hand-off screens), **Farkle**, **Ship, Captain & Crew**. Play-chip wallets per profile, antes and pots, leaderboard. | Tap; bid wheels drag. Play chips only, no real money. |
+
+Testing hooks: add `?debug=1` to any game URL (Night Tide also takes `t=`, `xp=`, `spawn=`, `god=1`; Deep Cast `coins=`, `tod=`,
+`weather=`, `fish=`; Dice Den speeds animations). `arcade/tools/icons.js` regenerates a game's PNG icons from its `icon.svg`.
+
 ## DRIFTWOOD — a co-op survival roguelike (browser, 1–4 players)
 
 A Muck-inspired **first-person** survival roguelike you can play with a friend straight from a link. Wash ashore
