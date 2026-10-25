@@ -88,6 +88,7 @@
     color: #d6cff5;
   }
   .tags .go { background: var(--gold); color: #24190a; font-weight: 700; }
+  .tags .last { background: transparent; border: 1px solid var(--teal); color: var(--teal); }
 
   h3 { margin: 32px 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); }
   .help { font-size: 14px; color: var(--muted); }
@@ -253,6 +254,25 @@
       deferred.userChoice.finally(function () { deferred = null; box.classList.remove('show'); });
     });
     addEventListener('appinstalled', function () { box.classList.remove('show'); });
+
+    // Mark the game you played last so it is easy to jump back in.
+    var KEY = 'arcade.lastPlayed';
+    try {
+      var last = localStorage.getItem(KEY);
+      var lastCard = last && document.querySelector('.game[href^="' + last + '/"]');
+      if (lastCard) {
+        var tag = document.createElement('span');
+        tag.className = 'last';
+        tag.textContent = 'Last played';
+        lastCard.querySelector('.tags').appendChild(tag);
+      }
+    } catch (e) {}
+    document.querySelectorAll('.game').forEach(function (card) {
+      card.addEventListener('click', function () {
+        var slug = card.getAttribute('href').split('/')[0];
+        try { localStorage.setItem(KEY, slug); } catch (e) {}
+      });
+    });
 
     var secure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     if ('serviceWorker' in navigator && secure) {
