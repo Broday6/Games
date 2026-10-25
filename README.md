@@ -23,6 +23,19 @@ On iPhone: Safari → Share → *Add to Home Screen*. On Android: Chrome menu �
   twice. Edit lines, add sales tax, print or save as PDF, copy as text, or email. Tracks sent, overdue and paid.
 - **Money** — monthly and year-to-date invoiced, collected, spent, net and a tax set-aside; CSV exports for your accountant.
 
+**Fitness** (the Gym tab, now with its own scoreboard look)
+- **Coach**: a cutting plan to a lean body-fat goal while keeping muscle. You enter height, weight and either body fat
+  or waist/neck (and hips) for a Navy-method estimate, your activity, a goal and a pace (0.5–1% of body weight a week).
+  It sets daily calories, protein (about 1 g per lb of goal weight), carbs, fat and steps; tracks a smoothed weight
+  trend and weekly rate; estimates body fat from lean mass between weekly measurements; learns your real calorie burn
+  from two weeks of weigh-ins and food logs; and posts notes with one-tap fixes (too fast, stalled, protein short,
+  short sleep, strength slipping, diet break due, goal reached). Unsafe goals and calories below a floor are refused.
+- **Recovery score** from the morning check-in (sleep, energy) and the prior evening's stress, shown on the Coach and at
+  the top of each workout with what to change today.
+- **Strength check**: each lift's best estimated 1RM over the last 3 weeks vs the 3 before (up, holding, slipping).
+- **Fuel**: calories and macros against targets, quick-add favorites, custom foods, and (inside Claude) a meal
+  description that Claude turns into logged items. Steps and cardio feed the Body ring on rest days.
+
 **Gym**
 - Workout logger with templates (Push / Pull / Legs / Upper / Lower to start, fully editable) and a rotation that
   suggests what's next.
@@ -83,7 +96,7 @@ regularly and to move to a new phone (*Restore from file*). First launch offers 
 
 Source: [`daybook/`](daybook/) — vanilla JS modules, no build step, no dependencies. `js/work.js` (contracting),
 `js/gym.js` (training), `js/life.js` + `js/tasks.js` (to-dos, habits), `js/checkin.js` (check-ins, patterns, journal),
-`js/goals.js`, `js/habits.js`, `js/parse.js` (quick-add language), `js/sync.js` + `js/assistant.js` (Claude), `js/plan.js` (timeline, plan my day), `js/people.js`,
+`js/goals.js`, `js/habits.js`, `js/parse.js` (quick-add language), `js/sync.js` + `js/assistant.js` (Claude), `js/plan.js` (timeline, plan my day), `js/people.js`, `js/fitness.js` (coach, fuel, recovery),
 `js/today.js`, `js/more.js` (settings, backup), `js/store.js` (state),
 `sw.js` (offline cache).
 

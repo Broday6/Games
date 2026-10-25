@@ -10,6 +10,7 @@ import { current, progress } from './goals.js';
 import { logGoal } from './goals.js';
 import * as people from './people.js';
 import { planDay } from './plan.js';
+import * as fit from './fitness.js';
 
 let sample = null;
 export async function startAssistant() {
@@ -233,6 +234,45 @@ const TOOLS = [
     },
   },
   {
+    name: 'get_fitness',
+    description: 'Cut plan status: body fat now and goal, trend weight and weekly rate, today\'s calorie/protein/carb/fat targets and what has been eaten, steps, recovery score, strength check per lift, and the coach\'s current notes.',
+    execute: () => {
+      const c = fit.cut();
+      const t = fit.targets(), x = fit.intake(today()), r = fit.weeklyRate(), rd = fit.readiness();
+      return {
+        plan: c ? { body_fat_now: fit.bfNow(), goal_body_fat: num(c.goalBF), pace_pct_per_week: num(c.pace), started: c.start, trend_weight_lb: fit.trendNow() && round2(fit.trendNow()), goal_weight_lb: round2(fit.goalWeight()), weekly_change_lb: r ? round2(r.perWeek) : null } : 'No cut plan set up yet (Fitness → Coach).',
+        today: { targets: t ? { kcal: t.kcal, protein_g: t.p, carbs_g: t.c, fat_g: t.f, steps: t.steps } : null, eaten: { kcal: x.kcal, protein_g: x.p, carbs_g: x.c, fat_g: x.f }, steps: fit.stepsOn(today()), cardio_min: fit.cardioOn(today()).reduce((a, k) => a + num(k.mins), 0) },
+        recovery: rd ? { score: rd.score, advice: rd.advice } : 'No morning check-in today',
+        strength: fit.liftStatus().map(l => `${l.name}: ${l.ch > 0 ? '+' : ''}${l.ch}% (${l.status})`),
+        coach_notes: fit.notes().map(n => n.text),
+      };
+    },
+  },
+  {
+    name: 'log_food',
+    description: 'Log foods eaten today (or on date). When they describe a meal, estimate each item\'s calories and macros from typical US portions, log them, and say the totals.',
+    inputSchema: { type: 'object', properties: { date: { type: 'string' }, items: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, kcal: { type: 'number' }, protein_g: { type: 'number' }, carbs_g: { type: 'number' }, fat_g: { type: 'number' } }, required: ['name', 'kcal'] } } }, required: ['items'] },
+    execute: ({ date, items }) => {
+      const list = (items || []).map(i => ({ name: i.name, kcal: i.kcal, p: i.protein_g, c: i.carbs_g, f: i.fat_g, est: true })).filter(i => num(i.kcal) > 0);
+      if (!list.length) throw new Error('No items with calories.');
+      fit.addFood(list, isDate(date) ? date : today());
+      touch();
+      const x = fit.intake(isDate(date) ? date : today()), t = fit.targets();
+      return { logged: list.length, day_total: { kcal: x.kcal, protein_g: x.p }, remaining: t ? { kcal: t.kcal - x.kcal, protein_g: t.p - x.p } : null };
+    },
+  },
+  {
+    name: 'log_activity',
+    description: 'Record today\'s step count and/or a cardio session (kind: walk, incline, bike, run, row, hiit, other).',
+    inputSchema: { type: 'object', properties: { steps: { type: 'number' }, cardio_kind: { type: 'string' }, cardio_minutes: { type: 'number' } } },
+    execute: ({ steps, cardio_kind, cardio_minutes }) => {
+      if (steps !== undefined) S.steps = { ...(S.steps || {}), [today()]: Math.max(0, Math.round(num(steps))) };
+      if (num(cardio_minutes) > 0) S.cardio = [...(S.cardio || []), { id: uid(), date: today(), kind: cardio_kind || 'walk', mins: num(cardio_minutes) }];
+      touch();
+      return { steps: fit.stepsOn(today()), cardio_today_min: fit.cardioOn(today()).reduce((a, k) => a + num(k.mins), 0) };
+    },
+  },
+  {
     name: 'update_goal',
     description: 'Log a new current value for a goal that is updated by hand (from get_reflection goals).',
     inputSchema: { type: 'object', properties: { id: { type: 'string' }, value: { type: 'number' }, note: { type: 'string' } }, required: ['id', 'value'] },
@@ -252,6 +292,7 @@ const instructions = () => {
   return `You are the assistant inside Daybook, ${S.settings.name ? S.settings.name + '\'s' : 'the user\'s'} personal planner on their phone: contracting work, gym, to-dos, habits, check-ins and goals.
 It is ${DOW[now.getDay()]} ${today()}, ${fmtTime(hmOf(now.getTime()))}. Dates are YYYY-MM-DD, times HH:MM (24h). To-do categories: ${cats().map(c => c[1]).join(', ')}.
 Use the tools to look things up and to make changes. When they mention a task, routine, appointment or habit, add or change it right away, then confirm in one or two short sentences with the day and time. If a needed detail is missing, choose a sensible default and say what you picked; ask a question only when guessing would likely be wrong. Ask before deleting more than one item.
+For fitness, call get_fitness first. They are cutting to a lean body-fat level while keeping muscle: favor high protein, heavy lifting, steps and sleep; never suggest crash diets, eating below the plan's floor, or losing more than about 1% of body weight a week.
 People they follow up with live in the People list (save_person, log_follow_up), not as to-dos. "Plan my day" means plan_my_day.
 For advice on habits, schedules or their week, read their data first (get_day, get_reflection) and use what works: three priorities a day at most, time-block the important work, tie habits to a cue and a time of day, start small, never miss twice, protect sleep, and do a weekly review. Be warm, direct and brief: short paragraphs, at most five bullets, no headings.`;
 };
@@ -265,7 +306,7 @@ export function openChat(first = '') {
     title: 'Ask Claude',
     cls: 'chat',
     body: `<div class="chat-log" id="chat-log">${turns.length ? turns.map(t => bubble(t.role, t.content)).join('') : `<p class="muted small">Tell me what to add or change, or ask how your week is going. I can see your schedule, to-dos, habits, check-ins and goals.</p>
-        <div class="chips">${['Plan my day', 'Who do I need to follow up with?', 'How did this week go?', 'Move Bible study to 6:30pm', 'Suggest a morning routine that fits my 5:40 workouts', 'What should I focus on today?'].map(x => `<button type="button" class="chip" data-suggest="${esc(x)}">${esc(x)}</button>`).join('')}</div>`}</div>
+        <div class="chips">${['Plan my day', 'How is my cut going?', 'I had 2 eggs, toast and a protein shake', 'Who do I need to follow up with?', 'How did this week go?', 'Move Bible study to 6:30pm', 'Suggest a morning routine that fits my 5:40 workouts', 'What should I focus on today?'].map(x => `<button type="button" class="chip" data-suggest="${esc(x)}">${esc(x)}</button>`).join('')}</div>`}</div>
       <form class="chat-form" data-chat-form><label class="sr-only" for="chat-in">Message</label><textarea id="chat-in" rows="2" placeholder="Message Claude"></textarea>
         <div class="row-actions"><span class="muted small grow" data-chat-status></span><button type="button" class="btn ghost sm" data-stop hidden>Stop</button><button type="submit" class="btn primary sm">Send</button></div></form>`,
     onMount: el => {

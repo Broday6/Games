@@ -12,6 +12,7 @@ import { timeline, unplannedCount } from './plan.js';
 import { followupsCard } from './people.js';
 import * as habits from './habits.js';
 import { workoutPlannedOn } from './gym.js';
+import * as fit from './fitness.js';
 
 function welcome() {
   return `<section class="welcome">
@@ -30,11 +31,12 @@ function welcome() {
 acts.sample = () => { sampleData(S); commit(); };
 acts['start-fresh'] = () => { S.welcomed = true; commit(); };
 acts['clear-sample'] = () => { const ui = S.ui; replaceState(fresh()); S.welcomed = true; S.ui = { ...ui, lastJob: '' }; commit(); };
+acts['go-fuel'] = () => { S.ui.gymTab = 'fuel'; if (location.hash === '#gym') commit(); else location.hash = 'gym'; };
 acts['go-life'] = el => { S.ui.lifeTab = el.dataset.v; location.hash = 'life'; };
 acts['go-work'] = el => { openWork(el.dataset.v); location.hash = 'work'; };
 
 // Today is yours to arrange: More → Customize Today, or the button at the bottom.
-export const SECTIONS = [['rings', 'Your day (rings)'], ['checkin', 'Check-in prompt'], ['ask', 'Ask Claude'], ['timer', 'Time clock'], ['schedule', 'Schedule'], ['people', 'Follow-ups'], ['focus', "Today's focus"], ['todo', 'To-do'], ['habits', 'Habits'], ['gym', 'Gym'], ['week', 'This week (work numbers)'], ['quick', 'Quick buttons']];
+export const SECTIONS = [['rings', 'Your day (rings)'], ['checkin', 'Check-in prompt'], ['ask', 'Ask Claude'], ['timer', 'Time clock'], ['schedule', 'Schedule'], ['people', 'Follow-ups'], ['focus', "Today's focus"], ['todo', 'To-do'], ['habits', 'Habits'], ['fuel', 'Food (calories and protein)'], ['gym', 'Fitness'], ['week', 'This week (work numbers)'], ['quick', 'Quick buttons']];
 export function layout() {
   const saved = String(S.settings.todayLayout || '').split(',').filter(Boolean).map(x => x.split(':')).filter(([k]) => SECTIONS.some(s => s[0] === k));
   const missing = SECTIONS.filter(([k]) => !saved.some(([x]) => x === k)).map(([k]) => [k, '1']);
@@ -57,8 +59,11 @@ export function dayRings(d) {
   const hab = hs.length ? hn / hs.length : null;
   const trained = S.workouts.some(w => w.date === d);
   const due = workoutPlannedOn(d);
-  const body = trained ? 1 : due ? 0 : null;
-  return { plan, planLabel, hab, habLabel: hs.length ? `${hn} of ${hs.length}` : 'none today', body, bodyLabel: trained ? 'Trained' : due ? (due.start ? `Workout ${fmtTime(due.start)}` : 'Workout day') : 'Rest day' };
+  // Rest days count steps and cardio when a cut plan sets a step target.
+  const goal = fit.cut() ? fit.targets().steps : 0;
+  const moved = fit.stepsOn(d), cardio = fit.cardioOn(d).length;
+  const body = trained ? 1 : due ? 0 : goal ? (cardio ? 1 : Math.min(1, moved / goal)) : null;
+  return { plan, planLabel, hab, habLabel: hs.length ? `${hn} of ${hs.length}` : 'none today', body, bodyLabel: trained ? 'Trained' : due ? (due.start ? `Workout ${fmtTime(due.start)}` : 'Workout day') : goal ? `${moved.toLocaleString()} / ${goal.toLocaleString()} steps` : 'Rest day' };
 }
 const full = r => [r.plan, r.hab, r.body].filter(v => v !== null).length > 0 && [r.plan, r.hab, r.body].every(v => v === null || v >= 1);
 export function fullStreak() {
@@ -110,6 +115,7 @@ export function view() {
       ${due.length ? `<div class="list panel">${due.map(x => taskRow(x)).join('')}</div>` : ''}${quickAdd('qa-today')}</section>`,
     habits: () => { const c = habitChips(); return c ? `<section class="group"><header class="group-head"><h3>Habits</h3><button type="button" class="btn ghost sm" data-act="go-life" data-v="habits">All</button></header>${c}</section>` : ''; },
     gym: () => todayCard(),
+    fuel: () => { const s = fit.fuelSummary(); return s ? `<section class="group"><header class="group-head"><h3>Food</h3><button type="button" class="btn ghost sm" data-act="go-fuel">Log food</button></header>${s}</section>` : ''; },
     week: () => { const ws = weekStats(); return (S.jobs.length ? `<section class="group"><header class="group-head"><h3>This week</h3></header>
       <div class="stats">
         <button type="button" data-act="go-work" data-v="time"><span>Hours</span><strong>${fmtHrs(hours(ws.ms))}</strong></button>

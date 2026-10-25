@@ -174,6 +174,16 @@ export function sampleData(S) {
   ];
   S.tasks.find(x => x.title.startsWith('Call Dunmore')).mins = 15;
   S.settings.program = { 1: 't_push', 3: 't_pull', 5: 't_legs' };
+  // A cut four weeks in: measurements, two weeks of food logs, steps.
+  S.cut = { on: true, phase: 'cut', sex: 'm', height: '70', activity: 'active', goalBF: '11', pace: '0.75', steps: '10000', start: d(-28), startWeight: '193', startBF: '20.4', adj: 0 };
+  Object.assign(S.body[0], { bf: '20.4', waist: '36', neck: '15.5' });
+  S.body.find(b => b.date === d(-6)) ? Object.assign(S.body.find(b => b.date === d(-6)), { bf: '18.5', waist: '35', neck: '15.5' }) : S.body.push({ date: d(-6), weight: '189.6', bf: '18.5', waist: '35', neck: '15.5' });
+  S.food = [];
+  const meals = [['Eggs and toast', 420, 28, 34, 18], ['Chicken rice bowl', 650, 55, 70, 14], ['Protein shake', 130, 25, 4, 2], ['Steak, potatoes, salad', 780, 52, 60, 32], ['Greek yogurt and berries', 220, 24, 26, 1]];
+  for (let i = 14; i >= 1; i--) meals.forEach(([name, kcal, p, c, f], k) => { if ((i + k) % 7 !== 3) S.food.push({ id: uid() + i + k, date: d(-i), t: Date.now() - i * 864e5 + k * 1e7, name, kcal: kcal + ((i * 13 + k * 7) % 60) - 30, p, c, f }); });
+  S.food.push({ id: uid() + 'today', date: t, t: Date.now(), name: 'Eggs and toast', kcal: 420, p: 28, c: 34, f: 18 });
+  S.steps = Object.fromEntries(Array.from({ length: 7 }, (_, i) => [d(-i - 1), 7000 + ((i * 1733) % 5200)]));
+  S.cardio = [{ id: uid() + 'c1', date: d(-2), kind: 'incline', mins: 30 }];
   S.sample = true;
   S.welcomed = true;
 }

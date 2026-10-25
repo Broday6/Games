@@ -11,7 +11,7 @@ import { S, save, hooks } from './store.js';
 const LOCAL_ONLY = new Set(['ui']);
 const META = ['v', 'created', 'welcomed', 'sample'];
 const isoOf = ts => { const d = new Date(ts); return `${d.getFullYear()}`; };
-const SERIES = { workouts: x => String(x.date).slice(0, 4), checkins: x => String(x.date).slice(0, 4), time: x => isoOf(x.start), expenses: x => String(x.date).slice(0, 4), invoices: x => String(x.date).slice(0, 4) };
+const SERIES = { workouts: x => String(x.date).slice(0, 4), checkins: x => String(x.date).slice(0, 4), time: x => isoOf(x.start), expenses: x => String(x.date).slice(0, 4), invoices: x => String(x.date).slice(0, 4), food: x => String(x.date).slice(0, 4), cardio: x => String(x.date).slice(0, 4) };
 
 export const status = { state: 'off', at: 0, error: '' };
 let col = null, ready = false, pushing = false, again = false, timer = 0;

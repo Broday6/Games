@@ -15,7 +15,7 @@ import { applyTheme, watchMode } from './theme.js';
 const TABS = [
   ['today', 'Today', today],
   ['work', 'Work', work],
-  ['gym', 'Gym', gym],
+  ['gym', 'Fitness', gym],
   ['life', 'Life', life],
   ['more', 'More', more],
 ];

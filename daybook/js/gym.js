@@ -5,6 +5,7 @@ import {
   today, addDays, weekStart, fmtDate, fmtShort, relDay, daysBetween, clock, fmtDur, empty, pill, segs, bus, parseDate, DOW, WEEK_ORDER,
 } from './util.js';
 import { eventsOn } from './work.js';
+import * as fit from './fitness.js';
 import { S, commit, save, undoable, exercise, set } from './store.js';
 import { GROUPS } from './seed.js';
 import { lineChart } from './charts.js';
@@ -323,6 +324,7 @@ function activeView() {
     ? `<button type="button" class="chip${hr.on ? ' on' : ''}" data-act="hr-connect" title="${hr.on ? 'Disconnect ' + esc(hr.name) : 'Connect a Bluetooth heart-rate strap'}">${icon('heart')} <span data-hr>${hr.on ? hr.bpm || '··' : 'HR'}</span>${hr.on ? ' bpm <span data-hrzone></span>' : ''}</button>` : '';
   return `${stale ? `<div class="callout"><b>${esc(a.name)} from ${esc(fmtDate(a.date, { weekday: 'long' }))} was never finished.</b> ${doneSets ? `It has ${doneSets} logged set${doneSets > 1 ? 's' : ''}.` : 'No sets were logged.'}
       <div class="row-actions wrap">${doneSets ? `<button type="button" class="btn primary sm" data-act="wo-finish">Save it to ${esc(fmtDate(a.date, { weekday: 'long' }))}</button>` : ''}<button type="button" class="btn ghost sm danger-text" data-act="wo-discard">Discard it</button></div></div>` : ''}
+    ${!stale && fit.readiness() ? `<div class="ready-strip ${fit.readiness().level}"><b>${fit.readiness().score}</b><span>${esc(fit.readiness().advice)}</span></div>` : ''}
     <section class="wo-head">
       <div class="wo-title"><label class="sr-only" for="wo-name">Workout name</label><input id="wo-name" class="wo-name" data-chg="wo-name" value="${esc(a.name)}">
         <span class="muted">${stale ? esc(fmtDate(a.date)) : `<span data-since="${a.start}">0:00</span>`} · ${setCount(a.items)} sets · ${fmtW(volume(a.items))}</span></div>
@@ -608,8 +610,8 @@ document.addEventListener('submit', e => {
   e.preventDefault();
   const v = num(e.target.querySelector('input').value);
   if (!v) return toast('Enter your weight.');
-  S.body = S.body.filter(b => b.date !== today());
-  S.body.push({ date: today(), weight: String(v) });
+  const entry = S.body.find(b => b.date === today());
+  if (entry) entry.weight = String(v); else S.body.push({ date: today(), weight: String(v) });
   commit();
   toast(`Logged ${v} ${U()}`);
 });
@@ -680,11 +682,11 @@ export function updateTools() {
 document.addEventListener('input', e => { if (e.target.closest('[data-tool]')) { updateTools(); save(); } });
 
 // ---------- view ----------
-const TABS = [['workout', 'Workout'], ['history', 'History'], ['progress', 'Progress'], ['tools', 'Tools']];
+const TABS = [['coach', 'Coach'], ['workout', 'Workout'], ['fuel', 'Fuel'], ['progress', 'Progress'], ['history', 'History'], ['tools', 'Tools']];
 export function view() {
-  const tab = TABS.some(t => t[0] === S.ui.gymTab) ? S.ui.gymTab : 'workout';
-  const body = tab === 'workout' ? (S.active ? activeView() : startView()) : tab === 'history' ? historyView() : tab === 'progress' ? progressView() : toolsView();
-  return `${segs('gym-tab', TABS.map(([v, l]) => [v, v === 'workout' && S.active ? 'Workout •' : l]), tab)}<div class="tab-body">${body}</div>`;
+  const tab = TABS.some(t => t[0] === S.ui.gymTab) ? S.ui.gymTab : 'coach';
+  const body = { coach: fit.coachView, workout: () => (S.active ? activeView() : startView()), fuel: fit.fuelView, history: historyView, progress: progressView, tools: toolsView }[tab]();
+  return `<div class="fit-zone">${segs('gym-tab', TABS.map(([v, l]) => [v, v === 'workout' && S.active ? 'Workout •' : l]), tab)}<div class="tab-body">${body}</div></div>`;
 }
 export function after() { updateTools(); tickRest(); syncWakeLock(); }
 acts['gym-tab'] = el => { S.ui.gymTab = el.dataset.v; commit(); window.scrollTo(0, 0); };
