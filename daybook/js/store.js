@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS = {
   invNote: 'Thank you for your business.', payNote: '',
   units: 'lb', bar: '45', plates: '45, 35, 25, 10, 5, 2.5', rest: '120', setTarget: '12', age: '',
   checkins: 'on', amTime: '07:00', pmTime: '20:30', reviewDay: '0',
+  skin: 'chalk', mode: 'auto', text: 'auto', density: 'comfortable', nav: 'auto',
   cats: 'Work, Personal, Home, Errand, Health', ciScales: 'sleep,energy,mood,stress', ciMorningQ: '', ciEveningQ: '', ciWeeklyQ: '', todayLayout: '',
 };
 

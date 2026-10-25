@@ -96,4 +96,5 @@ acts['today-layout'] = () => {
     },
   });
 };
+export const greeting = () => { const h = new Date().getHours(); const n = String(S.settings.name || '').split(' ')[0]; return `${h < 5 ? 'Up early' : h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'}${n ? ', ' + n : ''}`; };
 export const title = () => fmtDate(today(), { weekday: 'long', month: 'long', day: 'numeric' });

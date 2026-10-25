@@ -56,6 +56,11 @@ On iPhone: Safari → Share → *Add to Home Screen*. On Android: Chrome menu �
 phone and computer and Claude can read and update it from a chat. An **Ask Claude** button lets you change things by
 talking ("move Bible study to 6:30", "plan my day", "how did this week go?"); every change it makes can be undone.
 
+**Themes**: six complete looks, each with its own typefaces, colors, shapes and card style, in light and dark:
+Chalk Line, Field Notes (kraft paper and typewriter type), Blueprint, Iron (gym-floor graphite and poster type), Sunday
+(sage and a soft serif) and Job Site (maximum contrast and big type for full sun). Text size, spacing and a floating or
+edge tab bar are separate options under More → Appearance.
+
 **Make it yours**: rearrange or hide Today's sections, write your own check-in questions and choose which scales to
 ask, rename or add to-do categories, and type to-dos in plain language with a live preview
 ("Call Wes tomorrow 9am #work", "Follow up with Mark every Mon and Thu", "Gutters this weekend #home").

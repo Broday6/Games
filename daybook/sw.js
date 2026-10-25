@@ -1,8 +1,8 @@
 // Offline support: serve the app shell from cache, refresh it in the background when online.
-const CACHE = 'daybook-v4';
+const CACHE = 'daybook-v5';
 const SHELL = [
   './', 'index.html', 'style.css', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png',
-  'js/app.js', 'js/util.js', 'js/store.js', 'js/seed.js', 'js/charts.js', 'js/today.js', 'js/work.js', 'js/gym.js', 'js/life.js', 'js/more.js', 'js/tasks.js', 'js/checkin.js', 'js/goals.js', 'js/habits.js', 'js/parse.js', 'js/sync.js', 'js/assistant.js',
+  'js/app.js', 'js/util.js', 'js/store.js', 'js/seed.js', 'js/charts.js', 'js/today.js', 'js/work.js', 'js/gym.js', 'js/life.js', 'js/more.js', 'js/tasks.js', 'js/checkin.js', 'js/goals.js', 'js/habits.js', 'js/parse.js', 'js/sync.js', 'js/assistant.js', 'js/theme.js',
 ];
 
 self.addEventListener('install', e => {

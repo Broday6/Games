@@ -4,6 +4,7 @@ import { S, commit, save, storage, exportJSON, importJSON, replaceState, fresh }
 import { status as sync } from './sync.js';
 import { available as askAvailable } from './assistant.js';
 import { DEFAULT_Q, customQ } from './checkin.js';
+import { THEMES, theme, tokensCss, loadFonts } from './theme.js';
 
 const f = (k, label, hint = '', attrs = '') => `<label class="field"><span class="lbl">${esc(label)}</span><input id="set-${k}" data-chg="setting" data-k="${k}" value="${esc(S.settings[k])}" ${attrs}>${hint ? `<small>${hint}</small>` : ''}</label>`;
 const sel = (k, label, opts) => `<label class="field"><span class="lbl">${esc(label)}</span><select id="set-${k}" data-chg="setting" data-k="${k}">${opts.map(([v, l]) => `<option value="${esc(v)}"${String(S.settings[k]) === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
@@ -25,6 +26,9 @@ function installHelp() {
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
   const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   if (standalone) return '<p class="muted small">Installed. Daybook opens full-screen from your home screen and works offline.</p>';
+  if (window.top !== window) return `<ol class="install-steps"><li>Open your Daybook link in ${ios ? '<b>Safari</b>' : '<b>Chrome</b>'} and sign in to Claude if asked.</li>
+    <li>${ios ? 'Tap <b>Share</b> (the square with the arrow), then <b>Add to Home Screen</b>.' : 'Tap the <b>⋮</b> menu, then <b>Add to Home screen</b>.'}</li>
+    <li>Name it <b>Daybook</b> and tap <b>Add</b>. It opens from your home screen, stays synced with your Claude account, and keeps Ask Claude.</li></ol>`;
   return `<p class="muted small">${ios ? 'In Safari tap Share, then <b>Add to Home Screen</b>.' : 'In Chrome or Edge open the browser menu and choose <b>Install app</b> or <b>Add to Home screen</b>.'} It then opens full-screen and works offline.</p>
     ${deferredPrompt ? `<button type="button" class="btn" data-act="install">${icon('download')} Install Daybook</button>` : ''}`;
 }
@@ -34,7 +38,19 @@ acts.install = async () => { if (!deferredPrompt) return; deferredPrompt.prompt(
 
 export function view() {
   const counts = `${S.jobs.length} jobs · ${S.time.length} time entries · ${S.invoices.length} invoices · ${S.workouts.length} workouts · ${S.checkins.length} check-ins · ${S.goals.length} goals`;
-  return `<section class="group"><header class="group-head"><h3>You and your business</h3></header><div class="panel pad form">
+  const optSeg = (k, items, def) => `<div class="segs" role="radiogroup">${items.map(([v, l]) => `<button type="button" class="seg${(S.settings[k] || def) === v ? ' on' : ''}" data-act="appearance" data-k="${k}" data-v="${v}" role="radio" aria-checked="${(S.settings[k] || def) === v}">${esc(l)}</button>`).join('')}</div>`;
+  const cur = theme();
+  const appearance = `<section class="group"><header class="group-head"><h3>Appearance</h3><span class="muted">${esc(cur.name)}</span></header><div class="panel pad form">
+      <div class="theme-grid">${THEMES.map(t => { loadFonts(t); const dark = t.single === 'dark' || document.documentElement.dataset.dark === '1'; return `<button type="button" class="theme-card${t.id === cur.id ? ' on' : ''}" data-act="appearance" data-k="skin" data-v="${t.id}" aria-pressed="${t.id === cur.id}">
+        <div class="tc-preview" style="${esc(tokensCss(t, dark))}"><span class="tc-title" style="text-transform:${t.headings === 'upper' ? 'uppercase' : 'none'}">Monday</span>
+          <span class="tc-row"><span>Workout</span><b>5:40am</b></span><span class="tc-row"><span>Bible study</span><b>7pm</b></span><span class="tc-btn">Check in</span></div>
+        <span class="tc-name">${esc(t.name)}${t.id === cur.id ? icon('check') : ''}</span></button>`; }).join('')}</div>
+      <p class="muted small">${esc(cur.blurb)}</p>
+      <div class="opt-row"><span class="lbl muted small">Light or dark${cur.single ? ' (this theme has one look)' : ''}</span>${optSeg('mode', [['auto', 'Match phone'], ['light', 'Light'], ['dark', 'Dark']], 'auto')}</div>
+      <div class="opt-row"><span class="lbl muted small">Text size</span>${optSeg('text', [['auto', 'Theme'], ['small', 'Small'], ['normal', 'Normal'], ['large', 'Large'], ['xl', 'Extra large']], 'auto')}</div>
+      <div class="grid2"><div class="opt-row"><span class="lbl muted small">Spacing</span>${optSeg('density', [['comfortable', 'Roomy'], ['compact', 'Compact']], 'comfortable')}</div>
+      <div class="opt-row"><span class="lbl muted small">Tab bar</span>${optSeg('nav', [['auto', 'Theme'], ['bar', 'Edge'], ['float', 'Floating']], 'auto')}</div></div></div></section>`;
+  return `${appearance}<section class="group"><header class="group-head"><h3>You and your business</h3></header><div class="panel pad form">
       <div class="grid2">${f('name', 'Your name')}${f('biz', 'Business name', 'Shown at the top of invoices.')}</div>
       ${f('bizAddr', 'Business address')}
       <div class="grid2">${f('bizPhone', 'Phone', '', 'type="tel"')}${f('bizEmail', 'Email', '', 'type="email"')}</div></div></section>
@@ -94,6 +110,11 @@ acts['ci-questions'] = () => {
     s.el.querySelectorAll('[data-q-key]').forEach(t => { S.settings[t.dataset.qKey] = t.value.split('\n').map(x => x.trim()).filter(Boolean).join('\n'); });
     s.close(); commit(); toast('Questions saved');
   };
+};
+acts.appearance = el => {
+  S.settings[el.dataset.k] = el.dataset.v;
+  commit();
+  if (el.dataset.k === 'skin') toast(`${theme().name} theme`, { ms: 1400 });
 };
 acts.backup = () => { download(`daybook-backup-${today()}.json`, exportJSON(), 'application/json'); S.ui.lastBackup = today(); save(); };
 acts['backup-copy'] = () => copyText(exportJSON(), 'Backup copied. Paste it into a note or email to yourself.');

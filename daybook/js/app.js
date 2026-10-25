@@ -10,6 +10,7 @@ import * as more from './more.js';
 import './checkin.js';
 import { startSync, status as syncStatus } from './sync.js';
 import { startAssistant, available as askAvailable } from './assistant.js';
+import { applyTheme, watchMode } from './theme.js';
 
 const TABS = [
   ['today', 'Today', today],
@@ -22,11 +23,12 @@ const MOD = Object.fromEntries(TABS.map(t => [t[0], t]));
 const current = () => (MOD[location.hash.slice(1)] ? location.hash.slice(1) : 'today');
 
 function render() {
+  applyTheme();
   const tab = current();
   const [, label, mod] = MOD[tab];
   const main = $('#main');
   $('#page-title').textContent = tab === 'today' ? today.title() : label;
-  $('#page-eyebrow').textContent = tab === 'today' ? 'Daybook' : today.title();
+  $('#page-eyebrow').textContent = tab === 'today' ? today.greeting() : today.title();
   const banner = S.sample ? `<div class="banner">Sample data. Nothing here is real. <button type="button" class="link" data-act="clear-sample">Clear and start fresh</button></div>`
     : more.backupDue() && tab === 'today' ? `<div class="banner">It has been a while since your last backup. <a class="link" href="#more">Back up now</a></div>` : '';
   main.innerHTML = banner + mod.view();
@@ -78,6 +80,8 @@ function applyPack(pack) {
 
 function boot() {
   load();
+  applyTheme();
+  watchMode();
   applyPack(window.DAYBOOK_PACK);
   $('#nav').innerHTML = TABS.map(([id, label]) => `<a href="#${id}" data-tab="${id}">${icon(id)}<span>${label}</span></a>`).join('');
   lastTab = current();
